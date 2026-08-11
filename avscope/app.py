@@ -17,6 +17,7 @@ from avscope.models import FieldInfo, FrameInfo, ParseNode, ParseResult, Severit
 from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.search import SearchPatternError, find_pattern, parse_search_pattern
 from avscope.settings import AppSettings
+from avscope.yuv_preview import build_yuv_preview
 
 
 HEX_BYTE_RE = re.compile(r"\b[0-9A-Fa-f]{2}\b")
@@ -546,6 +547,7 @@ class AVScopeApp(tk.Tk):
         self._last_node_search = None
         self.result = self.analyzer.analyze(path, self._raw_options_for_path(path))
         self._attach_video_preview(path)
+        self._attach_yuv_preview(path)
         self._render_result()
         self._load_hex(0)
         self.file_badge.configure(text=f"{path.name}  |  {self.result.media.format_name}")
@@ -560,6 +562,7 @@ class AVScopeApp(tk.Tk):
             return
         self.raw_options_by_path.pop(str(self.current_file), None)
         self.result = self.analyzer.analyze(self.current_file, self._raw_options_for_path(self.current_file, force=True))
+        self._attach_yuv_preview(self.current_file)
         self._render_result()
         self._load_hex(self.current_hex_offset)
         self._render_summary_cards()
@@ -612,6 +615,7 @@ class AVScopeApp(tk.Tk):
         self.preview.delete("1.0", tk.END)
         self.preview.insert(tk.END, self._preview_text())
         self._render_video_preview()
+        self._render_yuv_preview()
 
     def _render_tree(self) -> None:
         if not self.result:
@@ -821,6 +825,16 @@ class AVScopeApp(tk.Tk):
         elif video_preview.get("error"):
             lines.append(f"视频首帧预览: {video_preview.get('error')}")
             lines.append("")
+        yuv_preview = self.result.media.summary.get("yuv_preview", {})
+        if yuv_preview.get("available") and yuv_preview.get("path"):
+            lines.append(
+                f"Raw YUV 首帧预览: 已生成 {yuv_preview.get('width')}x{yuv_preview.get('height')} "
+                f"{yuv_preview.get('pixel_format')}，见下方画面。"
+            )
+            lines.append("")
+        elif yuv_preview.get("error"):
+            lines.append(f"Raw YUV 首帧预览: {yuv_preview.get('error')}")
+            lines.append("")
         packet_timeline = self.result.media.summary.get("packet_timeline", {})
         packets = packet_timeline.get("packets", [])
         if packets:
@@ -837,6 +851,17 @@ class AVScopeApp(tk.Tk):
             return
         self.result.media.summary["video_preview"] = build_video_preview(path)
 
+    def _attach_yuv_preview(self, path: Path) -> None:
+        if not self.result or self.result.media.format_name != "Raw YUV":
+            return
+        summary = self.result.media.summary
+        self.result.media.summary["yuv_preview"] = build_yuv_preview(
+            path,
+            int(summary.get("width", 0)),
+            int(summary.get("height", 0)),
+            str(summary.get("pixel_format", "")),
+        )
+
     def _render_video_preview(self) -> None:
         self._preview_images.clear()
         if not self.result:
@@ -852,6 +877,23 @@ class AVScopeApp(tk.Tk):
             return
         self._preview_images.append(image)
         self.preview.insert(tk.END, "\n视频首帧画面\n")
+        self.preview.image_create(tk.END, image=image)
+        self.preview.insert(tk.END, "\n")
+
+    def _render_yuv_preview(self) -> None:
+        if not self.result:
+            return
+        yuv_preview = self.result.media.summary.get("yuv_preview", {})
+        image_path = yuv_preview.get("path")
+        if not image_path:
+            return
+        try:
+            image = tk.PhotoImage(file=str(image_path))
+        except tk.TclError as exc:
+            self.preview.insert(tk.END, f"\nRaw YUV 首帧画面加载失败: {exc}")
+            return
+        self._preview_images.append(image)
+        self.preview.insert(tk.END, "\nRaw YUV 首帧画面\n")
         self.preview.image_create(tk.END, image=image)
         self.preview.insert(tk.END, "\n")
 

@@ -33,6 +33,7 @@ from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
+from avscope.yuv_preview import build_yuv_preview, yuv_frame_size, yuv_to_rgb
 
 
 ROOT = Path("G:/AVScope/tmp/testdata")
@@ -643,6 +644,29 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(result["width"], 320)
         self.assertEqual(result["height"], 180)
         self.assertTrue(Path(result["path"]).exists())
+
+    def test_yuv_preview_helpers(self):
+        self.assertEqual(yuv_frame_size(2, 2, "yuv420p"), 6)
+        white = yuv_to_rgb(bytes([235, 235, 235, 235, 128, 128]), 2, 2, "yuv420p")
+        self.assertEqual(white, b"\xFF\xFF\xFF" * 4)
+        black = yuv_to_rgb(bytes([16, 16, 16, 16, 128, 128]), 2, 2, "nv12")
+        self.assertEqual(black, b"\x00\x00\x00" * 4)
+
+    def test_yuv_preview_build(self):
+        sample_dir = ROOT / "yuv_preview_sample"
+        generate_samples(sample_dir)
+        result = build_yuv_preview(sample_dir / "sample.yuv", 64, 48, "yuv420p", output_dir=ROOT / "yuv-previews")
+        self.assertTrue(result["available"])
+        self.assertEqual(result["width"], 64)
+        self.assertEqual(result["height"], 48)
+        ppm = Path(result["path"]).read_bytes()
+        self.assertTrue(ppm.startswith(b"P6\n64 48\n255\n"))
+
+    def test_yuv_preview_rejects_incomplete_frame(self):
+        path = write(ROOT / "short.yuv", b"\x10" * 4)
+        result = build_yuv_preview(path, 4, 4, "yuv420p", output_dir=ROOT / "yuv-previews")
+        self.assertFalse(result["available"])
+        self.assertIn("incomplete", result["error"])
 
     def test_protocol_tree_search_and_issue_helpers(self):
         root = ParseNode("root", "file", 0, 16)

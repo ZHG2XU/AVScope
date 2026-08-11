@@ -49,16 +49,17 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 17. 打开 `G:\AVScope\samples\sample.ts`，检查 MPEG-TS packet 节点中是否显示 `pid`、`payload_unit_start_indicator`、`adaptation_field_control` 和 `continuity_counter`，并确认诊断规则可覆盖 continuity counter 跳变。
 18. 打开 `G:\AVScope\samples\sample.pcap`，检查 PCAP/RTP 节点中是否显示 `src_ip`、`dst_ip`、`udp_src_port`、`rtp_payload_type`、`rtp_sequence`、`rtp_timestamp` 和 `rtp_ssrc`。
 19. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
-20. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
-21. 查看诊断面板，确认工具可在 ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调或音视频时长差异时输出 warning。
-22. 使用“分析 / 协议结构对比”对比：
+20. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“预览”页是否显示 Raw YUV 首帧画面。
+21. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
+22. 查看诊断面板，确认工具可在 ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调或音视频时长差异时输出 warning。
+23. 使用“分析 / 协议结构对比”对比：
     - `G:\AVScope\samples\sample.mp4`
     - `G:\AVScope\samples\sample_changed.mp4`
-23. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记。
-24. 使用“文件 / 保存工程”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径和 Raw 参数。
-25. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，确认声明式插件模板随产物交付。
-26. 导出 HTML/JSON/CSV 报告并打开检查，确认 HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含“帧列表”章节；CSV 应包含 `media`、`frame`、`node`、`field` 等 section。
-27. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
+24. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记。
+25. 使用“文件 / 保存工程”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径和 Raw 参数。
+26. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，确认声明式插件模板随产物交付。
+27. 导出 HTML/JSON/CSV 报告并打开检查，确认 HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含“帧列表”章节；CSV 应包含 `media`、`frame`、`node`、`field` 等 section。
+28. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
 
 ## 当前已知边界
 
