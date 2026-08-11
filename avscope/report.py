@@ -10,6 +10,7 @@ from typing import Any
 
 from avscope import __version__
 from avscope.models import ParseNode, ParseResult
+from avscope.timeline_viz import timeline_chart_items
 
 
 def export_json(result: ParseResult, path: str | Path) -> None:
@@ -110,7 +111,9 @@ def export_html(result: ParseResult, path: str | Path) -> None:
     nodes = _node_html(result.root)
     waveform = result.media.summary.get("waveform", {})
     waveform_html = _waveform_html(waveform)
-    timeline_html = _timeline_html(result.media.summary.get("packet_timeline", {}).get("packets", [])[:100])
+    packets = result.media.summary.get("packet_timeline", {}).get("packets", [])
+    timeline_chart_html = _timeline_chart_html(doc["frames"], packets)
+    timeline_html = _timeline_html(packets[:100])
     frame_html = _frame_html(doc["frames"][:200])
     stream_html = _stream_html(result.media.summary.get("ffprobe", {}).get("streams", []))
     generated_at = html.escape(doc["generated_at"])
@@ -240,6 +243,13 @@ def export_html(result: ParseResult, path: str | Path) -> None:
     .waveform-chart .axis {{ stroke: #a5b4c3; stroke-width: 1.2; }}
     .waveform-chart .bar {{ stroke: var(--accent); stroke-width: 2.2; stroke-linecap: round; }}
     .waveform-chart .rms {{ stroke: var(--ok); stroke-width: 1.1; stroke-linecap: round; opacity: 0.72; }}
+    .timeline-chart {{ width: 100%; height: 170px; display: block; margin: 2px 0 14px; }}
+    .timeline-chart .bg {{ fill: var(--panel-soft); }}
+    .timeline-chart .grid {{ stroke: #d9e3ec; stroke-width: 1; }}
+    .timeline-chart .axis {{ stroke: #a5b4c3; stroke-width: 1.2; }}
+    .timeline-chart .bar {{ fill: var(--accent); }}
+    .timeline-chart .key {{ fill: var(--ok); }}
+    .chart-caption {{ color: var(--muted); font-size: 12px; margin: -4px 0 8px; }}
     .waveform {{ white-space: pre; line-height: 1.1; margin-top: 10px; }}
     @media (max-width: 720px) {{
       header {{ padding: 24px 18px; }}
@@ -292,6 +302,7 @@ def export_html(result: ParseResult, path: str | Path) -> None:
     </section>
     <section>
       <h2>帧列表</h2>
+      {timeline_chart_html}
       {frame_html}
     </section>
     <section>
@@ -454,6 +465,47 @@ def _sample_peaks(peaks: list[dict], max_points: int) -> list[dict]:
 def _waveform_y(value: float, top: int, bottom: int) -> float:
     clamped = max(-1.0, min(1.0, value))
     return top + (1.0 - clamped) * (bottom - top) / 2.0
+
+
+def _timeline_chart_html(frames: list[dict], packets: list[dict]) -> str:
+    items = timeline_chart_items(frames, packets, limit=220)
+    if not items:
+        return "<p class=\"empty\">暂无可展示的帧/packet 大小图。</p>"
+    width = 720
+    height = 150
+    left = 12
+    right = width - 12
+    top = 12
+    bottom = height - 24
+    max_size = max(item["size"] for item in items)
+    plot_width = max(1, right - left)
+    slot = plot_width / max(1, len(items))
+    bar_width = max(1.5, min(8.0, slot * 0.72))
+    bars = []
+    for index, item in enumerate(items):
+        x = left + index * slot + slot / 2
+        bar_height = max(2.0, item["size"] / max_size * (bottom - top))
+        y = bottom - bar_height
+        cls = "key" if item.get("keyframe") else "bar"
+        bars.append(
+            f'<rect class="{cls}" x="{x - bar_width / 2:.2f}" y="{y:.2f}" width="{bar_width:.2f}" height="{bar_height:.2f}" rx="1.2" />'
+        )
+    grid_lines = "\n".join(
+        [
+            f'<line class="grid" x1="{left}" y1="{top + (bottom - top) * 0.25:.2f}" x2="{right}" y2="{top + (bottom - top) * 0.25:.2f}" />',
+            f'<line class="axis" x1="{left}" y1="{top + (bottom - top) * 0.5:.2f}" x2="{right}" y2="{top + (bottom - top) * 0.5:.2f}" />',
+            f'<line class="grid" x1="{left}" y1="{top + (bottom - top) * 0.75:.2f}" x2="{right}" y2="{top + (bottom - top) * 0.75:.2f}" />',
+        ]
+    )
+    caption = f"{len(items)} 项，最大 size={max_size} bytes；绿色表示关键帧。"
+    return (
+        f'<svg class="timeline-chart" viewBox="0 0 {width} {height}" role="img" aria-label="帧/Packet 大小图">'
+        f'<rect class="bg" x="0" y="0" width="{width}" height="{height}" rx="8" />'
+        f"{grid_lines}"
+        f"{''.join(bars)}"
+        "</svg>"
+        f'<p class="chart-caption">{caption}</p>'
+    )
 
 
 def _stream_html(streams: list[dict]) -> str:

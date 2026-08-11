@@ -21,7 +21,6 @@ from avscope.app import (
     issue_summary_state,
     node_has_issue,
     node_matches_query,
-    timeline_chart_items,
 )
 from avscope.analyzer import Analyzer, build_probe_diagnostics, build_timeline_diagnostics
 from avscope.byte_source import ByteSource
@@ -34,6 +33,7 @@ from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
+from avscope.timeline_viz import timeline_chart_items
 from avscope.waveform import build_waveform_preview
 from avscope.yuv_preview import build_yuv_preview, yuv_frame_size, yuv_to_rgb
 
@@ -509,6 +509,8 @@ class ParserTests(unittest.TestCase):
         html_text = html_path.read_text(encoding="utf-8")
         self.assertIn('class="waveform-chart"', html_text)
         self.assertIn("音频波形图", html_text)
+        self.assertIn('class="timeline-chart"', html_text)
+        self.assertIn("帧/Packet 大小图", html_text)
         pcm_json = ROOT / "cli_pcm_report.json"
         exit_code = cli_main(
             [

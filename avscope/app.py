@@ -17,6 +17,7 @@ from avscope.models import FieldInfo, FrameInfo, ParseNode, ParseResult, Severit
 from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.search import SearchPatternError, find_pattern, parse_search_pattern
 from avscope.settings import AppSettings
+from avscope.timeline_viz import timeline_chart_items
 from avscope.waveform import build_waveform_preview
 from avscope.yuv_preview import build_yuv_preview
 
@@ -1407,48 +1408,6 @@ def field_highlight_size(field: FieldInfo) -> int:
     if field.bit_length is not None and field.bit_length > 0:
         return max(1, (field.bit_length + 7) // 8)
     return 1
-
-
-def timeline_chart_items(frames: list[FrameInfo], packets: list[dict], limit: int = 360) -> list[dict]:
-    limit = max(1, int(limit))
-    items = [
-        {"index": frame.index, "size": int(frame.size), "keyframe": bool(frame.keyframe), "kind": "frame"}
-        for frame in frames
-        if frame.size > 0
-    ]
-    if not items:
-        for packet in packets:
-            try:
-                size = int(packet.get("size", 0) or 0)
-            except (TypeError, ValueError):
-                size = 0
-            if size <= 0:
-                continue
-            items.append(
-                {
-                    "index": packet.get("index", len(items)),
-                    "size": size,
-                    "keyframe": bool(packet.get("keyframe")),
-                    "kind": str(packet.get("codec_type") or "packet"),
-                }
-            )
-    if len(items) <= limit:
-        return items
-    sampled = []
-    for index in range(limit):
-        start = index * len(items) // limit
-        end = max(start + 1, (index + 1) * len(items) // limit)
-        bucket = items[start:end]
-        largest = max(bucket, key=lambda item: item["size"])
-        sampled.append(
-            {
-                "index": largest["index"],
-                "size": largest["size"],
-                "keyframe": any(item.get("keyframe") for item in bucket),
-                "kind": largest["kind"],
-            }
-        )
-    return sampled
 
 
 def calculate_timestamp_seconds(timestamp: int | float, time_base_num: int | float, time_base_den: int | float) -> float:
