@@ -26,12 +26,12 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - WAV 可解析 PCM 格式参数、data 字节数、帧数、时长，并校验 byte_rate/block_align。
 - Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、大小端、有符号/无符号、宽高、像素格式和帧率。
 - Raw YUV 可在预览页逐帧查看画面，支持 `yuv420p`、`nv12`、`nv21`、`yuyv422`。
-- 显示协议树、字段表、Hex 分页视图、帧列表和带帧大小柱状图的基础时间线，协议树、字段表和帧列表均可联动跳转 Hex。
+- 显示协议树、字段表、Hex 分页视图、帧列表和带帧/packet 大小柱状图、PTS/DTS、码率、GOP、RTP sequence、PCR 与异常标记的时间线，协议树、字段表和帧列表均可联动跳转 Hex。
 - 顶部摘要条显示格式、大小、节点数、诊断数量和解析耗时，底部状态栏同步记录本次分析耗时。
 - 对解析器帧列表生成帧统计摘要，包含关键帧数、关键帧间隔、GOP 分组结构、平均帧大小、最大帧大小和帧类型分布。
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
 - 对 ffprobe packet 时间线生成 packet 统计摘要，包含 stream 数、packet 数、关键包数、平均/最大 packet 大小和 PTS 跨度。
-- PCAP/RTP 会在时间线摘要、预览页和 HTML/JSON/CSV 报告中显示 RTP sequence 曲线、SSRC 分组、marker 包数量和 sequence 跳变异常点。
+- PCAP/RTP 会在时间线摘要、预览页和 HTML/JSON/CSV 报告中显示 RTP sequence 曲线、SSRC 分组、marker 包数量和 sequence 跳变异常点，GUI/HTML 的 `Issue` 列会标注异常原因。
 - 对含视频流的文件使用现有 FFmpeg 生成 PNG 预览帧，支持在 GUI 中按 1 秒步进生成上一/下一预览帧，预览缓存写入 `G:\AVScope\tmp\previews`。
 - 视频预览帧会附带 ffprobe 帧元信息，预览页显示当前帧 PTS/DTS、duration、帧类型、关键帧标记、帧大小、分辨率和像素格式，并可通过“分析 / 跳转预览时间”“跳转预览帧号”“上一关键帧预览”“下一关键帧预览”按秒、帧号或关键帧跳转。
 - 分析菜单可使用现有 FFmpeg 提取当前文件的首路音频、首路视频或首个关键帧 PNG。
@@ -41,7 +41,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 输出基础诊断 warning/error，ffprobe 媒体流或 packet 时间线探测失败会转为可读 warning，并基于解析结构/packet 时间线提示 MP4 chunk offset 异常、PTS/DTS 非单调、音视频时长差异和帧/packet 大小尖峰。
 - 单元测试覆盖 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 典型损坏文件，验证解析失败不会导致程序崩溃并会输出诊断。
 - 支持保存 `.avscope.json` 工程快照，记录当前分析结果、源文件路径和 Raw 参数。
-- 导出独立 HTML、JSON、CSV 报告，支持写入用户备注；HTML 报告包含音频波形图、结构化统计摘要、帧/packet 大小图、GOP 结构图、RTP sequence 曲线、帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、备注、诊断、帧统计、packet 统计、帧、packet、节点和字段。
+- 导出独立 HTML、JSON、CSV 报告，支持写入用户备注；HTML 报告包含音频波形图、结构化统计摘要、帧/packet 大小图、PTS/DTS 曲线、码率曲线、GOP 结构图、RTP sequence 曲线、PCR 曲线、时间线异常清单、帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、备注、诊断、时间线异常、帧统计、packet 统计、帧、packet、节点和字段。
 - 支持两个文件的二进制差异扫描，并输出 offset 对齐的左右 Hex/ASCII 并排差异表；GUI 可用 F4 跳转下一个差异窗口。
 - 支持两个文件的帧级对比，按 frame index 汇总新增、删除和 size/PTS/DTS/duration/type/keyframe 差异，并可从 GUI 或 CLI 导出 JSON。
 - 预留声明式插件模板机制，可在 `plugins\*.json` 中按魔数扩展私有格式识别和字段展示。
@@ -125,7 +125,7 @@ G:\AVScope
 │   ├── analyzer.py      格式识别与解析入口
 │   ├── byte_source.py   大文件随机读取抽象
 │   ├── compare.py       二进制对比
-│   ├── report.py        HTML/JSON 报告
+│   ├── report.py        HTML/JSON/CSV 报告
 │   └── app.py           Tkinter 桌面 UI
 ├── tests\               单元测试
 ├── samples\             示例文件目录
@@ -170,6 +170,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\make_release_manifes
 
 ## 时间线曲线摘要
 
-- 分析结果会写入 `media.summary.timeline_summary`，包含 PTS/DTS 范围、非单调计数、码率 bucket 曲线、关键帧/GOP 间隔、GOP 分组结构和抽样后的曲线点。
-- GUI “时间线”页会在帧/packet 大小柱状图上叠加 PTS/DTS 曲线、码率曲线、GOP 分段和时间戳异常标记；“预览”页会显示 PTS/DTS、码率、GOP 结构和异常摘要。
-- HTML 报告会显示“时间线曲线摘要”表、PTS/DTS 曲线、码率曲线、GOP 结构图、RTP sequence 曲线和异常点，JSON/CSV 报告会保留 `timeline_summary` 结构化数据。
+- 分析结果会写入 `media.summary.timeline_summary`，包含 PTS/DTS 范围、非单调计数、码率 bucket 曲线、关键帧/GOP 间隔、GOP 分组结构、RTP sequence 摘要、MPEG-TS PCR 摘要和抽样后的曲线点。
+- GUI “时间线”页会在帧/packet 大小柱状图上叠加 PTS/DTS 曲线、码率曲线、GOP 分段、RTP sequence 曲线、PCR 曲线和异常标记；异常行会高亮并在 `Issue` 列显示原因，可勾选“只看时间线异常”筛选。
+- “预览”页会显示 PTS/DTS、码率、GOP 结构、RTP sequence、PCR 和统一的时间线异常原因摘要。
+- HTML 报告会显示“时间线曲线摘要”表、时间线异常清单、PTS/DTS 曲线、码率曲线、GOP 结构图、RTP sequence 曲线、PCR 曲线和异常点，并在帧列表/Packet 时间线的 `Issue` 列标注异常原因；JSON 报告会保留 `timeline_summary` 结构化数据，CSV 报告会额外写入可筛选的 `timeline_issue` section。
