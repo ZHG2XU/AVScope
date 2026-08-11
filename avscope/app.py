@@ -10,7 +10,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from avscope.analyzer import Analyzer
 from avscope.byte_source import ByteSource
-from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
+from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare, format_protocol_compare
 from avscope.ffmpeg_preview import build_video_preview
 from avscope.hexview import format_hex, parse_offset
 from avscope.models import FieldInfo, FrameInfo, ParseNode, ParseResult, Severity
@@ -137,6 +137,7 @@ class AVScopeApp(tk.Tk):
             ("重新解析", self.reload_file),
             ("二进制对比", self.compare_files),
             ("协议对比", self.compare_protocol_files),
+            ("帧级对比", self.compare_frame_files),
             ("导出 HTML", self.export_html_report),
             ("导出 JSON", self.export_json_report),
             ("导出 CSV", self.export_csv_report),
@@ -309,6 +310,7 @@ class AVScopeApp(tk.Tk):
         analysis_menu.add_command(label="自动识别", command=self.reload_file)
         analysis_menu.add_command(label="二进制对比", command=self.compare_files)
         analysis_menu.add_command(label="协议结构对比", command=self.compare_protocol_files)
+        analysis_menu.add_command(label="帧级对比", command=self.compare_frame_files)
         menu.add_cascade(label="分析", menu=analysis_menu)
         tools_menu = tk.Menu(menu, tearoff=False)
         tools_menu.add_command(label="设置当前 Raw 参数", command=self.configure_current_raw_options)
@@ -1273,6 +1275,30 @@ class AVScopeApp(tk.Tk):
         )
         save_path = filedialog.asksaveasfilename(
             title="保存协议对比 JSON",
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json")],
+        )
+        if save_path:
+            Path(save_path).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def compare_frame_files(self) -> None:
+        left = filedialog.askopenfilename(title="选择左侧文件")
+        if not left:
+            return
+        right = filedialog.askopenfilename(title="选择右侧文件")
+        if not right:
+            return
+        self.status.set("正在执行帧级对比...")
+        self.update_idletasks()
+        result = compare_frames(left, right)
+        self.preview.delete("1.0", tk.END)
+        self.preview.insert(tk.END, format_frame_compare(result))
+        self.tabs.select(self.preview)
+        self.status.set(
+            f"帧级对比完成: 新增 {len(result['added'])}, 删除 {len(result['removed'])}, 变化 {len(result['changed'])}"
+        )
+        save_path = filedialog.asksaveasfilename(
+            title="保存帧级对比 JSON",
             defaultextension=".json",
             filetypes=[("JSON", "*.json")],
         )

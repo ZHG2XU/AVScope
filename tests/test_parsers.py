@@ -25,7 +25,7 @@ from avscope.app import (
 from avscope.analyzer import Analyzer, build_probe_diagnostics, build_timeline_diagnostics
 from avscope.byte_source import ByteSource
 from avscope.cli import main as cli_main
-from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
+from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare, format_protocol_compare
 from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, png_dimensions, preview_output_path
 from avscope.frame_stats import build_frame_stats
 from avscope.models import FieldInfo, FrameInfo, ParseNode, Severity
@@ -602,6 +602,29 @@ class ParserTests(unittest.TestCase):
         changed_text = json.dumps(result["changed"], ensure_ascii=False)
         self.assertIn("sample_rate", changed_text)
 
+    def test_frame_compare(self):
+        def aac_frame(frame_length: int) -> bytes:
+            if frame_length < 7:
+                raise ValueError("ADTS frame length must include the 7-byte header")
+            header = bytearray([0xFF, 0xF1, 0x50, 0x80, 0x00, 0x1F, 0xFC])
+            header[3] = (header[3] & 0xFC) | ((frame_length >> 11) & 0x03)
+            header[4] = (frame_length >> 3) & 0xFF
+            header[5] = ((frame_length & 0x07) << 5) | 0x1F
+            return bytes(header) + b"\x00" * (frame_length - 7)
+
+        left = write(ROOT / "frames_left.aac", aac_frame(12) + aac_frame(12))
+        right = write(ROOT / "frames_right.aac", aac_frame(12) + aac_frame(14) + aac_frame(12))
+        result = compare_frames(left, right)
+        self.assertEqual(result["left_format"], "AAC ADTS")
+        self.assertEqual(result["left_frames"], 2)
+        self.assertEqual(result["right_frames"], 3)
+        self.assertEqual(result["added"][0]["index"], 2)
+        self.assertEqual(result["changed"][0]["index"], 1)
+        self.assertEqual(result["changed"][0]["changes"]["size"], {"left": 12, "right": 14})
+        text = format_frame_compare(result)
+        self.assertIn("帧级对比", text)
+        self.assertIn("size: 12 -> 14", text)
+
     def test_samples_and_cli(self):
         sample_dir = ROOT / "samples"
         files = generate_samples(sample_dir)
@@ -681,6 +704,20 @@ class ParserTests(unittest.TestCase):
         )
         self.assertEqual(exit_code, 0)
         self.assertIn("changed", protocol_path.read_text(encoding="utf-8"))
+        frame_compare_path = ROOT / "frame_compare.json"
+        exit_code = cli_main(
+            [
+                "compare-frames",
+                str(sample_dir / "sample.aac"),
+                str(sample_dir / "sample.aac"),
+                "--json",
+                str(frame_compare_path),
+            ]
+        )
+        self.assertEqual(exit_code, 0)
+        frame_compare = json.loads(frame_compare_path.read_text(encoding="utf-8"))
+        self.assertEqual(frame_compare["left_frames"], frame_compare["right_frames"])
+        self.assertEqual(frame_compare["changed"], [])
 
     def test_ui_text_is_not_mojibake(self):
         bad_fragments = ["锛", "鎵", "鏃", "鍗", "璇", "濯", "鈥", "鈹", "�"]

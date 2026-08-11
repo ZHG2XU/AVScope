@@ -4,7 +4,7 @@ from pathlib import Path
 
 from avscope.analyzer import Analyzer
 from avscope.byte_source import ByteSource
-from avscope.models import CompareChunk, CompareResult, ParseNode
+from avscope.models import CompareChunk, CompareResult, FrameInfo, ParseNode
 
 
 def compare_binary(left_path: str | Path, right_path: str | Path, limit: int = 256) -> CompareResult:
@@ -126,6 +126,69 @@ def compare_protocol(left_path: str | Path, right_path: str | Path, limit: int =
     }
 
 
+def compare_frames(left_path: str | Path, right_path: str | Path, limit: int = 500) -> dict:
+    analyzer = Analyzer()
+    left = analyzer.analyze(left_path)
+    right = analyzer.analyze(right_path)
+    left_frames = {frame.index: frame for frame in left.frames}
+    right_frames = {frame.index: frame for frame in right.frames}
+    added = [_frame_row(right_frames[index]) for index in sorted(right_frames.keys() - left_frames.keys())[:limit]]
+    removed = [_frame_row(left_frames[index]) for index in sorted(left_frames.keys() - right_frames.keys())[:limit]]
+    changed = []
+    for index in sorted(left_frames.keys() & right_frames.keys()):
+        changes = _compare_frame_fields(left_frames[index], right_frames[index])
+        if changes:
+            changed.append({"index": index, "changes": changes})
+        if len(changed) >= limit:
+            break
+    return {
+        "left_path": str(left_path),
+        "right_path": str(right_path),
+        "left_format": left.media.format_name,
+        "right_format": right.media.format_name,
+        "left_frames": len(left.frames),
+        "right_frames": len(right.frames),
+        "added": added,
+        "removed": removed,
+        "changed": changed,
+    }
+
+
+def _frame_row(frame: FrameInfo) -> dict:
+    return {
+        "index": frame.index,
+        "offset": frame.offset,
+        "size": frame.size,
+        "pts": frame.pts,
+        "dts": frame.dts,
+        "duration": frame.duration,
+        "frame_type": frame.frame_type,
+        "keyframe": frame.keyframe,
+    }
+
+
+def _compare_frame_fields(left: FrameInfo, right: FrameInfo) -> dict:
+    changes = {}
+    for field in ("offset", "size", "pts", "dts", "duration", "frame_type", "keyframe"):
+        left_value = getattr(left, field)
+        right_value = getattr(right, field)
+        if _same_frame_value(left_value, right_value):
+            continue
+        changes[field] = {"left": left_value, "right": right_value}
+    return changes
+
+
+def _same_frame_value(left, right) -> bool:
+    if isinstance(left, float) or isinstance(right, float):
+        if left is None or right is None:
+            return left is right
+        try:
+            return abs(float(left) - float(right)) <= 0.000001
+        except (TypeError, ValueError):
+            return False
+    return left == right
+
+
 def _flatten_nodes(root: ParseNode) -> list[dict]:
     rows: list[dict] = []
 
@@ -185,6 +248,43 @@ def format_protocol_compare(result: dict, max_items: int = 80) -> str:
             for name, change in item.get("changes", {}).items():
                 lines.append(f"    {name}: {change.get('left')} -> {change.get('right')}")
     return "\n".join(lines)
+
+
+def format_frame_compare(result: dict, max_items: int = 80) -> str:
+    lines = [
+        "帧级对比",
+        f"左侧: {result.get('left_path', '')}",
+        f"右侧: {result.get('right_path', '')}",
+        f"格式: {result.get('left_format', '')} -> {result.get('right_format', '')}",
+        f"帧数: {result.get('left_frames', 0)} -> {result.get('right_frames', 0)}",
+        "",
+        f"新增帧: {len(result.get('added', []))}",
+        f"删除帧: {len(result.get('removed', []))}",
+        f"变化帧: {len(result.get('changed', []))}",
+    ]
+    for title, key in [("新增帧", "added"), ("删除帧", "removed")]:
+        items = result.get(key, [])[:max_items]
+        if not items:
+            continue
+        lines.extend(["", title])
+        for item in items:
+            lines.append(_format_frame_row(item))
+    changed = result.get("changed", [])[:max_items]
+    if changed:
+        lines.extend(["", "变化帧"])
+        for item in changed:
+            lines.append(f"  frame #{item.get('index')}")
+            for name, change in item.get("changes", {}).items():
+                lines.append(f"    {name}: {change.get('left')} -> {change.get('right')}")
+    return "\n".join(lines)
+
+
+def _format_frame_row(frame: dict) -> str:
+    return (
+        f"  #{frame.get('index')} offset=0x{int(frame.get('offset', 0)):X} "
+        f"size={frame.get('size')} pts={frame.get('pts')} "
+        f"type={frame.get('frame_type', '')} key={frame.get('keyframe')}"
+    )
 
 
 def _compare_fields(left: dict, right: dict) -> dict:

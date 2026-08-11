@@ -1,0 +1,11 @@
+{
+  "left_path": "G:\\AVScope\\samples\\sample.aac",
+  "right_path": "G:\\AVScope\\samples\\sample.aac",
+  "left_format": "AAC ADTS",
+  "right_format": "AAC ADTS",
+  "left_frames": 12,
+  "right_frames": 12,
+  "added": [],
+  "removed": [],
+  "changed": []
+}

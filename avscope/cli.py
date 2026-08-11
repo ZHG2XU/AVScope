@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from avscope.analyzer import Analyzer
-from avscope.compare import compare_binary, compare_protocol, format_binary_compare
+from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare
 from avscope.report import export_csv, export_html, export_json
 from avscope.samples import generate_samples
 
@@ -38,6 +38,11 @@ def main(argv: list[str] | None = None) -> int:
     protocol.add_argument("left")
     protocol.add_argument("right")
     protocol.add_argument("--json")
+
+    frames = sub.add_parser("compare-frames", help="Compare parsed frame lists")
+    frames.add_argument("left")
+    frames.add_argument("right")
+    frames.add_argument("--json")
 
     samples = sub.add_parser("make-samples", help="Generate small validation samples")
     samples.add_argument("--out", default="G:/AVScope/samples")
@@ -72,6 +77,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "compare-protocol":
         document = compare_protocol(args.left, args.right)
         _emit(document, args.json)
+        return 0
+    if args.command == "compare-frames":
+        document = compare_frames(args.left, args.right)
+        if args.json:
+            _emit(document, args.json)
+        else:
+            print(format_frame_compare(document))
         return 0
     if args.command == "make-samples":
         files = generate_samples(args.out)

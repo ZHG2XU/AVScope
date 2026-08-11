@@ -38,6 +38,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 支持保存 `.avscope.json` 工程快照，记录当前分析结果、源文件路径和 Raw 参数。
 - 导出独立 HTML、JSON、CSV 报告，HTML 报告包含音频波形图、结构化统计摘要、帧/packet 大小图、帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、诊断、帧统计、packet 统计、帧、packet、节点和字段。
 - 支持两个文件的二进制差异扫描，并输出 offset 对齐的左右 Hex/ASCII 并排差异表。
+- 支持两个文件的帧级对比，按 frame index 汇总新增、删除和 size/PTS/DTS/duration/type/keyframe 差异，并可从 GUI 或 CLI 导出 JSON。
 - 预留声明式插件模板机制，可在 `plugins\*.json` 中按魔数扩展私有格式识别和字段展示。
 - 深色/浅色主题。
 
@@ -78,6 +79,11 @@ E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\sample
 
 ```powershell
 E:\DevelopmentEnvironment\python\python.exe -m avscope compare-protocol G:\AVScope\samples\sample.mp4 G:\AVScope\samples\sample_changed.mp4 --json G:\AVScope\samples\protocol_compare.json
+```
+
+帧级对比：
+```powershell
+E:\DevelopmentEnvironment\python\python.exe -m avscope compare-frames G:\AVScope\samples\sample.aac G:\AVScope\samples\sample.aac --json G:\AVScope\samples\sample_frame_compare.json
 ```
 
 ## 测试

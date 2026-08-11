@@ -109,6 +109,21 @@ if result.get("width") != 64 or result.get("height") != 48:
 $yuvCheck | & $python -
 Write-Host "Raw YUV preview smoke OK"
 
+Write-Host "== Frame compare smoke =="
+$frameCompareCheck = @'
+from pathlib import Path
+from avscope.compare import compare_frames
+source = Path("G:/AVScope/samples/sample.aac")
+result = compare_frames(source, source)
+print(result)
+if result.get("left_frames", 0) <= 0 or result.get("right_frames", 0) <= 0:
+    raise SystemExit("Frame compare did not parse AAC frames")
+if result.get("added") or result.get("removed") or result.get("changed"):
+    raise SystemExit(f"Unexpected frame compare diff: {result}")
+'@
+$frameCompareCheck | & $python -
+Write-Host "Frame compare smoke OK"
+
 Write-Host "== Path constraint scan =="
 $scanTargets = @("$root\avscope", "$root\packaging", "$root\plugins", "$root\scripts")
 $scanFiles = Get-ChildItem -Path $scanTargets -Recurse -File |
