@@ -12,7 +12,7 @@ from avscope.byte_source import ByteSource
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
 from avscope.hexview import format_hex, parse_offset
 from avscope.models import ParseNode, ParseResult, Severity
-from avscope.report import export_html, export_json
+from avscope.report import export_html, export_json, export_project
 from avscope.search import SearchPatternError, find_pattern, parse_search_pattern
 from avscope.settings import AppSettings
 
@@ -236,6 +236,7 @@ class AVScopeApp(tk.Tk):
         file_menu.add_command(label="打开文件夹", command=self.open_folder)
         self.recent_menu = tk.Menu(file_menu, tearoff=False)
         file_menu.add_cascade(label="最近文件", menu=self.recent_menu)
+        file_menu.add_command(label="保存工程", command=self.save_project_snapshot, accelerator="Ctrl+S")
         file_menu.add_command(label="导出 HTML 报告", command=self.export_html_report)
         file_menu.add_command(label="导出 JSON 报告", command=self.export_json_report)
         file_menu.add_separator()
@@ -278,6 +279,8 @@ class AVScopeApp(tk.Tk):
         self.bind_all("<Control-R>", self._shortcut(self.reload_file))
         self.bind_all("<Control-f>", self._shortcut(self.focus_search))
         self.bind_all("<Control-F>", self._shortcut(self.focus_search))
+        self.bind_all("<Control-s>", self._shortcut(self.save_project_snapshot))
+        self.bind_all("<Control-S>", self._shortcut(self.save_project_snapshot))
         self.bind_all("<F3>", self._shortcut(self.find_next))
         self.bind_all("<Control-Shift-H>", self._shortcut(self.export_html_report))
         self.bind_all("<Control-Shift-J>", self._shortcut(self.export_json_report))
@@ -782,6 +785,20 @@ class AVScopeApp(tk.Tk):
         path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON", "*.json")])
         if path:
             export_json(self.result, path)
+
+    def save_project_snapshot(self) -> None:
+        if not self.result:
+            return
+        path = filedialog.asksaveasfilename(
+            defaultextension=".avscope.json",
+            filetypes=[("AVScope Project", "*.avscope.json"), ("JSON", "*.json")],
+        )
+        if path:
+            raw_options = {}
+            if self.current_file:
+                raw_options = self.raw_options_by_path.get(str(self.current_file), {})
+            export_project(self.result, path, raw_options)
+            self.status.set(f"工程已保存: {path}")
 
     def compare_files(self) -> None:
         left = filedialog.askopenfilename(title="选择左侧文件")

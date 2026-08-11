@@ -17,7 +17,7 @@ from avscope.analyzer import Analyzer, build_timeline_diagnostics
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
 from avscope.models import FieldInfo, ParseNode, Severity
-from avscope.report import export_html, export_json
+from avscope.report import export_html, export_json, export_project
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
@@ -126,9 +126,16 @@ class ParserTests(unittest.TestCase):
         json_path = ROOT / "report.json"
         export_html(result, html_path)
         export_json(result, json_path)
+        project_path = ROOT / "project.avscope.json"
+        export_project(result, project_path, {"sample_rate": 8000})
         self.assertIn("AVScope", html_path.read_text(encoding="utf-8"))
         self.assertIn("媒体摘要", html_path.read_text(encoding="utf-8"))
         self.assertIn("MP4/MOV", json_path.read_text(encoding="utf-8"))
+        project = json.loads(project_path.read_text(encoding="utf-8"))
+        self.assertEqual(project["project_type"], "AVScope Project")
+        self.assertEqual(project["schema_version"], 1)
+        self.assertEqual(project["raw_options"]["sample_rate"], 8000)
+        self.assertEqual(project["analysis"]["media"]["format_name"], "MP4/MOV")
 
     def test_mp4_mvhd_parser(self):
         sample_dir = ROOT / "mp4_sample"

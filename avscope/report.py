@@ -16,6 +16,19 @@ def export_json(result: ParseResult, path: str | Path) -> None:
     Path(path).write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def export_project(result: ParseResult, path: str | Path, raw_options: dict | None = None) -> None:
+    document = {
+        "project_type": "AVScope Project",
+        "schema_version": 1,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "tool_version": __version__,
+        "source_path": result.media.path,
+        "raw_options": raw_options or {},
+        "analysis": _document(result),
+    }
+    Path(path).write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def export_html(result: ParseResult, path: str | Path) -> None:
     doc = _document(result)
     media = doc["media"]
