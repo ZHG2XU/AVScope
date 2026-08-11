@@ -31,7 +31,9 @@ class MpegTsParser(FormatParser):
             diagnostics.append(warn("MPEG-TS 文件尾部存在不足 188 字节的残留数据", packet_count * TS_PACKET_SIZE, self.name))
 
         pid_counts: dict[int, int] = {}
+        last_counter_by_pid: dict[int, int] = {}
         sync_errors = 0
+        continuity_errors = 0
         payload_start_packets = 0
         visible_packets = min(packet_count, MAX_VISIBLE_PACKETS)
         for index in range(visible_packets):
@@ -42,23 +44,30 @@ class MpegTsParser(FormatParser):
             fields = _packet_fields(packet, offset)
             pid = int(fields["pid"])
             pid_counts[pid] = pid_counts.get(pid, 0) + 1
+            continuity_message = _continuity_error(last_counter_by_pid, pid, fields)
+            if continuity_message:
+                continuity_errors += 1
             if fields["sync_byte"] != 0x47:
                 sync_errors += 1
             if fields["payload_unit_start_indicator"]:
                 payload_start_packets += 1
+            severity = Severity.ERROR if fields["sync_byte"] != 0x47 else Severity.WARNING if continuity_message else Severity.NORMAL
             node = root.add_child(
                 ParseNode(
                     f"Packet[{index}] PID=0x{pid:04X}",
                     "ts_packet",
                     offset,
                     TS_PACKET_SIZE,
-                    severity=Severity.ERROR if fields["sync_byte"] != 0x47 else Severity.NORMAL,
+                    severity=severity,
+                    description=continuity_message,
                 )
             )
             node.fields.extend(_field_infos(fields, offset))
 
         if sync_errors:
             diagnostics.append(warn(f"MPEG-TS 前 {visible_packets} 个 packet 中发现 {sync_errors} 个 sync byte 异常", 0, self.name))
+        if continuity_errors:
+            diagnostics.append(warn(f"MPEG-TS 前 {visible_packets} 个 packet 中发现 {continuity_errors} 个 continuity counter 跳变", 0, self.name))
         root.fields.extend(
             [
                 FieldInfo("packet_size", TS_PACKET_SIZE),
@@ -66,6 +75,7 @@ class MpegTsParser(FormatParser):
                 FieldInfo("visible_packets", visible_packets),
                 FieldInfo("trailing_bytes", trailing_bytes),
                 FieldInfo("unique_pid_count", len(pid_counts)),
+                FieldInfo("continuity_errors", continuity_errors),
             ]
         )
         summary = {
@@ -76,6 +86,7 @@ class MpegTsParser(FormatParser):
             "payload_start_packets": payload_start_packets,
             "pid_counts": {f"0x{pid:04X}": count for pid, count in sorted(pid_counts.items())},
             "sync_errors": sync_errors,
+            "continuity_errors": continuity_errors,
         }
         return ParseResult(media_info(source, self.name, **summary), root, diagnostics=diagnostics)
 
@@ -103,6 +114,22 @@ def _packet_fields(packet: bytes, offset: int) -> dict[str, int | bool]:
         "adaptation_field_length": adaptation_field_length,
         "payload_offset": min(payload_offset, TS_PACKET_SIZE),
     }
+
+
+def _continuity_error(last_counter_by_pid: dict[int, int], pid: int, fields: dict[str, int | bool]) -> str:
+    adaptation_field_control = int(fields["adaptation_field_control"])
+    has_payload = adaptation_field_control in {1, 3}
+    if not has_payload:
+        return ""
+    current = int(fields["continuity_counter"])
+    previous = last_counter_by_pid.get(pid)
+    last_counter_by_pid[pid] = current
+    if previous is None:
+        return ""
+    expected = (previous + 1) & 0x0F
+    if current == expected:
+        return ""
+    return f"continuity counter 跳变: PID=0x{pid:04X} previous={previous} expected={expected} current={current}"
 
 
 def _field_infos(fields: dict[str, int | bool], offset: int) -> list[FieldInfo]:

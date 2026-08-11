@@ -31,6 +31,7 @@ from avscope.settings import AppSettings, MAX_RECENT_FILES
 
 
 ROOT = Path("G:/AVScope/tmp/testdata")
+TS_PACKET_SIZE = 188
 
 
 def write(path: Path, data: bytes) -> Path:
@@ -235,6 +236,17 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(fields["sync_byte"].value, "0x47")
         self.assertEqual(fields["pid"].value, "0x0000")
         self.assertEqual((fields["pid"].bit_offset, fields["pid"].bit_length), (11, 13))
+
+    def test_mpegts_continuity_counter_diagnostic(self):
+        def packet(pid: int, counter: int) -> bytes:
+            header = bytes([0x47, (pid >> 8) & 0x1F, pid & 0xFF, 0x10 | counter])
+            return header + b"\xFF" * (TS_PACKET_SIZE - 4)
+
+        result = self.analyzer.analyze(write(ROOT / "cc_jump.ts", packet(0x0100, 0) + packet(0x0100, 2)))
+        self.assertEqual(result.media.format_name, "MPEG-TS")
+        self.assertEqual(result.media.summary["continuity_errors"], 1)
+        self.assertTrue(any("continuity counter 跳变" in issue.message for issue in diagnostics_with(result, "warning")))
+        self.assertEqual(result.root.children[1].severity, Severity.WARNING)
 
     def test_malformed_files_emit_diagnostics(self):
         broken_mp4 = write(ROOT / "broken_box.mp4", struct.pack(">I4s", 4, b"ftyp") + b"isom")

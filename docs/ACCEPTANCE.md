@@ -42,7 +42,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 10. 在工具栏搜索框输入 `RIFF`，模式选择 `text`，点击“查找下一个”；同时检查 `Ctrl+F` 聚焦搜索框、`F3` 查找下一个、Hex 右键菜单可复制当前 offset、选中字节和 ASCII，并可通过 `Endian` 选择后解释选中字节为整数/浮点。
 11. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`，并检查 `trak/tkhd/mdia/mdhd/hdlr/stbl` 相关节点里的 `track_id`、`width`、`height`、`handler_type`、`sample_count`、`chunk_offset`。
 12. 打开 `G:\AVScope\samples\sample.avi`，检查 `hdrl/avih` 节点里是否显示 `dwWidth`、`dwHeight`、`dwTotalFrames`、`fps`。
-13. 打开 `G:\AVScope\samples\sample.ts`，检查 MPEG-TS packet 节点中是否显示 `pid`、`payload_unit_start_indicator`、`adaptation_field_control` 和 `continuity_counter`。
+13. 打开 `G:\AVScope\samples\sample.ts`，检查 MPEG-TS packet 节点中是否显示 `pid`、`payload_unit_start_indicator`、`adaptation_field_control` 和 `continuity_counter`，并确认诊断规则可覆盖 continuity counter 跳变。
 14. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
 15. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
 16. 查看诊断面板，确认工具可在 ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调或音视频时长差异时输出 warning。
