@@ -915,6 +915,9 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(target.parent, ROOT / "previews")
         self.assertEqual(target.suffix, ".png")
         self.assertNotIn(" ", target.name)
+        later_target = preview_output_path(source, ROOT / "previews", position_seconds=2.5)
+        self.assertNotEqual(target.name, later_target.name)
+        self.assertIn("2_500s", later_target.name)
 
         png_path = write(ROOT / "preview.png", b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x02\x80\x00\x00\x01\xe0")
         self.assertEqual(png_dimensions(png_path), (640, 480))
@@ -929,8 +932,10 @@ class ParserTests(unittest.TestCase):
 
     def test_video_preview_build_with_mocked_ffmpeg(self):
         source = write(ROOT / "mock-video.mp4", b"mock")
+        commands = []
 
         def fake_run(command, capture_output, text, timeout, check):
+            commands.append(command)
             output = Path(command[-1])
             write(output, b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x01\x40\x00\x00\x00\xb4")
 
@@ -941,10 +946,13 @@ class ParserTests(unittest.TestCase):
             return Completed()
 
         with patch("avscope.ffmpeg_preview.find_ffmpeg", return_value="ffmpeg"), patch("avscope.ffmpeg_preview.subprocess.run", side_effect=fake_run):
-            result = build_video_preview(source, output_dir=ROOT / "previews")
+            result = build_video_preview(source, output_dir=ROOT / "previews", position_seconds=1.25)
         self.assertTrue(result["available"])
         self.assertEqual(result["width"], 320)
         self.assertEqual(result["height"], 180)
+        self.assertEqual(result["position_seconds"], 1.25)
+        self.assertIn("-ss", commands[0])
+        self.assertIn("1.250", commands[0])
         self.assertTrue(Path(result["path"]).exists())
 
     def test_extract_media_stream_helpers(self):

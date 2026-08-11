@@ -31,7 +31,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 对解析器帧列表生成帧统计摘要，包含关键帧数、关键帧间隔、平均帧大小、最大帧大小和帧类型分布。
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
 - 对 ffprobe packet 时间线生成 packet 统计摘要，包含 stream 数、packet 数、关键包数、平均/最大 packet 大小和 PTS 跨度。
-- 对含视频流的文件使用现有 FFmpeg 生成首帧 PNG 预览，预览缓存写入 `G:\AVScope\tmp\previews`。
+- 对含视频流的文件使用现有 FFmpeg 生成 PNG 预览帧，支持在 GUI 中按 1 秒步进生成上一/下一预览帧，预览缓存写入 `G:\AVScope\tmp\previews`。
 - 分析菜单可使用现有 FFmpeg 提取当前文件的首路音频、首路视频或首个关键帧 PNG。
 - 为 WAV/PCM 生成抽样波形摘要，并在预览页显示波形图。
 - 桌面端提供深色/浅色专业工作台主题、品牌图标、关键指标摘要条和空状态，导出 HTML 报告带结构化视觉样式。
@@ -146,7 +146,7 @@ $env:TMP='G:\AVScope\tmp'
 E:\DevelopmentEnvironment\python\python.exe -m PyInstaller --noconfirm --clean --windowed --name AVScope --add-binary "E:\DevelopmentEnvironment\ffmpeg-8.1-essentials_build\bin\ffprobe.exe;." --add-binary "E:\DevelopmentEnvironment\ffmpeg-8.1-essentials_build\bin\ffmpeg.exe;." --add-data "G:\AVScope\plugins;plugins" --distpath G:\AVScope\dist --workpath G:\AVScope\build --specpath G:\AVScope\packaging G:\AVScope\run_avscope.py
 ```
 
-当前交付构建会额外携带现有 `E:\DevelopmentEnvironment\ffmpeg-8.1-essentials_build\bin\ffprobe.exe` 和 `ffmpeg.exe`，用于补充媒体流信息、packet 时间线和视频首帧预览。
+当前交付构建会额外携带现有 `E:\DevelopmentEnvironment\ffmpeg-8.1-essentials_build\bin\ffprobe.exe` 和 `ffmpeg.exe`，用于补充媒体流信息、packet 时间线和视频预览帧生成。
 
 生成安装包：
 

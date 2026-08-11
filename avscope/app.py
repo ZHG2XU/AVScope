@@ -88,6 +88,8 @@ SUPPORTED_EXTENSIONS = {
     ".yuv",
 }
 
+VIDEO_PREVIEW_STEP_SECONDS = 1.0
+
 
 def format_shortcuts_help() -> str:
     return "\n".join(
@@ -237,6 +239,7 @@ class AVScopeApp(tk.Tk):
         self._last_logged_status = ""
         self._binary_diff_indices: list[str] = []
         self._binary_diff_cursor = -1
+        self._video_preview_position_seconds = 0.0
         self.log_panel_visible = tk.BooleanVar(value=True)
         self.hex_endian = tk.StringVar(value="little")
         self.issue_filter = tk.BooleanVar(value=False)
@@ -473,6 +476,9 @@ class AVScopeApp(tk.Tk):
         analysis_menu.add_command(label="提取音频", command=lambda: self.extract_current_media("audio"))
         analysis_menu.add_command(label="提取视频", command=lambda: self.extract_current_media("video"))
         analysis_menu.add_command(label="提取首个关键帧", command=lambda: self.extract_current_media("keyframe"))
+        analysis_menu.add_separator()
+        analysis_menu.add_command(label="上一预览帧", command=lambda: self.step_video_preview(-VIDEO_PREVIEW_STEP_SECONDS))
+        analysis_menu.add_command(label="下一预览帧", command=lambda: self.step_video_preview(VIDEO_PREVIEW_STEP_SECONDS))
         analysis_menu.add_separator()
         analysis_menu.add_command(label="二进制对比", command=self.compare_files)
         analysis_menu.add_command(label="下一个二进制差异", command=self.jump_next_binary_diff, accelerator="F4")
@@ -812,6 +818,7 @@ class AVScopeApp(tk.Tk):
         self.current_file = path
         self._last_search = None
         self._last_node_search = None
+        self._video_preview_position_seconds = 0.0
         started_at = perf_counter()
         self.result = self.analyzer.analyze(path, self._raw_options_for_path(path))
         self.last_parse_elapsed_seconds = perf_counter() - started_at
@@ -1167,10 +1174,11 @@ class AVScopeApp(tk.Tk):
             shape = ""
             if video_preview.get("width") and video_preview.get("height"):
                 shape = f" ({video_preview.get('width')}x{video_preview.get('height')})"
-            lines.append(f"视频首帧预览: 已生成{shape}，见下方画面。")
+            position = float(video_preview.get("position_seconds") or 0.0)
+            lines.append(f"视频预览帧: {format_seconds_timecode(position)} 已生成{shape}，见下方画面。")
             lines.append("")
         elif video_preview.get("error"):
-            lines.append(f"视频首帧预览: {video_preview.get('error')}")
+            lines.append(f"视频预览帧: {video_preview.get('error')}")
             lines.append("")
         yuv_preview = self.result.media.summary.get("yuv_preview", {})
         if yuv_preview.get("available") and yuv_preview.get("path"):
@@ -1202,7 +1210,10 @@ class AVScopeApp(tk.Tk):
         streams = self.result.media.summary.get("ffprobe", {}).get("streams", [])
         if not any(stream.get("codec_type") == "video" for stream in streams):
             return
-        self.result.media.summary["video_preview"] = build_video_preview(path)
+        self.result.media.summary["video_preview"] = build_video_preview(
+            path,
+            position_seconds=self._video_preview_position_seconds,
+        )
 
     def _attach_waveform_preview(self, path: Path) -> None:
         if not self.result or self.result.media.format_name not in {"WAV", "Raw PCM"}:
@@ -1234,12 +1245,54 @@ class AVScopeApp(tk.Tk):
         try:
             image = tk.PhotoImage(file=str(image_path))
         except tk.TclError as exc:
-            self.preview.insert(tk.END, f"\n视频首帧画面加载失败: {exc}")
+            self.preview.insert(tk.END, f"\n视频预览帧画面加载失败: {exc}")
             return
         self._preview_images.append(image)
-        self.preview.insert(tk.END, "\n视频首帧画面\n")
+        position = float(video_preview.get("position_seconds") or 0.0)
+        self.preview.insert(tk.END, f"\n视频预览帧 {format_seconds_timecode(position)}\n")
         self.preview.image_create(tk.END, image=image)
         self.preview.insert(tk.END, "\n")
+
+    def step_video_preview(self, delta_seconds: float) -> None:
+        if not self.current_file or not self.result:
+            messagebox.showinfo("视频预览", "请先打开含视频流的媒体文件。")
+            return
+        streams = self.result.media.summary.get("ffprobe", {}).get("streams", [])
+        if not any(stream.get("codec_type") == "video" for stream in streams):
+            messagebox.showinfo("视频预览", "当前文件未发现可预览的视频流。")
+            return
+        current = float(self.result.media.summary.get("video_preview", {}).get("position_seconds") or self._video_preview_position_seconds)
+        duration = self._video_preview_duration_seconds()
+        target = max(0.0, current + float(delta_seconds))
+        if duration is not None:
+            target = min(target, max(0.0, duration - 0.001))
+        self._video_preview_position_seconds = target
+        self.status.set(f"正在生成视频预览帧 {format_seconds_timecode(target)}...")
+        self.update_idletasks()
+        preview = build_video_preview(self.current_file, position_seconds=target)
+        self.result.media.summary["video_preview"] = preview
+        self._render_result()
+        self.tabs.select(self.preview)
+        if preview.get("error"):
+            self.status.set(f"视频预览帧生成失败: {preview.get('error')}")
+        else:
+            self.status.set(f"已生成视频预览帧 {format_seconds_timecode(target)}")
+
+    def _video_preview_duration_seconds(self) -> float | None:
+        if not self.result:
+            return None
+        ffprobe = self.result.media.summary.get("ffprobe", {})
+        candidates = [stream.get("duration") for stream in ffprobe.get("streams", []) if stream.get("codec_type") == "video"]
+        candidates.append(ffprobe.get("format", {}).get("duration"))
+        values = []
+        for value in candidates:
+            try:
+                parsed = float(value)
+            except (TypeError, ValueError):
+                continue
+            if parsed > 0:
+                values.append(parsed)
+        return max(values) if values else None
 
     def _render_waveform_preview(self) -> None:
         if not self.result:

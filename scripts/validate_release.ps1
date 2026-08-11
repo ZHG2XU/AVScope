@@ -152,17 +152,24 @@ Write-Host "== Video preview smoke =="
 $previewSmokeDir = "G:\AVScope\tmp\preview-smoke-validation"
 New-Item -ItemType Directory -Force -Path $previewSmokeDir | Out-Null
 $previewSource = "$previewSmokeDir\source.mp4"
-& $ffmpeg -hide_banner -v error -y -f lavfi -i "testsrc=size=160x90:rate=1" -frames:v 1 -pix_fmt yuv420p $previewSource
+& $ffmpeg -hide_banner -v error -y -f lavfi -i "testsrc=size=160x90:rate=1:duration=2" -pix_fmt yuv420p $previewSource
 $env:AVSCOPE_FFMPEG = $ffmpeg
 $previewCheck = @'
 from pathlib import Path
 from avscope.ffmpeg_preview import build_video_preview
-result = build_video_preview(Path("G:/AVScope/tmp/preview-smoke-validation/source.mp4"), output_dir=Path("G:/AVScope/tmp/preview-smoke-validation"))
-print(result)
-if not result.get("available") or not result.get("path"):
-    raise SystemExit("Video preview PNG was not generated")
-if result.get("width") != 160 or result.get("height") != 90:
-    raise SystemExit(f"Unexpected preview size: {result}")
+source = Path("G:/AVScope/tmp/preview-smoke-validation/source.mp4")
+outputs = [
+    build_video_preview(source, output_dir=Path("G:/AVScope/tmp/preview-smoke-validation"), position_seconds=0),
+    build_video_preview(source, output_dir=Path("G:/AVScope/tmp/preview-smoke-validation"), position_seconds=1),
+]
+print(outputs)
+for result in outputs:
+    if not result.get("available") or not result.get("path"):
+        raise SystemExit("Video preview PNG was not generated")
+    if result.get("width") != 160 or result.get("height") != 90:
+        raise SystemExit(f"Unexpected preview size: {result}")
+if outputs[0].get("path") == outputs[1].get("path"):
+    raise SystemExit("Preview seek did not produce a distinct cache path")
 '@
 $previewCheck | & $python -
 Remove-Item Env:\AVSCOPE_FFMPEG -ErrorAction SilentlyContinue

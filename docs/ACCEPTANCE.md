@@ -29,6 +29,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 - 发布产物清单 SHA256/size 校验
 - UI/报告源码乱码扫描
 - C 盘写入目标扫描
+- 音频波形、视频预览帧步进和 Raw YUV 预览冒烟测试
 - 绿色版 GUI 启动冒烟测试
 - 安装包静默安装到 G 盘、启动、卸载冒烟测试
 - 发布验证报告生成
@@ -43,7 +44,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 4. 查看协议树、Hex、字段、帧列表、时间线、预览、诊断面板，并确认顶部摘要条和底部状态栏显示本次解析耗时。
 5. 使用“视图”菜单切换 Hex、字段表、帧列表、时间线、预览和诊断面板，并按 `Ctrl+L` 显示/隐藏底部日志。
 6. 打开 `G:\AVScope\samples\sample.wav`，检查“预览”页是否显示音频波形图。
-7. 对真实含视频流文件打开后，在“预览”页检查是否出现“视频首帧画面”；若文件不可解码，预览区应给出 ffmpeg 错误文本而不是崩溃。
+7. 对真实含视频流文件打开后，在“预览”页检查是否出现“视频预览帧”；使用“分析 / 下一预览帧”和“分析 / 上一预览帧”确认可按 1 秒步进刷新画面；若文件不可解码，预览区应给出 ffmpeg 错误文本而不是崩溃。
 8. 在搜索框输入 `fmt`，模式选择 `node`，点击“查找下一个”，确认协议树可定位匹配节点；勾选“只看异常”确认协议树可过滤 warning/error 节点。
 9. 在 WAV `fmt ` 和 `data` 节点里检查 `sample_rate`、`byte_rate`、`block_align`、`data_bytes`、`duration_seconds`。
 10. 打开 `G:\AVScope\samples\sample.h264`，检查 SPS/PPS 节点里是否显示 `profile_idc`、`level_idc`、`derived_width`、`derived_height`、`pic_parameter_set_id`、`seq_parameter_set_id`，并在“预览”页确认帧统计摘要包含关键帧数量和关键帧间隔。
@@ -78,6 +79,6 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 ## 当前已知边界
 
 - 当前是可安装 MVP，不是完整播放器。
-- 视频画面解码预览尚未做到逐帧渲染，当前优先提供 ffprobe 流信息、packet 时间线和协议结构。
+- 视频画面解码预览已支持按 1 秒生成上一/下一预览帧，但当前不是完整播放器。
 - MP4/H.264/H.265 字段解析仍是基础层级，后续可继续补更深层 SPS/PPS 字段和 GOP 视图。
 - 安装包不创建桌面或开始菜单快捷方式，以避免向 C 盘用户目录写入文件。
