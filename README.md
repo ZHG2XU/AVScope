@@ -4,7 +4,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 
 ## 当前能力
 
-- 只读打开本地媒体文件。
+- 只读打开本地媒体文件，支持菜单选择、打开文件夹、拖拽到窗口，以及将文件拖到 exe 图标上启动打开。
 - 支持打开文件夹、最近文件列表，以及 Hex/text 流式搜索。
 - 支持协议树节点搜索，以及只显示 warning/error 异常节点的过滤视图。
 - 支持 Ctrl+O、Ctrl+R、Ctrl+F、F3 等快捷键，以及 Hex 右键菜单复制当前 offset、选中字节、ASCII 并按大小端解释整数/浮点。
@@ -43,6 +43,8 @@ E:\DevelopmentEnvironment\python\python.exe run_avscope.py
 ```powershell
 G:\AVScope\scripts\run_avscope.bat
 ```
+
+Windows 桌面端支持把媒体文件直接拖入窗口打开；也支持把文件拖到 `AVScope.exe` 图标上启动打开。
 
 ## 命令行
 

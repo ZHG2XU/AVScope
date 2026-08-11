@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import struct
+import sys
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
@@ -85,12 +86,15 @@ class AVScopeApp(tk.Tk):
         self.settings = AppSettings()
         self._theme_name = "dark"
         self._palette = PALETTES["dark"]
+        self._drop_wndproc = None
+        self._old_wndproc = None
         self.hex_endian = tk.StringVar(value="little")
         self.issue_filter = tk.BooleanVar(value=False)
         self._build_ui()
         self._bind_shortcuts()
         self._apply_theme("dark")
         self._set_empty_state()
+        self._enable_windows_file_drop()
 
     def _build_ui(self) -> None:
         self._build_menu()
@@ -401,6 +405,92 @@ class AVScopeApp(tk.Tk):
             if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS:
                 return path
         return None
+
+    def _load_dropped_paths(self, paths: list[str | Path]) -> None:
+        path = first_loadable_drop_path(paths)
+        if path is None:
+            self.status.set("拖拽内容中未找到可打开的文件")
+            messagebox.showinfo("拖拽打开", "拖拽内容中没有发现可打开的文件。")
+            return
+        if path.is_dir():
+            candidate = self._first_supported_file(path)
+            if candidate is None:
+                self.status.set("拖拽文件夹中未找到支持的媒体文件")
+                messagebox.showinfo("拖拽打开", "拖拽文件夹中没有发现当前支持的媒体文件。")
+                return
+            path = candidate
+        self.load_file(path)
+
+    def _enable_windows_file_drop(self) -> None:
+        if sys.platform != "win32":
+            return
+        try:
+            import ctypes
+            from ctypes import wintypes
+        except Exception:
+            return
+
+        self.update_idletasks()
+        hwnd = self.winfo_id()
+        user32 = ctypes.windll.user32
+        shell32 = ctypes.windll.shell32
+        wm_dropfiles = 0x0233
+        gwlp_wndproc = -4
+        lresult = ctypes.c_ssize_t
+        wndproc_type = ctypes.WINFUNCTYPE(lresult, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+
+        set_window_long_ptr = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+        set_window_long_ptr.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_void_p]
+        set_window_long_ptr.restype = ctypes.c_void_p
+        user32.CallWindowProcW.argtypes = [ctypes.c_void_p, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        user32.CallWindowProcW.restype = lresult
+        shell32.DragAcceptFiles.argtypes = [wintypes.HWND, wintypes.BOOL]
+        shell32.DragQueryFileW.argtypes = [wintypes.HANDLE, wintypes.UINT, wintypes.LPWSTR, wintypes.UINT]
+        shell32.DragQueryFileW.restype = wintypes.UINT
+        shell32.DragFinish.argtypes = [wintypes.HANDLE]
+
+        def dropped_files(drop_handle) -> list[str]:
+            count = shell32.DragQueryFileW(drop_handle, 0xFFFFFFFF, None, 0)
+            files = []
+            for index in range(count):
+                length = shell32.DragQueryFileW(drop_handle, index, None, 0)
+                buffer = ctypes.create_unicode_buffer(length + 1)
+                shell32.DragQueryFileW(drop_handle, index, buffer, length + 1)
+                files.append(buffer.value)
+            return files
+
+        def wndproc(window, message, wparam, lparam):
+            if message == wm_dropfiles:
+                try:
+                    paths = dropped_files(wparam)
+                finally:
+                    shell32.DragFinish(wparam)
+                if paths:
+                    self.after(0, lambda value=paths: self._load_dropped_paths(value))
+                return 0
+            return user32.CallWindowProcW(self._old_wndproc, window, message, wparam, lparam)
+
+        self._drop_wndproc = wndproc_type(wndproc)
+        self._old_wndproc = set_window_long_ptr(hwnd, gwlp_wndproc, ctypes.cast(self._drop_wndproc, ctypes.c_void_p))
+        shell32.DragAcceptFiles(hwnd, True)
+
+    def destroy(self) -> None:
+        if sys.platform == "win32" and self._old_wndproc is not None and self._drop_wndproc is not None:
+            try:
+                import ctypes
+                from ctypes import wintypes
+
+                user32 = ctypes.windll.user32
+                shell32 = ctypes.windll.shell32
+                hwnd = self.winfo_id()
+                shell32.DragAcceptFiles(wintypes.HWND(hwnd), False)
+                set_window_long_ptr = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+                set_window_long_ptr.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_void_p]
+                set_window_long_ptr.restype = ctypes.c_void_p
+                set_window_long_ptr(wintypes.HWND(hwnd), -4, ctypes.c_void_p(self._old_wndproc))
+            except Exception:
+                pass
+        super().destroy()
 
     def _refresh_recent_menu(self) -> None:
         self.recent_menu.delete(0, tk.END)
@@ -916,7 +1006,7 @@ class AVScopeApp(tk.Tk):
             tk.END,
             "打开一个音视频文件开始分析。\n\n"
             "支持 MP4/MOV、WAV、AAC ADTS、H.264/H.265 Annex-B、PCM、YUV。\n"
-            "解析后会显示协议树、Hex、字段、时间线、波形和诊断报告。",
+            "可以拖拽文件到窗口打开；解析后会显示协议树、Hex、字段、帧列表、时间线、波形和诊断报告。",
         )
         self.diagnostics.delete("1.0", tk.END)
         self.diagnostics.insert(tk.END, "等待文件输入\n", ("heading",))
@@ -986,6 +1076,14 @@ def node_matches_query(node: ParseNode, query: str) -> bool:
     return any(needle in str(value).lower() for value in haystack if value is not None)
 
 
+def first_loadable_drop_path(paths: list[str | Path]) -> Path | None:
+    for item in paths:
+        path = Path(item)
+        if path.exists() and (path.is_file() or path.is_dir()):
+            return path
+    return None
+
+
 def format_hex_interpretation(data: bytes, endian: str = "little") -> str:
     byteorder = "big" if endian == "big" else "little"
     struct_prefix = ">" if byteorder == "big" else "<"
@@ -1015,8 +1113,11 @@ def format_hex_interpretation(data: bytes, endian: str = "little") -> str:
     return "\n".join(lines)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     app = AVScopeApp()
+    initial_paths = sys.argv[1:] if argv is None else argv
+    if initial_paths:
+        app.after(100, lambda: app._load_dropped_paths(initial_paths))
     app.mainloop()
 
 

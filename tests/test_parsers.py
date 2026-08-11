@@ -9,6 +9,7 @@ from pathlib import Path
 from avscope.app import (
     extract_hex_bytes_from_dump_text,
     format_hex_interpretation,
+    first_loadable_drop_path,
     hex_bytes_to_ascii,
     node_has_issue,
     node_matches_query,
@@ -460,6 +461,13 @@ class ParserTests(unittest.TestCase):
         self.assertLessEqual(len(recent), MAX_RECENT_FILES)
         settings_reloaded = AppSettings(settings_path)
         self.assertEqual(settings_reloaded.recent_files()[0], str(ROOT / "file_3.wav"))
+
+    def test_drop_path_selection(self):
+        missing = ROOT / "missing-drop.wav"
+        sample = write(ROOT / "drop.wav", b"RIFFxxxxWAVE")
+        self.assertEqual(first_loadable_drop_path([missing, sample]), sample)
+        self.assertEqual(first_loadable_drop_path([ROOT]), ROOT)
+        self.assertIsNone(first_loadable_drop_path([missing]))
 
     def test_byte_source_large_file_random_access(self):
         path = ROOT / "large_random_access.bin"
