@@ -221,6 +221,21 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(fields["dwWidth"], 640)
         self.assertEqual(fields["dwHeight"], 480)
 
+    def test_mpegts_parser(self):
+        sample_dir = ROOT / "ts_sample"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample.ts")
+        self.assertEqual(result.media.format_name, "MPEG-TS")
+        self.assertEqual(result.media.summary["packet_size"], 188)
+        self.assertEqual(result.media.summary["packets"], 3)
+        self.assertEqual(result.media.summary["pid_counts"]["0x0000"], 1)
+        self.assertEqual(result.media.summary["pid_counts"]["0x0100"], 1)
+        self.assertEqual(result.root.children[0].name, "Packet[0] PID=0x0000")
+        fields = {field.name: field for field in result.root.children[0].fields}
+        self.assertEqual(fields["sync_byte"].value, "0x47")
+        self.assertEqual(fields["pid"].value, "0x0000")
+        self.assertEqual((fields["pid"].bit_offset, fields["pid"].bit_length), (11, 13))
+
     def test_malformed_files_emit_diagnostics(self):
         broken_mp4 = write(ROOT / "broken_box.mp4", struct.pack(">I4s", 4, b"ftyp") + b"isom")
         result = self.analyzer.analyze(broken_mp4)
@@ -251,6 +266,11 @@ class ParserTests(unittest.TestCase):
         truncated_avi = b"RIFF" + struct.pack("<I", 1024) + b"AVI "
         result = self.analyzer.analyze(write(ROOT / "truncated.avi", truncated_avi))
         self.assertEqual(result.media.format_name, "AVI")
+        self.assertTrue(diagnostics_with(result, "warning"))
+
+        truncated_ts = write(ROOT / "truncated.ts", b"\x47\x40\x00\x10" + b"\xFF" * 190)
+        result = self.analyzer.analyze(truncated_ts)
+        self.assertEqual(result.media.format_name, "MPEG-TS")
         self.assertTrue(diagnostics_with(result, "warning"))
 
     def test_timeline_diagnostics(self):

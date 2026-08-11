@@ -4,6 +4,9 @@ import struct
 from pathlib import Path
 
 
+TS_PACKET_SIZE = 188
+
+
 def generate_samples(directory: str | Path) -> list[Path]:
     target = Path(directory)
     target.mkdir(parents=True, exist_ok=True)
@@ -15,6 +18,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample.mp4", _mp4_sample()),
         _write(target / "sample_changed.mp4", _mp4_sample(extra_free=True)),
         _write(target / "sample.avi", _avi_sample()),
+        _write(target / "sample.ts", _mpegts_sample()),
         _write(target / "sample.pcm", b"\x00\x00\x10\x00\xf0\xff" * 64),
         _write(target / "sample.yuv", b"\x10" * (64 * 48) + b"\x80" * (64 * 48 // 2)),
     ]
@@ -54,6 +58,26 @@ def _h265_sample() -> bytes:
         + _h265_nalu(34, make_h265_pps())
         + _h265_nalu(19, b"\x80")
     )
+
+
+def _mpegts_sample() -> bytes:
+    return (
+        _ts_packet(pid=0x0000, payload_unit_start=True, continuity_counter=0, payload=b"\x00\xb0\r\x00\x01\xc1\x00\x00\x00\x01\xe1\x00")
+        + _ts_packet(pid=0x0100, payload_unit_start=True, continuity_counter=0, payload=b"\x00\x00\x01\xe0\x00\x00\x80\x80\x05")
+        + _ts_packet(pid=0x0101, payload_unit_start=False, continuity_counter=1, payload=b"\x00\x00\x01\xc0\x00\x00\x80\x80\x05")
+    )
+
+
+def _ts_packet(pid: int, payload_unit_start: bool, continuity_counter: int, payload: bytes) -> bytes:
+    header = bytes(
+        [
+            0x47,
+            (0x40 if payload_unit_start else 0x00) | ((pid >> 8) & 0x1F),
+            pid & 0xFF,
+            0x10 | (continuity_counter & 0x0F),
+        ]
+    )
+    return header + payload[: TS_PACKET_SIZE - 4] + b"\xFF" * max(0, TS_PACKET_SIZE - 4 - len(payload))
 
 
 def make_h264_baseline_sps(width: int = 640, height: int = 480, profile_idc: int = 66, level_idc: int = 30) -> bytes:
