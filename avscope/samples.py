@@ -13,6 +13,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample.h264", _h264_sample()),
         _write(target / "sample.mp4", _mp4_sample()),
         _write(target / "sample_changed.mp4", _mp4_sample(extra_free=True)),
+        _write(target / "sample.avi", _avi_sample()),
         _write(target / "sample.pcm", b"\x00\x00\x10\x00\xf0\xff" * 64),
         _write(target / "sample.yuv", b"\x10" * (64 * 48) + b"\x80" * (64 * 48 // 2)),
     ]
@@ -124,3 +125,47 @@ def _mvhd_payload(timescale: int, duration: int) -> bytes:
         + b"\x00" * 24
         + struct.pack(">I", 2)
     )
+
+
+def _avi_sample() -> bytes:
+    avih_payload = struct.pack(
+        "<IIIIIIIIII4I",
+        33333,
+        1_000_000,
+        0,
+        0x10,
+        150,
+        0,
+        1,
+        4096,
+        640,
+        480,
+        0,
+        0,
+        0,
+        0,
+    )
+    avih = _riff_chunk(b"avih", avih_payload)
+    strh_payload = (
+        b"vids"
+        + b"DIB "
+        + struct.pack("<IIIIIIII", 0, 0, 0, 1, 30, 0, 150, 4096)
+        + struct.pack("<Ihhhh", 0xFFFFFFFF, 0, 0, 640, 480)
+    )
+    strh = _riff_chunk(b"strh", strh_payload)
+    strl = _riff_list(b"strl", strh)
+    hdrl = _riff_list(b"hdrl", avih + strl)
+    movi = _riff_list(b"movi", b"")
+    payload = b"AVI " + hdrl + movi
+    return b"RIFF" + struct.pack("<I", len(payload)) + payload
+
+
+def _riff_chunk(chunk_id: bytes, payload: bytes) -> bytes:
+    padding = b"\x00" if len(payload) & 1 else b""
+    return chunk_id + struct.pack("<I", len(payload)) + payload + padding
+
+
+def _riff_list(list_type: bytes, payload: bytes) -> bytes:
+    body = list_type + payload
+    padding = b"\x00" if len(body) & 1 else b""
+    return b"LIST" + struct.pack("<I", len(body)) + body + padding

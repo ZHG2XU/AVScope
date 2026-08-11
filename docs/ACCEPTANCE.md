@@ -36,11 +36,12 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 6. 打开 `G:\AVScope\samples\sample.aac`，检查 ADTS frame 字段里是否显示 `profile`、`sample_rate`、`channel_configuration`、`duration_seconds`。
 7. 在工具栏搜索框输入 `RIFF`，模式选择 `text`，点击“查找下一个”。
 8. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`。
-9. 使用“分析 / 协议结构对比”对比：
+9. 打开 `G:\AVScope\samples\sample.avi`，检查 `hdrl/avih` 节点里是否显示 `dwWidth`、`dwHeight`、`dwTotalFrames`、`fps`。
+10. 使用“分析 / 协议结构对比”对比：
    - `G:\AVScope\samples\sample.mp4`
    - `G:\AVScope\samples\sample_changed.mp4`
-10. 导出 HTML/JSON 报告并打开检查。
-11. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
+11. 导出 HTML/JSON 报告并打开检查。
+12. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
 
 ## 当前已知边界
 

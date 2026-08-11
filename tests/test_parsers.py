@@ -98,6 +98,21 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(fields["duration"], 5000)
         self.assertEqual(fields["duration_seconds"], 5.0)
 
+    def test_avi_parser(self):
+        sample_dir = ROOT / "avi_sample"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample.avi")
+        self.assertEqual(result.media.format_name, "AVI")
+        self.assertEqual(result.media.summary["width"], 640)
+        self.assertEqual(result.media.summary["height"], 480)
+        self.assertEqual(result.media.summary["streams"], 1)
+        self.assertEqual(result.media.summary["total_frames"], 150)
+        self.assertAlmostEqual(result.media.summary["fps"], 30.0003, places=3)
+        avih = result.root.children[0].children[0]
+        fields = {field.name: field.value for field in avih.fields}
+        self.assertEqual(fields["dwWidth"], 640)
+        self.assertEqual(fields["dwHeight"], 480)
+
     def test_binary_compare(self):
         left = write(ROOT / "left.bin", b"abc123")
         right = write(ROOT / "right.bin", b"abc923")
