@@ -27,6 +27,7 @@ from avscope.byte_source import ByteSource
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
 from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, png_dimensions, preview_output_path
+from avscope.frame_stats import build_frame_stats
 from avscope.models import FieldInfo, FrameInfo, ParseNode, Severity
 from avscope.plugins import load_plugin_parsers
 from avscope.report import export_csv, export_html, export_json, export_project
@@ -103,6 +104,8 @@ class ParserTests(unittest.TestCase):
         result = self.analyzer.analyze(write(ROOT / "ok.aac", frame * 3))
         self.assertEqual(result.media.format_name, "AAC ADTS")
         self.assertEqual(result.media.summary["frames"], 3)
+        self.assertEqual(result.media.summary["frame_stats"]["frames"], 3)
+        self.assertEqual(result.media.summary["frame_stats"]["average_size"], 12.0)
         self.assertEqual(result.media.summary["profile"], "AAC LC")
         self.assertEqual(result.media.summary["sample_rate"], 44100)
         self.assertEqual(result.media.summary["channels"], 2)
@@ -126,9 +129,11 @@ class ParserTests(unittest.TestCase):
         csv_text = csv_path.read_text(encoding="utf-8-sig")
         self.assertIn("Bit / Size", html)
         self.assertIn("帧列表", html)
+        self.assertIn("帧统计", html)
         self.assertIn("AAC LC", html)
         self.assertIn("<td>0/12</td>", html)
         self.assertIn("section,path,name,type,index,offset,size,key,value,hex,severity,description", csv_text)
+        self.assertIn("frame_stats", csv_text)
         self.assertIn("frame", csv_text)
         self.assertIn("syncword", csv_text)
 
@@ -636,9 +641,11 @@ class ParserTests(unittest.TestCase):
             FrameInfo(index=0, offset=32, size=12, pts=1.25, keyframe=True),
             FrameInfo(index=1, offset=44, size=10, pts=1.29, keyframe=False),
         ]
-        lines = format_frame_preview_lines(frames)
+        stats = build_frame_stats(frames)
+        lines = format_frame_preview_lines(frames, stats)
         self.assertEqual(lines[0], "解析器帧列表: 已提取 2 帧，关键帧 1 帧，详见“帧列表”页。")
         self.assertEqual(lines[1], "首帧: offset=0x20, size=12, PTS=1.25s")
+        self.assertEqual(lines[2], "帧大小: average=11.0 bytes, max=12 bytes (frame #0)")
         self.assertEqual(format_frame_preview_lines([]), [])
 
     def test_timeline_chart_items(self):

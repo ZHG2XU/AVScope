@@ -4,6 +4,7 @@ from pathlib import Path
 
 from avscope.byte_source import ByteSource
 from avscope.ffprobe import probe_media, probe_packet_timeline
+from avscope.frame_stats import build_frame_stats
 from avscope.models import DiagnosticIssue, MediaInfo, ParseNode, ParseResult, Severity
 from avscope.plugins import load_plugin_parsers
 from avscope.waveform import build_waveform_summary
@@ -22,6 +23,7 @@ class Analyzer:
                 return self._unknown_result(source)
             try:
                 result = parser.parse(source, options or {})
+                self._attach_frame_stats(result)
                 self._attach_ffprobe(result)
                 return result
             except Exception as exc:
@@ -46,6 +48,11 @@ class Analyzer:
         result = ParseResult(MediaInfo(str(source.path), source.size, "Unknown"), root, diagnostics=[issue])
         self._attach_ffprobe(result)
         return result
+
+    def _attach_frame_stats(self, result: ParseResult) -> None:
+        stats = build_frame_stats(result.frames)
+        if stats.get("available"):
+            result.media.summary["frame_stats"] = stats
 
     def _attach_ffprobe(self, result: ParseResult) -> None:
         suffix = Path(result.media.path).suffix.lower()

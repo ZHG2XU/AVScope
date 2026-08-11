@@ -59,6 +59,17 @@ def export_csv(result: ParseResult, path: str | Path) -> None:
                     "severity": issue.severity.value,
                 }
             )
+        frame_stats = result.media.summary.get("frame_stats", {})
+        if frame_stats.get("available"):
+            writer.writerow(
+                {
+                    "section": "frame_stats",
+                    "name": "frames",
+                    "type": "summary",
+                    "size": frame_stats.get("total_bytes", ""),
+                    "value": json.dumps(frame_stats, ensure_ascii=False),
+                }
+            )
         for frame in result.frames[:5000]:
             writer.writerow(
                 {
@@ -112,6 +123,7 @@ def export_html(result: ParseResult, path: str | Path) -> None:
     waveform = result.media.summary.get("waveform", {})
     waveform_html = _waveform_html(waveform)
     packets = result.media.summary.get("packet_timeline", {}).get("packets", [])
+    frame_stats = result.media.summary.get("frame_stats", {})
     timeline_chart_html = _timeline_chart_html(doc["frames"], packets)
     timeline_html = _timeline_html(packets[:100])
     frame_html = _frame_html(doc["frames"][:200])
@@ -279,6 +291,7 @@ def export_html(result: ParseResult, path: str | Path) -> None:
         <div class="metric"><div class="label">文件大小</div><div class="value">{_format_size(media["size"])}</div></div>
         <div class="metric"><div class="label">协议节点</div><div class="value">{_count_nodes(result.root)}</div></div>
         <div class="metric"><div class="label">字段数量</div><div class="value">{_count_fields(result.root)}</div></div>
+        <div class="metric"><div class="label">帧统计</div><div class="value">{_frame_stat_metric(frame_stats)}</div></div>
       </div>
     </section>
     <section>
@@ -606,6 +619,16 @@ def _field_bit_info(field) -> str:
     if field.bit_offset is not None or field.bit_length is not None:
         return f"{field.bit_offset or 0}/{field.bit_length or 0}"
     return str(field.size)
+
+
+def _frame_stat_metric(frame_stats: dict) -> str:
+    if not frame_stats.get("available"):
+        return "无"
+    frames = frame_stats.get("frames", 0)
+    keyframes = frame_stats.get("keyframes", 0)
+    average = frame_stats.get("average_size", 0)
+    max_size = frame_stats.get("max_size", 0)
+    return html.escape(f"{frames} 帧 / {keyframes} 关键帧 / avg {average} B / max {max_size} B")
 
 
 def _format_size(size: int) -> str:

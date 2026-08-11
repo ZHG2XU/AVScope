@@ -888,7 +888,7 @@ class AVScopeApp(tk.Tk):
         elif waveform_preview.get("error"):
             lines.append(f"音频波形预览: {waveform_preview.get('error')}")
             lines.append("")
-        frame_preview = format_frame_preview_lines(self.result.frames)
+        frame_preview = format_frame_preview_lines(self.result.frames, self.result.media.summary.get("frame_stats", {}))
         if frame_preview:
             lines.extend(frame_preview)
             lines.append("")
@@ -1456,17 +1456,24 @@ def issue_summary_state(errors: int, warnings: int) -> tuple[str, str]:
     return "0 error / 0 warning", "ok"
 
 
-def format_frame_preview_lines(frames: list[FrameInfo]) -> list[str]:
+def format_frame_preview_lines(frames: list[FrameInfo], frame_stats: dict | None = None) -> list[str]:
     if not frames:
         return []
+    frame_stats = frame_stats or {}
     first = frames[0]
-    keyframes = sum(1 for frame in frames if frame.keyframe)
+    keyframes = int(frame_stats.get("keyframes", sum(1 for frame in frames if frame.keyframe)))
+    average_size = frame_stats.get("average_size")
+    largest_size = frame_stats.get("largest_size")
+    largest_index = frame_stats.get("largest_index")
     pts_text = "" if first.pts is None else f"{first.pts:.6f}".rstrip("0").rstrip(".")
     pts = "" if not pts_text else f", PTS={pts_text}s"
-    return [
+    lines = [
         f"解析器帧列表: 已提取 {len(frames)} 帧，关键帧 {keyframes} 帧，详见“帧列表”页。",
         f"首帧: offset=0x{first.offset:X}, size={first.size}{pts}",
     ]
+    if average_size is not None and largest_size is not None:
+        lines.append(f"帧大小: average={average_size} bytes, max={largest_size} bytes (frame #{largest_index})")
+    return lines
 
 
 def float_or_none(value) -> float | None:

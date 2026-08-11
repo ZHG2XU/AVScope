@@ -27,6 +27,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、大小端、有符号/无符号、宽高、像素格式和帧率。
 - Raw YUV 可在预览页显示首帧画面，支持 `yuv420p`、`nv12`、`nv21`、`yuyv422`。
 - 显示协议树、字段表、Hex 分页视图、帧列表和带帧大小柱状图的基础时间线，协议树、字段表和帧列表均可联动跳转 Hex。
+- 对解析器帧列表生成帧统计摘要，包含关键帧数、平均帧大小、最大帧大小和帧类型分布。
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
 - 对含视频流的文件使用现有 FFmpeg 生成首帧 PNG 预览，预览缓存写入 `G:\AVScope\tmp\previews`。
 - 为 WAV/PCM 生成抽样波形摘要，并在预览页显示波形图。
@@ -34,7 +35,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 输出基础诊断 warning/error，ffprobe 媒体流或 packet 时间线探测失败会转为可读 warning，并基于 packet 时间线提示 PTS/DTS 非单调和音视频时长差异。
 - 单元测试覆盖 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 典型损坏文件，验证解析失败不会导致程序崩溃并会输出诊断。
 - 支持保存 `.avscope.json` 工程快照，记录当前分析结果、源文件路径和 Raw 参数。
-- 导出独立 HTML、JSON、CSV 报告，HTML 报告包含音频波形图、帧/packet 大小图、帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、诊断、帧、packet、节点和字段。
+- 导出独立 HTML、JSON、CSV 报告，HTML 报告包含音频波形图、帧统计、帧/packet 大小图、帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、诊断、帧统计、帧、packet、节点和字段。
 - 支持两个文件的二进制差异扫描，并输出 offset 对齐的左右 Hex/ASCII 并排差异表。
 - 预留声明式插件模板机制，可在 `plugins\*.json` 中按魔数扩展私有格式识别和字段展示。
 - 深色/浅色主题。
