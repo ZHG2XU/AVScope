@@ -25,7 +25,7 @@ DEFAULT_ARTIFACTS = [
 ]
 
 VALIDATED_CHECKS = [
-    "Timeline anomaly filter helper smoke test",
+    "Timeline anomaly filter and row highlight helper smoke test",
     "Timeline chart legend rendering smoke test",
     "MPEG-TS PCR summary, curve and report export smoke test",
     "单元测试",

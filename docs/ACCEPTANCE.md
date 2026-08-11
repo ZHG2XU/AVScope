@@ -87,6 +87,6 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 
 - 打开 `G:\AVScope\samples\sample.aac`、`sample.pcap`、`sample.ts` 或包含可探测 packet 的媒体文件后，预览页应显示“时间线曲线摘要”，包括 PTS/DTS 范围、码率曲线、GOP/keyframe 摘要、GOP 分组结构、RTP sequence 摘要、PCR 摘要和时间戳异常数量。
 - 切换到“时间线”页，顶部图表应保留帧/packet 大小柱状图，并叠加 PTS/DTS 曲线、码率曲线、GOP 分段、RTP sequence 曲线、PCR 曲线和时间戳异常标记。
-- 切换到“时间线”页后，勾选“只看时间异常”应只保留 PTS/DTS 回退等异常时间点；取消勾选后应恢复完整时间线表格。
+- 切换到“时间线”页后，PTS/DTS 回退等异常时间点应以警告底色高亮；勾选“只看时间异常”应只保留这些异常时间点，取消勾选后应恢复完整时间线表格。
 - 导出 HTML/JSON/CSV 报告后，HTML 应包含“时间线曲线摘要”、PTS/DTS 曲线、码率曲线、GOP 结构图、RTP sequence 曲线、PCR 曲线和异常点，JSON/CSV 应包含 `timeline_summary`。
 - 一键验证脚本 `G:\AVScope\scripts\validate_release.ps1` 已包含该功能的冒烟测试。

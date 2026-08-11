@@ -996,7 +996,7 @@ class AVScopeApp(tk.Tk):
             if filter_anomalies and row_order not in anomaly_orders:
                 row_order += 1
                 continue
-            tag = "normal"
+            tag = timeline_item_row_tag(row_order, anomaly_orders)
             self.timeline.insert(
                 "",
                 tk.END,
@@ -1021,6 +1021,7 @@ class AVScopeApp(tk.Tk):
             if filter_anomalies and row_order not in anomaly_orders:
                 row_order += 1
                 continue
+            tag = timeline_item_row_tag(row_order, anomaly_orders)
             self.timeline.insert(
                 "",
                 tk.END,
@@ -1035,7 +1036,7 @@ class AVScopeApp(tk.Tk):
                     self._fmt(packet.get("duration")),
                     "yes" if packet.get("keyframe") else "",
                 ),
-                tags=("normal",),
+                tags=(tag,),
             )
             row_order += 1
             rendered_rows += 1
@@ -2552,6 +2553,10 @@ def timeline_anomaly_item_orders(timeline_summary: dict | None = None) -> set[in
         except (TypeError, ValueError):
             continue
     return orders
+
+
+def timeline_item_row_tag(item_order: int, anomaly_orders: set[int]) -> str:
+    return "warning" if item_order in anomaly_orders else "normal"
 
 
 def _fmt_seconds(value) -> str:

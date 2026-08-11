@@ -28,6 +28,7 @@ from avscope.app import (
     format_shortcuts_help,
     format_seconds_timecode,
     timeline_anomaly_item_orders,
+    timeline_item_row_tag,
     first_loadable_drop_path,
     hex_bytes_to_ascii,
     issue_summary_state,
@@ -1103,6 +1104,8 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(summary["timestamp_anomalies"][0]["kind"], "pts")
         self.assertEqual(summary["timestamp_anomalies"][0]["index"], 2)
         self.assertEqual(timeline_anomaly_item_orders(summary), {2})
+        self.assertEqual(timeline_item_row_tag(1, {2}), "normal")
+        self.assertEqual(timeline_item_row_tag(2, {2}), "warning")
         lines = format_timeline_summary_lines(summary)
         self.assertTrue(any("时间戳异常" in line for line in lines))
 
