@@ -14,6 +14,7 @@ from avscope.app import (
     calculate_bitrate_kbps,
     calculate_timestamp_seconds,
     extract_hex_bytes_from_dump_text,
+    format_empty_state_text,
     field_highlight_size,
     format_plugin_template_summary,
     format_elapsed_seconds,
@@ -595,6 +596,10 @@ class ParserTests(unittest.TestCase):
         samples = format_sample_files_help()
         self.assertIn("G:\\AVScope\\samples", samples)
         self.assertIn("sample.mp4", samples)
+        empty_state = format_empty_state_text()
+        self.assertIn("工作区待命", empty_state)
+        self.assertIn("H.264/H.265", empty_state)
+        self.assertIn("媒体提取", empty_state)
         plugin_dir = ROOT / "help_plugins"
         plugin_dir.mkdir(parents=True, exist_ok=True)
         manifest = {

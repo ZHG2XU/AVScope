@@ -136,6 +136,24 @@ def format_sample_files_help() -> str:
     )
 
 
+def format_empty_state_text() -> str:
+    return "\n".join(
+        [
+            "工作区待命",
+            "",
+            "打开或拖入一个音视频文件开始分析。",
+            "",
+            "支持格式",
+            "MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、PCAP/RTP、WAV、AAC ADTS、H.264/H.265 Annex-B、PCM、YUV。",
+            "",
+            "常用验收入口",
+            "打开示例文件: G:\\AVScope\\samples",
+            "导出报告: 文件 / 导出 HTML、JSON、CSV",
+            "媒体提取: 分析 / 提取音频、提取视频、提取首个关键帧",
+        ]
+    )
+
+
 def format_plugin_template_summary(parsers: list[object]) -> str:
     lines = [
         "插件模板状态",
@@ -243,17 +261,31 @@ class AVScopeApp(tk.Tk):
 
         toolbar = ttk.Frame(self, style="Toolbar.TFrame")
         toolbar.pack(side=tk.TOP, fill=tk.X, padx=12, pady=(0, 10))
-        for text, command in [
-            ("打开", self.open_file),
-            ("重新解析", self.reload_file),
-            ("二进制对比", self.compare_files),
-            ("协议对比", self.compare_protocol_files),
-            ("帧级对比", self.compare_frame_files),
-            ("导出 HTML", self.export_html_report),
-            ("导出 JSON", self.export_json_report),
-            ("导出 CSV", self.export_csv_report),
-        ]:
-            ttk.Button(toolbar, text=text, command=command, style="Toolbar.TButton").pack(side=tk.LEFT, padx=(0, 8), pady=8)
+        toolbar_groups = [
+            ("文件", [("打开", self.open_file, "Primary.Toolbar.TButton"), ("重新解析", self.reload_file, "Toolbar.TButton")]),
+            (
+                "对比",
+                [
+                    ("二进制对比", self.compare_files, "Toolbar.TButton"),
+                    ("协议对比", self.compare_protocol_files, "Toolbar.TButton"),
+                    ("帧级对比", self.compare_frame_files, "Toolbar.TButton"),
+                ],
+            ),
+            (
+                "报告",
+                [
+                    ("导出 HTML", self.export_html_report, "Toolbar.TButton"),
+                    ("导出 JSON", self.export_json_report, "Toolbar.TButton"),
+                    ("导出 CSV", self.export_csv_report, "Toolbar.TButton"),
+                ],
+            ),
+        ]
+        for group_index, (group_label, buttons) in enumerate(toolbar_groups):
+            if group_index:
+                ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=(2, 10), pady=10)
+            ttk.Label(toolbar, text=group_label, style="ToolbarGroup.TLabel").pack(side=tk.LEFT, padx=(0, 8), pady=8)
+            for text, command, style_name in buttons:
+                ttk.Button(toolbar, text=text, command=command, style=style_name).pack(side=tk.LEFT, padx=(0, 8), pady=8)
         ttk.Label(toolbar, text="Offset", style="Toolbar.TLabel").pack(side=tk.LEFT, padx=(16, 6))
         self.offset_entry = ttk.Entry(toolbar, width=14, style="Offset.TEntry")
         self.offset_entry.insert(0, "0x0")
@@ -588,8 +620,11 @@ class AVScopeApp(tk.Tk):
         style.configure("Panel.TFrame", background=p["panel"])
         style.configure("PanelTitle.TLabel", background=p["panel"], foreground=p["muted"], font=("Microsoft YaHei UI", 9, "bold"))
         style.configure("Toolbar.TLabel", background=p["panel2"], foreground=p["muted"])
+        style.configure("ToolbarGroup.TLabel", background=p["panel2"], foreground=p["muted"], font=("Microsoft YaHei UI", 8, "bold"))
         style.configure("Toolbar.TButton", padding=(12, 6), background=p["panel"], foreground=p["fg"], bordercolor=p["border"])
         style.map("Toolbar.TButton", background=[("active", p["select"])], foreground=[("active", p["fg"])])
+        style.configure("Primary.Toolbar.TButton", padding=(14, 6), background=p["accent"], foreground="#FFFFFF", bordercolor=p["accent"])
+        style.map("Primary.Toolbar.TButton", background=[("active", p["select"])], foreground=[("active", "#FFFFFF")])
         style.configure("Panel.TCheckbutton", background=p["panel"], foreground=p["fg"])
         style.map("Panel.TCheckbutton", background=[("active", p["panel"])], foreground=[("active", p["fg"])])
         style.configure("Offset.TEntry", fieldbackground=p["text_bg"], foreground=p["fg"], bordercolor=p["border"], insertcolor=p["fg"])
@@ -626,6 +661,9 @@ class AVScopeApp(tk.Tk):
         self.hex_text.tag_configure("search_hit", background=p["accent"], foreground="#FFFFFF")
         self.preview.tag_configure("binary_diff_line", background=p["warning_bg"], foreground=p["fg"])
         self.preview.tag_configure("binary_diff_active", background=p["warning"], foreground=p["bg"])
+        self.preview.tag_configure("empty_title", foreground=p["accent"], font=("Microsoft YaHei UI", 14, "bold"))
+        self.preview.tag_configure("empty_heading", foreground=p["accent2"], font=("Microsoft YaHei UI", 10, "bold"))
+        self.preview.tag_configure("empty_muted", foreground=p["muted"], font=("Microsoft YaHei UI", 9))
         self.diagnostics.tag_configure("info", foreground=p["accent2"])
         self.diagnostics.tag_configure("warning", foreground=p["warning"])
         self.diagnostics.tag_configure("error", foreground=p["error"])
@@ -1608,12 +1646,12 @@ class AVScopeApp(tk.Tk):
     def _set_empty_state(self) -> None:
         self._clear_binary_diff_navigation()
         self.preview.delete("1.0", tk.END)
-        self.preview.insert(
-            tk.END,
-            "打开一个音视频文件开始分析。\n\n"
-            "支持 MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、PCAP/RTP、WAV、AAC ADTS、H.264/H.265 Annex-B、PCM、YUV。\n"
-            "可以拖拽文件到窗口打开；解析后会显示协议树、Hex、字段、帧列表、时间线、波形和诊断报告。",
-        )
+        self.preview.insert(tk.END, format_empty_state_text())
+        self.preview.tag_add("empty_title", "1.0", "1.end")
+        for line in (5, 8):
+            self.preview.tag_add("empty_heading", f"{line}.0", f"{line}.end")
+        for line in (3, 6, 9, 10, 11):
+            self.preview.tag_add("empty_muted", f"{line}.0", f"{line}.end")
         self.diagnostics.delete("1.0", tk.END)
         self.diagnostics.insert(tk.END, "等待文件输入\n", ("heading",))
         self.diagnostics.insert(tk.END, "请选择“打开”，或通过菜单载入媒体文件。", ("info",))
