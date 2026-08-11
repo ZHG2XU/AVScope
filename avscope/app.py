@@ -916,6 +916,12 @@ class AVScopeApp(tk.Tk):
         packets = packet_timeline.get("packets", [])
         if packets:
             lines.append(f"packet 时间线: 已提取前 {len(packets)} 个 packet，详见“时间线”页。")
+            packet_stats = self.result.media.summary.get("packet_stats", {})
+            if packet_stats.get("available"):
+                lines.append(
+                    f"packet 统计: streams={packet_stats.get('streams')} keyframes={packet_stats.get('keyframes')} "
+                    f"average={packet_stats.get('average_size')} bytes max={packet_stats.get('max_size')} bytes"
+                )
         if not packets and not waveform.get("available") and not self.result.frames:
             lines.append("当前文件暂无可预览波形或 packet 时间线；仍可查看协议树、字段和 Hex。")
         return "\n".join(lines)

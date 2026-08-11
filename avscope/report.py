@@ -70,6 +70,17 @@ def export_csv(result: ParseResult, path: str | Path) -> None:
                     "value": json.dumps(frame_stats, ensure_ascii=False),
                 }
             )
+        packet_stats = result.media.summary.get("packet_stats", {})
+        if packet_stats.get("available"):
+            writer.writerow(
+                {
+                    "section": "packet_stats",
+                    "name": "packets",
+                    "type": "summary",
+                    "size": packet_stats.get("total_bytes", ""),
+                    "value": json.dumps(packet_stats, ensure_ascii=False),
+                }
+            )
         for frame in result.frames[:5000]:
             writer.writerow(
                 {
@@ -124,6 +135,7 @@ def export_html(result: ParseResult, path: str | Path) -> None:
     waveform_html = _waveform_html(waveform)
     packets = result.media.summary.get("packet_timeline", {}).get("packets", [])
     frame_stats = result.media.summary.get("frame_stats", {})
+    packet_stats = result.media.summary.get("packet_stats", {})
     timeline_chart_html = _timeline_chart_html(doc["frames"], packets)
     timeline_html = _timeline_html(packets[:100])
     frame_html = _frame_html(doc["frames"][:200])
@@ -292,6 +304,7 @@ def export_html(result: ParseResult, path: str | Path) -> None:
         <div class="metric"><div class="label">协议节点</div><div class="value">{_count_nodes(result.root)}</div></div>
         <div class="metric"><div class="label">字段数量</div><div class="value">{_count_fields(result.root)}</div></div>
         <div class="metric"><div class="label">帧统计</div><div class="value">{_frame_stat_metric(frame_stats)}</div></div>
+        <div class="metric"><div class="label">Packet 统计</div><div class="value">{_packet_stat_metric(packet_stats)}</div></div>
       </div>
     </section>
     <section>
@@ -629,6 +642,16 @@ def _frame_stat_metric(frame_stats: dict) -> str:
     average = frame_stats.get("average_size", 0)
     max_size = frame_stats.get("max_size", 0)
     return html.escape(f"{frames} 帧 / {keyframes} 关键帧 / avg {average} B / max {max_size} B")
+
+
+def _packet_stat_metric(packet_stats: dict) -> str:
+    if not packet_stats.get("available"):
+        return "无"
+    packets = packet_stats.get("packets", 0)
+    streams = packet_stats.get("streams", 0)
+    average = packet_stats.get("average_size", 0)
+    max_size = packet_stats.get("max_size", 0)
+    return html.escape(f"{packets} packets / {streams} streams / avg {average} B / max {max_size} B")
 
 
 def _format_size(size: int) -> str:

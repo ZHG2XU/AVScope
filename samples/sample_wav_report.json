@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-12T03:04:47",
+  "generated_at": "2026-08-12T03:09:29",
   "tool_version": "0.1.0",
   "media": {
     "path": "G:\\AVScope\\samples\\sample.wav",
@@ -64,6 +64,32 @@
             "keyframe": true
           }
         ]
+      },
+      "packet_stats": {
+        "available": true,
+        "packets": 1,
+        "streams": 1,
+        "keyframes": 1,
+        "total_bytes": 1024,
+        "min_size": 1024,
+        "max_size": 1024,
+        "average_size": 1024.0,
+        "by_stream": {
+          "0": {
+            "packets": 1,
+            "keyframes": 1,
+            "total_bytes": 1024,
+            "min_size": 1024,
+            "max_size": 1024,
+            "average_size": 1024.0,
+            "codec_types": {
+              "audio": 1
+            },
+            "first_pts": 0.0,
+            "last_pts": 0.0,
+            "pts_span": 0.0
+          }
+        }
       },
       "waveform": {
         "available": true,

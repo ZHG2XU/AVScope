@@ -6,6 +6,7 @@ from avscope.byte_source import ByteSource
 from avscope.ffprobe import probe_media, probe_packet_timeline
 from avscope.frame_stats import build_frame_stats
 from avscope.models import DiagnosticIssue, MediaInfo, ParseNode, ParseResult, Severity
+from avscope.packet_stats import build_packet_stats
 from avscope.plugins import load_plugin_parsers
 from avscope.waveform import build_waveform_summary
 from avscope.parsers import DEFAULT_PARSERS
@@ -59,6 +60,9 @@ class Analyzer:
         if suffix not in {".pcm", ".yuv"}:
             result.media.summary["ffprobe"] = probe_media(result.media.path)
             result.media.summary["packet_timeline"] = probe_packet_timeline(result.media.path)
+            packet_stats = build_packet_stats(result.media.summary["packet_timeline"])
+            if packet_stats.get("available"):
+                result.media.summary["packet_stats"] = packet_stats
             result.diagnostics.extend(build_timeline_diagnostics(result.media.summary))
         if suffix in {".wav", ".pcm"} or result.media.format_name in {"WAV", "Raw PCM"}:
             result.media.summary["waveform"] = build_waveform_summary(

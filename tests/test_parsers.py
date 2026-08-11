@@ -29,6 +29,7 @@ from avscope.compare import compare_binary, compare_protocol, format_binary_comp
 from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, png_dimensions, preview_output_path
 from avscope.frame_stats import build_frame_stats
 from avscope.models import FieldInfo, FrameInfo, ParseNode, Severity
+from avscope.packet_stats import build_packet_stats
 from avscope.plugins import load_plugin_parsers
 from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
@@ -442,6 +443,23 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(any("音视频时长差异" in message for message in messages))
         self.assertEqual({issue.severity for issue in issues}, {Severity.WARNING})
 
+    def test_packet_stats(self):
+        stats = build_packet_stats(
+            {
+                "packets": [
+                    {"stream_index": 0, "codec_type": "video", "pts": 1.0, "size": 100, "keyframe": True},
+                    {"stream_index": 0, "codec_type": "video", "pts": 1.04, "size": 50, "keyframe": False},
+                    {"stream_index": 1, "codec_type": "audio", "pts": 0.5, "size": 25, "keyframe": False},
+                ]
+            }
+        )
+        self.assertTrue(stats["available"])
+        self.assertEqual(stats["packets"], 3)
+        self.assertEqual(stats["streams"], 2)
+        self.assertEqual(stats["keyframes"], 1)
+        self.assertEqual(stats["average_size"], 58.33)
+        self.assertEqual(stats["by_stream"]["0"]["pts_span"], 0.04)
+
     def test_ffprobe_errors_emit_diagnostics(self):
         summary = {
             "ffprobe": {"available": True, "error": "moov atom not found"},
@@ -533,6 +551,8 @@ class ParserTests(unittest.TestCase):
         self.assertIn("音频波形图", html_text)
         self.assertIn('class="timeline-chart"', html_text)
         self.assertIn("帧/Packet 大小图", html_text)
+        self.assertIn("Packet 统计", html_text)
+        self.assertIn("packet_stats", csv_path.read_text(encoding="utf-8-sig"))
         pcm_json = ROOT / "cli_pcm_report.json"
         exit_code = cli_main(
             [
