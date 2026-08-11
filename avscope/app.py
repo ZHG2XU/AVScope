@@ -77,12 +77,15 @@ class AVScopeApp(tk.Tk):
         self.current_file: Path | None = None
         self.current_hex_offset = 0
         self._node_by_iid: dict[str, ParseNode] = {}
+        self._tree_iids_in_display_order: list[str] = []
         self._last_search: tuple[str, str, int] | None = None
+        self._last_node_search: tuple[str, int] | None = None
         self.raw_options_by_path: dict[str, dict] = {}
         self.settings = AppSettings()
         self._theme_name = "dark"
         self._palette = PALETTES["dark"]
         self.hex_endian = tk.StringVar(value="little")
+        self.issue_filter = tk.BooleanVar(value=False)
         self._build_ui()
         self._bind_shortcuts()
         self._apply_theme("dark")
@@ -122,7 +125,7 @@ class AVScopeApp(tk.Tk):
         self.search_entry = ttk.Entry(toolbar, width=24, textvariable=self.search_var, style="Offset.TEntry")
         self.search_entry.pack(side=tk.LEFT)
         self.search_mode = tk.StringVar(value="hex")
-        self.search_mode_box = ttk.Combobox(toolbar, width=7, textvariable=self.search_mode, values=("hex", "text"), state="readonly")
+        self.search_mode_box = ttk.Combobox(toolbar, width=7, textvariable=self.search_mode, values=("hex", "text", "node"), state="readonly")
         self.search_mode_box.pack(side=tk.LEFT, padx=(6, 0))
         ttk.Button(toolbar, text="查找下一个", command=self.find_next, style="Toolbar.TButton").pack(side=tk.LEFT, padx=8)
         ttk.Label(toolbar, text="Endian", style="Toolbar.TLabel").pack(side=tk.LEFT, padx=(10, 6))
@@ -147,6 +150,8 @@ class AVScopeApp(tk.Tk):
         left = ttk.Frame(main, style="Panel.TFrame")
         main.add(left, weight=1)
         self._panel_title(left, "协议树")
+        self.issue_check = ttk.Checkbutton(left, text="只看异常", variable=self.issue_filter, command=self.toggle_issue_filter, style="Panel.TCheckbutton")
+        self.issue_check.pack(anchor=tk.W, padx=10, pady=(0, 6))
         self.tree = ttk.Treeview(left, columns=("type", "offset", "size"), show="tree headings", style="Data.Treeview")
         self.tree.heading("#0", text="名称")
         self.tree.heading("type", text="类型")
@@ -307,6 +312,8 @@ class AVScopeApp(tk.Tk):
         style.configure("Toolbar.TLabel", background=p["panel2"], foreground=p["muted"])
         style.configure("Toolbar.TButton", padding=(12, 6), background=p["panel"], foreground=p["fg"], bordercolor=p["border"])
         style.map("Toolbar.TButton", background=[("active", p["select"])], foreground=[("active", p["fg"])])
+        style.configure("Panel.TCheckbutton", background=p["panel"], foreground=p["fg"])
+        style.map("Panel.TCheckbutton", background=[("active", p["panel"])], foreground=[("active", p["fg"])])
         style.configure("Offset.TEntry", fieldbackground=p["text_bg"], foreground=p["fg"], bordercolor=p["border"], insertcolor=p["fg"])
         style.configure("TCombobox", fieldbackground=p["text_bg"], foreground=p["fg"], background=p["panel"])
         style.configure("Workbench.TNotebook", background=p["bg"], borderwidth=0)
@@ -399,6 +406,7 @@ class AVScopeApp(tk.Tk):
         self.update_idletasks()
         self.current_file = path
         self._last_search = None
+        self._last_node_search = None
         self.result = self.analyzer.analyze(path, self._raw_options_for_path(path))
         self._render_result()
         self._load_hex(0)
@@ -457,14 +465,21 @@ class AVScopeApp(tk.Tk):
     def _render_result(self) -> None:
         if not self.result:
             return
-        self.tree.delete(*self.tree.get_children())
-        self._node_by_iid.clear()
-        self._insert_node("", self.result.root)
+        self._render_tree()
         self.fields.delete(*self.fields.get_children())
         self._render_timeline()
         self._render_diagnostics()
         self.preview.delete("1.0", tk.END)
         self.preview.insert(tk.END, self._preview_text())
+
+    def _render_tree(self) -> None:
+        if not self.result:
+            return
+        self.tree.delete(*self.tree.get_children())
+        self._node_by_iid.clear()
+        self._tree_iids_in_display_order.clear()
+        self._last_node_search = None
+        self._insert_node("", self.result.root)
 
     def _render_timeline(self) -> None:
         if not self.result:
@@ -528,17 +543,23 @@ class AVScopeApp(tk.Tk):
             self.diagnostics.insert(tk.END, f"[{issue.severity.value}] {issue.message}{offset}\n", (tag,))
 
     def _insert_node(self, parent: str, node: ParseNode) -> None:
+        if self.issue_filter.get() and not node_has_issue(node):
+            return
         tag = "error" if node.severity == Severity.ERROR else "warning" if node.severity == Severity.WARNING else "normal"
+        visible_children = [
+            child for child in node.children if not self.issue_filter.get() or node_has_issue(child)
+        ]
         iid = self.tree.insert(
             parent,
             tk.END,
             text=node.name,
             values=(node.node_type, f"0x{node.offset:X}", node.size),
-            open=len(node.children) < 64,
+            open=self.issue_filter.get() or len(visible_children) < 64,
             tags=(tag,),
         )
         self._node_by_iid[iid] = node
-        for child in node.children:
+        self._tree_iids_in_display_order.append(iid)
+        for child in visible_children:
             self._insert_node(iid, child)
 
     def on_tree_select(self, _event) -> None:
@@ -619,6 +640,9 @@ class AVScopeApp(tk.Tk):
         if not self.current_file:
             messagebox.showinfo("未打开文件", "请先打开一个文件。")
             return
+        if self.search_mode.get() == "node":
+            self.find_next_protocol_node()
+            return
         try:
             pattern = parse_search_pattern(self.search_var.get(), self.search_mode.get())
         except SearchPatternError as exc:
@@ -638,6 +662,43 @@ class AVScopeApp(tk.Tk):
         self._load_hex(max(0, found - 128))
         self._highlight_hex_range(found, len(pattern))
         self.status.set(f"找到匹配内容 offset=0x{found:X}, size={len(pattern)}")
+
+    def find_next_protocol_node(self) -> None:
+        query = self.search_var.get().strip()
+        if not query:
+            self.status.set("请输入协议节点搜索内容")
+            return
+        matches = [
+            (index, iid)
+            for index, iid in enumerate(self._tree_iids_in_display_order)
+            if node_matches_query(self._node_by_iid[iid], query)
+        ]
+        if not matches:
+            self._last_node_search = None
+            self.status.set(f"未找到协议节点: {query}")
+            return
+        start_index = -1
+        if self._last_node_search and self._last_node_search[0] == query:
+            start_index = self._last_node_search[1]
+        elif self.tree.selection():
+            selected = self.tree.selection()[0]
+            if selected in self._tree_iids_in_display_order:
+                start_index = self._tree_iids_in_display_order.index(selected)
+        next_match = next(((index, iid) for index, iid in matches if index > start_index), matches[0])
+        index, iid = next_match
+        self._last_node_search = (query, index)
+        self.tree.selection_set(iid)
+        self.tree.focus(iid)
+        self.tree.see(iid)
+        self.on_tree_select(None)
+        node = self._node_by_iid[iid]
+        self.status.set(f"找到协议节点: {node.name} offset=0x{node.offset:X}")
+
+    def toggle_issue_filter(self) -> None:
+        self._render_tree()
+        self.fields.delete(*self.fields.get_children())
+        mode = "只看异常" if self.issue_filter.get() else "显示全部节点"
+        self.status.set(f"协议树已切换为: {mode}")
 
     def _highlight_hex_range(self, offset: int, size: int) -> None:
         self.hex_text.tag_remove("search_hit", "1.0", tk.END)
@@ -815,6 +876,40 @@ def extract_hex_bytes_from_dump_text(text: str) -> bytes:
 
 def hex_bytes_to_ascii(data: bytes) -> str:
     return "".join(chr(byte) if 32 <= byte <= 126 else "." for byte in data)
+
+
+def node_has_issue(node: ParseNode) -> bool:
+    if node.severity in {Severity.WARNING, Severity.ERROR}:
+        return True
+    if any(field.severity in {Severity.WARNING, Severity.ERROR} for field in node.fields):
+        return True
+    return any(node_has_issue(child) for child in node.children)
+
+
+def node_matches_query(node: ParseNode, query: str) -> bool:
+    needle = query.strip().lower()
+    if not needle:
+        return False
+    haystack = [
+        node.name,
+        node.node_type,
+        node.description,
+        f"0x{node.offset:X}",
+        str(node.offset),
+        str(node.size),
+    ]
+    for field in node.fields:
+        haystack.extend(
+            [
+                field.name,
+                str(field.value),
+                field.hex_value,
+                f"0x{field.offset:X}",
+                str(field.offset),
+                field.description,
+            ]
+        )
+    return any(needle in str(value).lower() for value in haystack if value is not None)
 
 
 def format_hex_interpretation(data: bytes, endian: str = "little") -> str:

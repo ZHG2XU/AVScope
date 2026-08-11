@@ -6,10 +6,17 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from avscope.app import extract_hex_bytes_from_dump_text, format_hex_interpretation, hex_bytes_to_ascii
+from avscope.app import (
+    extract_hex_bytes_from_dump_text,
+    format_hex_interpretation,
+    hex_bytes_to_ascii,
+    node_has_issue,
+    node_matches_query,
+)
 from avscope.analyzer import Analyzer
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_protocol_compare
+from avscope.models import FieldInfo, ParseNode, Severity
 from avscope.report import export_html, export_json
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
 from avscope.search import find_pattern, parse_search_pattern
@@ -332,6 +339,22 @@ class ParserTests(unittest.TestCase):
         self.assertIn("u16: 256", big)
         self.assertIn("u32: 16777216", big)
         self.assertIn("ASCII: ....", little)
+
+    def test_protocol_tree_search_and_issue_helpers(self):
+        root = ParseNode("root", "file", 0, 16)
+        trak = root.add_child(ParseNode("trak", "box", 8, 8, description="video track"))
+        trak.fields.append(FieldInfo("handler_type", "vide", offset=12, hex_value="76 69 64 65"))
+        stsz = trak.add_child(ParseNode("stsz", "box", 20, 12))
+        stsz.fields.append(FieldInfo("sample_count", 1, offset=24, severity=Severity.WARNING))
+
+        self.assertTrue(node_matches_query(trak, "video"))
+        self.assertTrue(node_matches_query(trak, "vide"))
+        self.assertTrue(node_matches_query(stsz, "0x14"))
+        self.assertFalse(node_matches_query(trak, "aac"))
+        self.assertTrue(node_has_issue(root))
+        self.assertTrue(node_has_issue(trak))
+        self.assertTrue(node_has_issue(stsz))
+        self.assertFalse(node_has_issue(ParseNode("mdat", "box", 32, 128)))
 
     def test_recent_file_settings(self):
         settings_path = ROOT / "settings.json"
