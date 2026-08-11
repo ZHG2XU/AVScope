@@ -21,7 +21,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 
 - 单元测试
 - 128MB+ 大文件只读随机访问测试
-- 损坏 MP4/WAV/AAC/H.264/AVI/FLV/MPEG-TS 文件与 ffprobe 探测失败的诊断回归测试
+- 损坏 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-TS 文件与 ffprobe 探测失败的诊断回归测试
 - 关键产物存在性检查
 - UI/报告源码乱码扫描
 - C 盘写入目标扫描
@@ -43,18 +43,19 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 11. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`，并检查 `trak/tkhd/mdia/mdhd/hdlr/stbl` 相关节点里的 `track_id`、`width`、`height`、`handler_type`、`sample_count`、`chunk_offset`。
 12. 打开 `G:\AVScope\samples\sample.avi`，检查 `hdrl/avih` 节点里是否显示 `dwWidth`、`dwHeight`、`dwTotalFrames`、`fps`。
 13. 打开 `G:\AVScope\samples\sample.flv`，检查 FLV tag 节点中是否显示 `tag_type`、`data_size`、`timestamp`、`stream_id` 和 `previous_tag_size`。
-14. 打开 `G:\AVScope\samples\sample.ts`，检查 MPEG-TS packet 节点中是否显示 `pid`、`payload_unit_start_indicator`、`adaptation_field_control` 和 `continuity_counter`，并确认诊断规则可覆盖 continuity counter 跳变。
-15. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
-16. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
-17. 查看诊断面板，确认工具可在 ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调或音视频时长差异时输出 warning。
-18. 使用“分析 / 协议结构对比”对比：
+14. 打开 `G:\AVScope\samples\sample.mkv`，检查 Matroska/WebM 节点中是否显示 `DocType`、`TimecodeScale`、`Duration`、`TrackEntry`、`PixelWidth`、`PixelHeight` 和 `SimpleBlock` 帧。
+15. 打开 `G:\AVScope\samples\sample.ts`，检查 MPEG-TS packet 节点中是否显示 `pid`、`payload_unit_start_indicator`、`adaptation_field_control` 和 `continuity_counter`，并确认诊断规则可覆盖 continuity counter 跳变。
+16. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
+17. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
+18. 查看诊断面板，确认工具可在 ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调或音视频时长差异时输出 warning。
+19. 使用“分析 / 协议结构对比”对比：
     - `G:\AVScope\samples\sample.mp4`
     - `G:\AVScope\samples\sample_changed.mp4`
-19. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记。
-20. 使用“文件 / 保存工程”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径和 Raw 参数。
-21. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，确认声明式插件模板随产物交付。
-22. 导出 HTML/JSON/CSV 报告并打开检查，确认 HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含“帧列表”章节；CSV 应包含 `media`、`frame`、`node`、`field` 等 section。
-23. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
+20. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记。
+21. 使用“文件 / 保存工程”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径和 Raw 参数。
+22. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，确认声明式插件模板随产物交付。
+23. 导出 HTML/JSON/CSV 报告并打开检查，确认 HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含“帧列表”章节；CSV 应包含 `media`、`frame`、`node`、`field` 等 section。
+24. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
 
 ## 当前已知边界
 

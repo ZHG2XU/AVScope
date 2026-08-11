@@ -19,6 +19,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample_changed.mp4", _mp4_sample(extra_free=True)),
         _write(target / "sample.avi", _avi_sample()),
         _write(target / "sample.flv", _flv_sample()),
+        _write(target / "sample.mkv", _matroska_sample()),
         _write(target / "sample.ts", _mpegts_sample()),
         _write(target / "sample.pcm", b"\x00\x00\x10\x00\xf0\xff" * 64),
         _write(target / "sample.yuv", b"\x10" * (64 * 48) + b"\x80" * (64 * 48 // 2)),
@@ -87,6 +88,73 @@ def _flv_tag(tag_type: int, timestamp: int, payload: bytes) -> bytes:
     )
     previous_tag_size = len(header) + data_size
     return header + payload + struct.pack(">I", previous_tag_size)
+
+
+def _matroska_sample() -> bytes:
+    ebml_header = _ebml_element(
+        b"\x1A\x45\xDF\xA3",
+        _ebml_uint_element(b"\x42\x86", 1)
+        + _ebml_uint_element(b"\x42\xF7", 1)
+        + _ebml_uint_element(b"\x42\xF2", 4)
+        + _ebml_uint_element(b"\x42\xF3", 8)
+        + _ebml_text_element(b"\x42\x82", "matroska")
+        + _ebml_uint_element(b"\x42\x87", 4)
+        + _ebml_uint_element(b"\x42\x85", 2),
+    )
+    info = _ebml_element(
+        b"\x15\x49\xA9\x66",
+        _ebml_uint_element(b"\x2A\xD7\xB1", 1_000_000)
+        + _ebml_element(b"\x44\x89", struct.pack(">d", 5000.0))
+        + _ebml_text_element(b"\x4D\x80", "AVScope")
+        + _ebml_text_element(b"\x57\x41", "AVScope Sample"),
+    )
+    video_track = _ebml_element(
+        b"\xAE",
+        _ebml_uint_element(b"\xD7", 1)
+        + _ebml_uint_element(b"\x73\xC5", 1)
+        + _ebml_uint_element(b"\x83", 1)
+        + _ebml_text_element(b"\x86", "V_MPEG4/ISO/AVC")
+        + _ebml_element(
+            b"\xE0",
+            _ebml_uint_element(b"\xB0", 640) + _ebml_uint_element(b"\xBA", 360),
+        ),
+    )
+    tracks = _ebml_element(b"\x16\x54\xAE\x6B", video_track)
+    block_payload = b"\x81\x00\x00\x80\x00\x00\x01\x65\x88\x84"
+    cluster = _ebml_element(
+        b"\x1F\x43\xB6\x75",
+        _ebml_uint_element(b"\xE7", 0) + _ebml_element(b"\xA3", block_payload),
+    )
+    return ebml_header + _ebml_element(b"\x18\x53\x80\x67", info + tracks + cluster)
+
+
+def _ebml_element(element_id: bytes, payload: bytes) -> bytes:
+    return element_id + _ebml_size(len(payload)) + payload
+
+
+def _ebml_uint_element(element_id: bytes, value: int) -> bytes:
+    return _ebml_element(element_id, _ebml_uint(value))
+
+
+def _ebml_text_element(element_id: bytes, value: str) -> bytes:
+    return _ebml_element(element_id, value.encode("utf-8"))
+
+
+def _ebml_uint(value: int) -> bytes:
+    size = max(1, (value.bit_length() + 7) // 8)
+    return value.to_bytes(size, "big")
+
+
+def _ebml_size(size: int) -> bytes:
+    if size < 0x7F:
+        return bytes([0x80 | size])
+    if size < 0x3FFF:
+        return (0x4000 | size).to_bytes(2, "big")
+    if size < 0x1F_FFFF:
+        return (0x20_0000 | size).to_bytes(3, "big")
+    if size < 0x0FFF_FFFF:
+        return (0x1000_0000 | size).to_bytes(4, "big")
+    raise ValueError("synthetic EBML sample is too large")
 
 
 def _ts_packet(pid: int, payload_unit_start: bool, continuity_counter: int, payload: bytes) -> bytes:

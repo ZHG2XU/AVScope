@@ -4,6 +4,7 @@ from .aac import AacAdtsParser
 from .avi import AviParser
 from .flv import FlvParser
 from .h26x import H264AnnexBParser, H265AnnexBParser
+from .matroska import MatroskaParser
 from .mpegts import MpegTsParser
 from .mp4 import Mp4Parser
 from .raw import RawPcmParser, RawYuvParser
@@ -14,6 +15,7 @@ DEFAULT_PARSERS = [
     Mp4Parser(),
     AviParser(),
     FlvParser(),
+    MatroskaParser(),
     MpegTsParser(),
     WavParser(),
     AacAdtsParser(),

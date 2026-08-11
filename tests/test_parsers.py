@@ -252,6 +252,21 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(fields["tag_type"], "video")
         self.assertEqual(fields["timestamp"], 40)
 
+    def test_matroska_parser(self):
+        sample_dir = ROOT / "matroska_sample"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample.mkv")
+        self.assertEqual(result.media.format_name, "Matroska/WebM")
+        self.assertEqual(result.media.summary["doc_type"], "matroska")
+        self.assertEqual(result.media.summary["timecode_scale"], 1_000_000)
+        self.assertEqual(result.media.summary["duration_seconds"], 5.0)
+        self.assertEqual(result.media.summary["tracks"][0]["type"], "video")
+        self.assertEqual(result.media.summary["tracks"][0]["codec"], "V_MPEG4/ISO/AVC")
+        self.assertEqual(result.media.summary["tracks"][0]["width"], 640)
+        self.assertEqual(result.media.summary["tracks"][0]["height"], 360)
+        self.assertEqual(result.frames[0].pts, 0.0)
+        self.assertTrue(result.frames[0].keyframe)
+
     def test_mpegts_continuity_counter_diagnostic(self):
         def packet(pid: int, counter: int) -> bytes:
             header = bytes([0x47, (pid >> 8) & 0x1F, pid & 0xFF, 0x10 | counter])
@@ -303,6 +318,11 @@ class ParserTests(unittest.TestCase):
         truncated_flv = write(ROOT / "truncated.flv", b"FLV\x01\x05\x00\x00\x00\x09\x00\x00\x00\x00\x09\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00")
         result = self.analyzer.analyze(truncated_flv)
         self.assertEqual(result.media.format_name, "FLV")
+        self.assertTrue(diagnostics_with(result, "error"))
+
+        truncated_mkv = write(ROOT / "truncated.mkv", b"\x1A\x45\xDF\xA3\x84\x42\x82")
+        result = self.analyzer.analyze(truncated_mkv)
+        self.assertEqual(result.media.format_name, "Matroska/WebM")
         self.assertTrue(diagnostics_with(result, "error"))
 
     def test_timeline_diagnostics(self):
