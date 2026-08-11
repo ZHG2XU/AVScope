@@ -21,6 +21,7 @@ DEFAULT_ARTIFACTS = [
     "dist/sample-reports/sample_mp4_report.json",
     "dist/sample-reports/sample_protocol_compare.json",
     "dist/sample-reports/sample_frame_compare.json",
+    "docs/KNOWN_ISSUES_AND_ROADMAP.md",
 ]
 
 VALIDATED_CHECKS = [
@@ -34,6 +35,7 @@ VALIDATED_CHECKS = [
     "音频波形、视频预览帧步进、Raw YUV 预览冒烟测试",
     "帧级对比冒烟测试",
     "音频、视频和关键帧提取冒烟测试",
+    "已知边界与后续规划文档检查",
     "绿色版 GUI 启动冒烟测试",
     "安装包静默安装、启动、卸载冒烟测试",
     "HTML/JSON/CSV 示例报告生成",

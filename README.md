@@ -112,6 +112,8 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 
 验收清单见 `G:\AVScope\docs\ACCEPTANCE.md`。
 
+已知边界与后续规划见 `G:\AVScope\docs\KNOWN_ISSUES_AND_ROADMAP.md`。
+
 ## 目录结构
 
 ```text

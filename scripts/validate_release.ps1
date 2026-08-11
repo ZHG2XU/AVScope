@@ -19,6 +19,7 @@ $sampleMp4Html = "$sampleReportDir\sample_mp4_report.html"
 $sampleMp4Json = "$sampleReportDir\sample_mp4_report.json"
 $sampleProtocolCompare = "$sampleReportDir\sample_protocol_compare.json"
 $sampleFrameCompare = "$sampleReportDir\sample_frame_compare.json"
+$knownIssuesRoadmap = "G:\AVScope\docs\KNOWN_ISSUES_AND_ROADMAP.md"
 $installDir = "G:\AVScopeInstalled\ValidationSmoke-$([DateTime]::Now.ToString('yyyyMMddHHmmss'))"
 
 $env:PYTHONPATH = $root
@@ -52,7 +53,8 @@ $artifacts = @(
     $sampleMp4Html,
     $sampleMp4Json,
     $sampleProtocolCompare,
-    $sampleFrameCompare
+    $sampleFrameCompare,
+    $knownIssuesRoadmap
 )
 foreach ($artifact in $artifacts) {
     if (-not (Test-Path $artifact)) {
