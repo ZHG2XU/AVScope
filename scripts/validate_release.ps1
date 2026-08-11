@@ -44,7 +44,7 @@ $bad = @(
     [string][char]0x9239,
     [string][char]0xFFFD
 )
-$sourceFiles = @("$root\avscope\app.py", "$root\avscope\report.py")
+$sourceFiles = Get-ChildItem -Path "$root\avscope" -Recurse -Filter "*.py" -File | ForEach-Object { $_.FullName }
 foreach ($file in $sourceFiles) {
     $text = [System.IO.File]::ReadAllText($file, [System.Text.Encoding]::UTF8)
     foreach ($fragment in $bad) {

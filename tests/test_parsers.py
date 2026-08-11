@@ -10,7 +10,7 @@ from avscope.analyzer import Analyzer
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_protocol_compare
 from avscope.report import export_html, export_json
-from avscope.samples import generate_samples
+from avscope.samples import generate_samples, make_h264_baseline_sps
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
 
@@ -49,10 +49,15 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(result.media.summary["frames"], 3)
 
     def test_h264_parser(self):
-        data = b"\x00\x00\x00\x01\x67\x64\x00\x1f" + b"\x00\x00\x01\x68\xee" + b"\x00\x00\x01\x65\x88"
+        data = b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(640, 480) + b"\x00\x00\x01\x68\xee" + b"\x00\x00\x01\x65\x88"
         result = self.analyzer.analyze(write(ROOT / "ok.h264", data))
         self.assertEqual(result.media.format_name, "H.264 Annex-B")
         self.assertGreaterEqual(result.media.summary["nalu_count"], 3)
+        self.assertEqual(result.media.summary["width"], 640)
+        self.assertEqual(result.media.summary["height"], 480)
+        sps_fields = {field.name: field.value for field in result.root.children[0].fields}
+        self.assertEqual(sps_fields["profile_idc"], 66)
+        self.assertEqual(sps_fields["level_idc"], 30)
 
     def test_mp4_parser_and_reports(self):
         ftyp_payload = b"isom" + struct.pack(">I", 0) + b"isomiso2"
@@ -123,7 +128,7 @@ class ParserTests(unittest.TestCase):
 
     def test_ui_text_is_not_mojibake(self):
         bad_fragments = ["锛", "鎵", "鏃", "鍗", "璇", "濯", "鈥", "鈹", "�"]
-        for source_path in [Path("G:/AVScope/avscope/app.py"), Path("G:/AVScope/avscope/report.py")]:
+        for source_path in Path("G:/AVScope/avscope").rglob("*.py"):
             text = source_path.read_text(encoding="utf-8")
             for fragment in bad_fragments:
                 self.assertNotIn(fragment, text, f"{source_path} contains mojibake fragment {fragment}")

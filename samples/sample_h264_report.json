@@ -1,0 +1,404 @@
+{
+  "generated_at": "2026-08-11T23:19:34",
+  "tool_version": "0.1.0",
+  "media": {
+    "path": "G:\\AVScope\\samples\\sample.h264",
+    "size": 35,
+    "format_name": "H.264 Annex-B",
+    "summary": {
+      "nalu_count": 4,
+      "width": 640,
+      "height": 480,
+      "profile_idc": 66,
+      "level_idc": 30,
+      "parsed_nalu": 4,
+      "ffprobe": {
+        "available": true,
+        "format": {
+          "format_name": "h264",
+          "duration": "",
+          "bit_rate": "",
+          "probe_score": 51
+        },
+        "streams": [
+          {
+            "index": 0,
+            "codec_type": "video",
+            "codec_name": "h264",
+            "profile": "Baseline",
+            "width": 640,
+            "height": 480,
+            "sample_rate": null,
+            "channels": null,
+            "pix_fmt": "",
+            "sample_fmt": "",
+            "duration": "",
+            "bit_rate": "",
+            "nb_frames": "",
+            "r_frame_rate": "1200000/1",
+            "avg_frame_rate": "25/1",
+            "time_base": "1/1200000"
+          }
+        ]
+      },
+      "packet_timeline": {
+        "available": true,
+        "packets": [
+          {
+            "index": 0,
+            "stream_index": 0,
+            "codec_type": "video",
+            "pts": null,
+            "dts": null,
+            "duration": 0.04,
+            "size": 28,
+            "pos": 0,
+            "flags": "K__",
+            "keyframe": true
+          },
+          {
+            "index": 1,
+            "stream_index": 0,
+            "codec_type": "video",
+            "pts": null,
+            "dts": null,
+            "duration": 0.04,
+            "size": 7,
+            "pos": 28,
+            "flags": "___",
+            "keyframe": false
+          }
+        ]
+      }
+    }
+  },
+  "diagnostics": [],
+  "frames": [
+    {
+      "index": 0,
+      "offset": 0,
+      "size": 13,
+      "pts": null,
+      "dts": null,
+      "duration": null,
+      "frame_type": "SPS",
+      "keyframe": false
+    },
+    {
+      "index": 1,
+      "offset": 13,
+      "size": 7,
+      "pts": null,
+      "dts": null,
+      "duration": null,
+      "frame_type": "PPS",
+      "keyframe": false
+    },
+    {
+      "index": 2,
+      "offset": 20,
+      "size": 8,
+      "pts": null,
+      "dts": null,
+      "duration": null,
+      "frame_type": "IDR Slice",
+      "keyframe": true
+    },
+    {
+      "index": 3,
+      "offset": 28,
+      "size": 7,
+      "pts": null,
+      "dts": null,
+      "duration": null,
+      "frame_type": "Non-IDR Slice",
+      "keyframe": false
+    }
+  ],
+  "root": {
+    "name": "sample.h264",
+    "node_type": "H.264 Annex-B",
+    "offset": 0,
+    "size": 35,
+    "fields": [],
+    "children": [
+      {
+        "name": "NALU[0] SPS",
+        "node_type": "nalu",
+        "offset": 0,
+        "size": 13,
+        "fields": [
+          {
+            "name": "start_code",
+            "value": "00 00 00 01",
+            "offset": 0,
+            "size": 4,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "nal_unit_type",
+            "value": 7,
+            "offset": 4,
+            "size": 1,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "payload_size",
+            "value": 9,
+            "offset": 4,
+            "size": 9,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "profile_idc",
+            "value": 66,
+            "offset": 5,
+            "size": 1,
+            "hex_value": "0x42",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "H.264 profile",
+            "severity": "normal"
+          },
+          {
+            "name": "level_idc",
+            "value": 30,
+            "offset": 7,
+            "size": 1,
+            "hex_value": "0x1e",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "H.264 level",
+            "severity": "normal"
+          },
+          {
+            "name": "seq_parameter_set_id",
+            "value": 0,
+            "offset": 8,
+            "size": 0,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "chroma_format_idc",
+            "value": 1,
+            "offset": 8,
+            "size": 0,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "pic_width_in_mbs_minus1",
+            "value": 39,
+            "offset": 8,
+            "size": 0,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "pic_height_in_map_units_minus1",
+            "value": 29,
+            "offset": 8,
+            "size": 0,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "frame_mbs_only_flag",
+            "value": 1,
+            "offset": 8,
+            "size": 0,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "derived_width",
+            "value": 640,
+            "offset": 8,
+            "size": 0,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "由 SPS 推导的亮度宽度",
+            "severity": "normal"
+          },
+          {
+            "name": "derived_height",
+            "value": 480,
+            "offset": 8,
+            "size": 0,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "由 SPS 推导的亮度高度",
+            "severity": "normal"
+          }
+        ],
+        "children": [],
+        "severity": "normal",
+        "description": ""
+      },
+      {
+        "name": "NALU[1] PPS",
+        "node_type": "nalu",
+        "offset": 13,
+        "size": 7,
+        "fields": [
+          {
+            "name": "start_code",
+            "value": "00 00 01",
+            "offset": 13,
+            "size": 3,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "nal_unit_type",
+            "value": 8,
+            "offset": 16,
+            "size": 1,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "payload_size",
+            "value": 4,
+            "offset": 16,
+            "size": 4,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          }
+        ],
+        "children": [],
+        "severity": "normal",
+        "description": ""
+      },
+      {
+        "name": "NALU[2] IDR Slice",
+        "node_type": "nalu",
+        "offset": 20,
+        "size": 8,
+        "fields": [
+          {
+            "name": "start_code",
+            "value": "00 00 01",
+            "offset": 20,
+            "size": 3,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "nal_unit_type",
+            "value": 5,
+            "offset": 23,
+            "size": 1,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "payload_size",
+            "value": 5,
+            "offset": 23,
+            "size": 5,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          }
+        ],
+        "children": [],
+        "severity": "normal",
+        "description": ""
+      },
+      {
+        "name": "NALU[3] Non-IDR Slice",
+        "node_type": "nalu",
+        "offset": 28,
+        "size": 7,
+        "fields": [
+          {
+            "name": "start_code",
+            "value": "00 00 01",
+            "offset": 28,
+            "size": 3,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "nal_unit_type",
+            "value": 1,
+            "offset": 31,
+            "size": 1,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "payload_size",
+            "value": 4,
+            "offset": 31,
+            "size": 4,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          }
+        ],
+        "children": [],
+        "severity": "normal",
+        "description": ""
+      }
+    ],
+    "severity": "normal",
+    "description": ""
+  }
+}

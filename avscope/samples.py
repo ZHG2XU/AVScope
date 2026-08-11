@@ -38,11 +38,64 @@ def _aac_sample() -> bytes:
 
 def _h264_sample() -> bytes:
     return (
-        b"\x00\x00\x00\x01\x67\x64\x00\x1f\xac\xd9\x40"
-        b"\x00\x00\x01\x68\xee\x3c\x80"
+        b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(width=640, height=480)
+        + b"\x00\x00\x01\x68\xee\x3c\x80"
         b"\x00\x00\x01\x65\x88\x84\x21\xa0"
         b"\x00\x00\x01\x41\x9a\x22\x11"
     )
+
+
+def make_h264_baseline_sps(width: int = 640, height: int = 480, profile_idc: int = 66, level_idc: int = 30) -> bytes:
+    if width % 16 or height % 16:
+        raise ValueError("synthetic SPS helper expects dimensions divisible by 16")
+    writer = _BitWriter()
+    writer.write_bits(profile_idc, 8)
+    writer.write_bits(0, 8)
+    writer.write_bits(level_idc, 8)
+    writer.write_ue(0)
+    writer.write_ue(0)
+    writer.write_ue(0)
+    writer.write_ue(0)
+    writer.write_ue(1)
+    writer.write_bit(0)
+    writer.write_ue(width // 16 - 1)
+    writer.write_ue(height // 16 - 1)
+    writer.write_bit(1)
+    writer.write_bit(1)
+    writer.write_bit(0)
+    writer.write_bit(0)
+    return writer.finish()
+
+
+class _BitWriter:
+    def __init__(self):
+        self.bits: list[int] = []
+
+    def write_bit(self, value: int) -> None:
+        self.bits.append(1 if value else 0)
+
+    def write_bits(self, value: int, count: int) -> None:
+        for shift in range(count - 1, -1, -1):
+            self.write_bit((value >> shift) & 1)
+
+    def write_ue(self, value: int) -> None:
+        code_num = value + 1
+        bits = code_num.bit_length()
+        for _ in range(bits - 1):
+            self.write_bit(0)
+        self.write_bits(code_num, bits)
+
+    def finish(self) -> bytes:
+        self.write_bit(1)
+        while len(self.bits) % 8:
+            self.write_bit(0)
+        data = bytearray()
+        for offset in range(0, len(self.bits), 8):
+            byte = 0
+            for bit in self.bits[offset : offset + 8]:
+                byte = (byte << 1) | bit
+            data.append(byte)
+        return bytes(data)
 
 
 def _mp4_sample(extra_free: bool = False) -> bytes:
