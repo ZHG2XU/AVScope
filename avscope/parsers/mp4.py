@@ -38,10 +38,12 @@ class Mp4Parser(FormatParser):
         root = root_node(source, self.name)
         diagnostics: list[DiagnosticIssue] = []
         self._parse_boxes(source, root, 0, source.size, diagnostics, 0)
+        chunk_offset_stats = self._diagnose_chunk_offsets(root, source.size, diagnostics)
         summary = {
             "boxes": len(root.children),
             "has_moov": any(c.name == "moov" for c in root.children),
             "has_mdat": any(c.name == "mdat" for c in root.children),
+            "chunk_offsets": chunk_offset_stats,
         }
         if not summary["has_moov"]:
             diagnostics.append(warn("未发现 moov box，文件可能缺少索引或不是完整 MP4/MOV", 0, self.name))
@@ -445,6 +447,55 @@ class Mp4Parser(FormatParser):
             value = u64be(payload, value_offset) if offset_size == 8 else u32be(payload, value_offset)
             child = node.add_child(ParseNode(f"chunk_offset[{index}]", "table_entry", node.offset + 8 + value_offset, offset_size))
             child.fields.append(FieldInfo("chunk_offset", value, node.offset + 8 + value_offset, offset_size, hex(value)))
+
+    def _diagnose_chunk_offsets(self, root: ParseNode, file_size: int, diagnostics: list[DiagnosticIssue]) -> dict:
+        mdat_ranges = [
+            (node.offset + _box_header_size(node), node.offset + node.size)
+            for node in root.children
+            if node.name == "mdat" and node.size > _box_header_size(node)
+        ]
+        stats = {"total": 0, "outside_file": 0, "outside_mdat": 0}
+        reported_outside_file = 0
+        reported_outside_mdat = 0
+        for node in _walk_nodes(root):
+            if node.name.startswith("chunk_offset["):
+                field = next((item for item in node.fields if item.name == "chunk_offset"), None)
+                if field is None:
+                    continue
+                stats["total"] += 1
+                try:
+                    offset = int(field.value)
+                except (TypeError, ValueError):
+                    continue
+                if offset < 0 or offset >= file_size:
+                    stats["outside_file"] += 1
+                    node.severity = Severity.ERROR
+                    field.severity = Severity.ERROR
+                    if reported_outside_file < 8:
+                        diagnostics.append(error(f"MP4 chunk offset 超出文件范围 offset=0x{offset:X}", field.offset, self.name))
+                        reported_outside_file += 1
+                    continue
+                if mdat_ranges and not any(start <= offset < end for start, end in mdat_ranges):
+                    stats["outside_mdat"] += 1
+                    node.severity = Severity.WARNING
+                    field.severity = Severity.WARNING
+                    if reported_outside_mdat < 8:
+                        diagnostics.append(warn(f"MP4 chunk offset 未落在 mdat 数据区 offset=0x{offset:X}", field.offset, self.name))
+                        reported_outside_mdat += 1
+        return stats
+
+
+def _walk_nodes(node: ParseNode):
+    yield node
+    for child in node.children:
+        yield from _walk_nodes(child)
+
+
+def _box_header_size(node: ParseNode) -> int:
+    field = next((item for item in node.fields if item.name == "size"), None)
+    if field and field.size in {8, 16}:
+        return field.size
+    return 8
 
 
 def _decode_mp4_language(value: int) -> str:

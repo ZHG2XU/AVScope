@@ -21,7 +21,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 
 - 单元测试
 - 128MB+ 大文件只读随机访问测试
-- 损坏 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 文件、ffprobe 探测失败与帧/packet 大小尖峰 warning 的诊断回归测试
+- 损坏 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 文件、MP4 chunk offset 异常、ffprobe 探测失败与帧/packet 大小尖峰 warning 的诊断回归测试
 - 关键产物存在性检查
 - UI/报告源码乱码扫描
 - C 盘写入目标扫描
@@ -42,7 +42,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 10. 打开 `G:\AVScope\samples\sample.h265`，检查 VPS/SPS/PPS 节点里是否显示 `general_profile_idc`、`general_level_idc`、`derived_width`、`derived_height`、`bit_depth_luma`、`pps_pic_parameter_set_id`。
 11. 打开 `G:\AVScope\samples\sample.aac`，检查 ADTS frame 字段里是否显示 `profile`、`sample_rate`、`channel_configuration`、`duration_seconds`，并确认 `syncword`、`profile`、`sampling_frequency_index`、`frame_length` 显示 bit offset/bit length；在字段表选中 `syncword` 时 Hex 应跳转并高亮对应字节；切换到“帧列表”页，确认 AAC frame 可按 offset、size、duration 列表查看，选中行后 Hex 跳转到对应位置；在“预览”页确认可看到帧统计摘要。
 12. 在工具栏搜索框输入 `RIFF`，模式选择 `text`，点击“查找下一个”；同时检查 `Ctrl+F` 聚焦搜索框、`F3` 查找下一个、Hex 右键菜单可复制当前 offset、选中字节和 ASCII，并可通过 `Endian` 选择后解释选中字节为整数/浮点。
-13. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`，并检查 `trak/tkhd/mdia/mdhd/hdlr/stbl` 相关节点里的 `track_id`、`width`、`height`、`handler_type`、`sample_count`、`chunk_offset`。
+13. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`，并检查 `trak/tkhd/mdia/mdhd/hdlr/stbl` 相关节点里的 `track_id`、`width`、`height`、`handler_type`、`sample_count`、`chunk_offset`；构造异常 MP4 时应能提示 chunk offset 越界或未落入 `mdat` 数据区。
 14. 打开 `G:\AVScope\samples\sample.avi`，检查 `hdrl/avih` 节点里是否显示 `dwWidth`、`dwHeight`、`dwTotalFrames`、`fps`。
 15. 打开 `G:\AVScope\samples\sample.flv`，检查 FLV tag 节点中是否显示 `tag_type`、`data_size`、`timestamp`、`stream_id` 和 `previous_tag_size`。
 16. 打开 `G:\AVScope\samples\sample.mkv`，检查 Matroska/WebM 节点中是否显示 `DocType`、`TimecodeScale`、`Duration`、`TrackEntry`、`PixelWidth`、`PixelHeight` 和 `SimpleBlock` 帧。
@@ -52,7 +52,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 20. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；`sample.pcm` 可设置采样率、声道、位深、大小端和有符号/无符号，也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
 21. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“预览”页是否显示 Raw YUV 首帧画面。
 22. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
-23. 查看诊断面板，确认工具可在 ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调、音视频时长差异或帧/packet 大小尖峰时输出 warning。
+23. 查看诊断面板，确认工具可在 MP4 chunk offset 异常、ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调、音视频时长差异或帧/packet 大小尖峰时输出 warning/error。
 24. 使用“分析 / 协议结构对比”对比：
     - `G:\AVScope\samples\sample.mp4`
     - `G:\AVScope\samples\sample_changed.mp4`

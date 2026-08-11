@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-12T03:19:44",
+  "generated_at": "2026-08-12T03:25:52",
   "tool_version": "0.1.0",
   "media": {
     "path": "G:\\AVScope\\samples\\sample.mp4",
@@ -9,13 +9,18 @@
       "boxes": 3,
       "has_moov": true,
       "has_mdat": true,
+      "chunk_offsets": {
+        "total": 1,
+        "outside_file": 0,
+        "outside_mdat": 0
+      },
       "ffprobe": {
         "available": true,
-        "error": "[h264 @ 00000195f0e50a00] missing picture in access unit with size 8\n[extract_extradata @ 00000195f0e7e740] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input"
+        "error": "[h264 @ 000001e73c060a00] missing picture in access unit with size 8\n[extract_extradata @ 000001e73c08ef40] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input"
       },
       "packet_timeline": {
         "available": true,
-        "error": "[h264 @ 000002561c423040] missing picture in access unit with size 8\n[extract_extradata @ 000002561c425d00] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input",
+        "error": "[h264 @ 00000197ec033040] missing picture in access unit with size 8\n[extract_extradata @ 00000197ec035f80] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input",
         "packets": []
       }
     }
@@ -23,13 +28,13 @@
   "diagnostics": [
     {
       "severity": "warning",
-      "message": "ffprobe 媒体流探测失败：[h264 @ 00000195f0e50a00] missing picture in access unit with size 8\n[extract_extradata @ 00000195f0e7e740] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input",
+      "message": "ffprobe 媒体流探测失败：[h264 @ 000001e73c060a00] missing picture in access unit with size 8\n[extract_extradata @ 000001e73c08ef40] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input",
       "offset": null,
       "source": "ffprobe"
     },
     {
       "severity": "warning",
-      "message": "ffprobe packet 时间线探测失败：[h264 @ 000002561c423040] missing picture in access unit with size 8\n[extract_extradata @ 000002561c425d00] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input",
+      "message": "ffprobe packet 时间线探测失败：[h264 @ 00000197ec033040] missing picture in access unit with size 8\n[extract_extradata @ 00000197ec035f80] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input",
       "offset": null,
       "source": "ffprobe"
     }

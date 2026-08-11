@@ -243,6 +243,42 @@ class ParserTests(unittest.TestCase):
         stco = next(node for node in stbl.children if node.name == "stco")
         stco_fields = {field.name: field.value for field in stco.children[0].fields}
         self.assertGreater(stco_fields["chunk_offset"], 0)
+        self.assertEqual(result.media.summary["chunk_offsets"]["total"], 1)
+        self.assertEqual(result.media.summary["chunk_offsets"]["outside_file"], 0)
+        self.assertEqual(result.media.summary["chunk_offsets"]["outside_mdat"], 0)
+
+    def test_mp4_chunk_offset_diagnostics(self):
+        def find_node(node: ParseNode, name: str) -> ParseNode | None:
+            if node.name == name:
+                return node
+            for child in node.children:
+                found = find_node(child, name)
+                if found is not None:
+                    return found
+            return None
+
+        sample_dir = ROOT / "mp4_chunk_offset_sample"
+        generate_samples(sample_dir)
+        data = bytearray((sample_dir / "sample.mp4").read_bytes())
+        stco_type_offset = data.index(b"stco")
+        first_chunk_offset = stco_type_offset + 12
+
+        outside_mdat = bytearray(data)
+        outside_mdat[first_chunk_offset : first_chunk_offset + 4] = (8).to_bytes(4, "big")
+        result = self.analyzer.analyze(write(ROOT / "chunk_outside_mdat.mp4", bytes(outside_mdat)))
+        messages = [issue.message for issue in diagnostics_with(result, "warning")]
+        self.assertEqual(result.media.summary["chunk_offsets"]["outside_mdat"], 1)
+        self.assertTrue(any("MP4 chunk offset 未落在 mdat 数据区" in message for message in messages))
+        stco = find_node(result.root, "stco")
+        self.assertIsNotNone(stco)
+        self.assertEqual(stco.children[0].severity, Severity.WARNING)
+
+        outside_file = bytearray(data)
+        outside_file[first_chunk_offset : first_chunk_offset + 4] = (len(data) + 128).to_bytes(4, "big")
+        result = self.analyzer.analyze(write(ROOT / "chunk_outside_file.mp4", bytes(outside_file)))
+        messages = [issue.message for issue in diagnostics_with(result, "error")]
+        self.assertEqual(result.media.summary["chunk_offsets"]["outside_file"], 1)
+        self.assertTrue(any("MP4 chunk offset 超出文件范围" in message for message in messages))
 
     def test_avi_parser(self):
         sample_dir = ROOT / "avi_sample"
