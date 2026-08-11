@@ -13,7 +13,7 @@ from avscope.byte_source import ByteSource
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
 from avscope.hexview import format_hex, parse_offset
 from avscope.models import ParseNode, ParseResult, Severity
-from avscope.report import export_html, export_json, export_project
+from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.search import SearchPatternError, find_pattern, parse_search_pattern
 from avscope.settings import AppSettings
 
@@ -118,6 +118,7 @@ class AVScopeApp(tk.Tk):
             ("协议对比", self.compare_protocol_files),
             ("导出 HTML", self.export_html_report),
             ("导出 JSON", self.export_json_report),
+            ("导出 CSV", self.export_csv_report),
         ]:
             ttk.Button(toolbar, text=text, command=command, style="Toolbar.TButton").pack(side=tk.LEFT, padx=(0, 8), pady=8)
         ttk.Label(toolbar, text="Offset", style="Toolbar.TLabel").pack(side=tk.LEFT, padx=(16, 6))
@@ -265,6 +266,7 @@ class AVScopeApp(tk.Tk):
         file_menu.add_command(label="保存工程", command=self.save_project_snapshot, accelerator="Ctrl+S")
         file_menu.add_command(label="导出 HTML 报告", command=self.export_html_report)
         file_menu.add_command(label="导出 JSON 报告", command=self.export_json_report)
+        file_menu.add_command(label="导出 CSV 报告", command=self.export_csv_report)
         file_menu.add_separator()
         file_menu.add_command(label="退出", command=self.destroy)
         menu.add_cascade(label="文件", menu=file_menu)
@@ -994,6 +996,13 @@ class AVScopeApp(tk.Tk):
         path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON", "*.json")])
         if path:
             export_json(self.result, path)
+
+    def export_csv_report(self) -> None:
+        if not self.result:
+            return
+        path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV", "*.csv")])
+        if path:
+            export_csv(self.result, path)
 
     def save_project_snapshot(self) -> None:
         if not self.result:

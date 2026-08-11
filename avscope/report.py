@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import html
 import json
 from dataclasses import asdict, is_dataclass
@@ -14,6 +15,76 @@ from avscope.models import ParseNode, ParseResult
 def export_json(result: ParseResult, path: str | Path) -> None:
     document = _document(result)
     Path(path).write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def export_csv(result: ParseResult, path: str | Path) -> None:
+    with Path(path).open("w", encoding="utf-8-sig", newline="") as fh:
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=[
+                "section",
+                "path",
+                "name",
+                "type",
+                "index",
+                "offset",
+                "size",
+                "key",
+                "value",
+                "hex",
+                "severity",
+                "description",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "section": "media",
+                "path": result.media.path,
+                "name": result.media.format_name,
+                "type": "summary",
+                "size": result.media.size,
+                "value": json.dumps(result.media.summary, ensure_ascii=False, default=str),
+            }
+        )
+        for issue in result.diagnostics:
+            writer.writerow(
+                {
+                    "section": "diagnostic",
+                    "name": issue.source,
+                    "type": issue.severity.value,
+                    "offset": "" if issue.offset is None else f"0x{issue.offset:X}",
+                    "value": issue.message,
+                    "severity": issue.severity.value,
+                }
+            )
+        for frame in result.frames[:5000]:
+            writer.writerow(
+                {
+                    "section": "frame",
+                    "index": frame.index,
+                    "offset": f"0x{frame.offset:X}",
+                    "size": frame.size,
+                    "type": frame.frame_type,
+                    "key": "yes" if frame.keyframe else "",
+                    "value": f"pts={frame.pts or ''} dts={frame.dts or ''} duration={frame.duration or ''}",
+                }
+            )
+        packet_timeline = result.media.summary.get("packet_timeline", {})
+        for packet in packet_timeline.get("packets", [])[:5000]:
+            writer.writerow(
+                {
+                    "section": "packet",
+                    "index": packet.get("index", ""),
+                    "offset": "" if packet.get("pos") is None else f"0x{packet.get('pos'):X}",
+                    "size": packet.get("size", ""),
+                    "type": packet.get("codec_type", ""),
+                    "key": "yes" if packet.get("keyframe") else "",
+                    "value": f"stream={packet.get('stream_index', '')} pts={packet.get('pts', '')} dts={packet.get('dts', '')} duration={packet.get('duration', '')}",
+                }
+            )
+        for row in _node_csv_rows(result.root):
+            writer.writerow(row)
 
 
 def export_project(result: ParseResult, path: str | Path, raw_options: dict | None = None) -> None:
@@ -258,6 +329,35 @@ def _plain(value: Any) -> Any:
     if hasattr(value, "value"):
         return value.value
     return value
+
+
+def _node_csv_rows(node: ParseNode, parent_path: str = ""):
+    node_path = f"{parent_path}/{node.name}" if parent_path else node.name
+    yield {
+        "section": "node",
+        "path": node_path,
+        "name": node.name,
+        "type": node.node_type,
+        "offset": f"0x{node.offset:X}",
+        "size": node.size,
+        "severity": node.severity.value,
+        "description": node.description,
+    }
+    for field in node.fields:
+        yield {
+            "section": "field",
+            "path": node_path,
+            "name": field.name,
+            "type": "field",
+            "offset": f"0x{field.offset:X}",
+            "size": field.size,
+            "value": field.value,
+            "hex": field.hex_value,
+            "severity": field.severity.value,
+            "description": field.description,
+        }
+    for child in node.children:
+        yield from _node_csv_rows(child, node_path)
 
 
 def _issue_counts(diagnostics: list[dict]) -> dict[str, int]:

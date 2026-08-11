@@ -51,7 +51,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 17. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记。
 18. 使用“文件 / 保存工程”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径和 Raw 参数。
 19. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，确认声明式插件模板随产物交付。
-20. 导出 HTML/JSON 报告并打开检查，确认 HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含“帧列表”章节。
+20. 导出 HTML/JSON/CSV 报告并打开检查，确认 HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含“帧列表”章节；CSV 应包含 `media`、`frame`、`node`、`field` 等 section。
 21. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
 
 ## 当前已知边界

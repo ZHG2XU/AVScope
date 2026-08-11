@@ -6,7 +6,7 @@ from pathlib import Path
 
 from avscope.analyzer import Analyzer
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare
-from avscope.report import export_html, export_json
+from avscope.report import export_csv, export_html, export_json
 from avscope.samples import generate_samples
 
 
@@ -18,6 +18,7 @@ def main(argv: list[str] | None = None) -> int:
     analyze.add_argument("file")
     analyze.add_argument("--html")
     analyze.add_argument("--json")
+    analyze.add_argument("--csv")
     analyze.add_argument("--sample-rate", type=int, help="Raw PCM sample rate")
     analyze.add_argument("--channels", type=int, help="Raw PCM channel count")
     analyze.add_argument("--bits-per-sample", type=int, help="Raw PCM bits per sample")
@@ -46,6 +47,8 @@ def main(argv: list[str] | None = None) -> int:
             export_html(result, args.html)
         if args.json:
             export_json(result, args.json)
+        if args.csv:
+            export_csv(result, args.csv)
         print(json.dumps({"format": result.media.format_name, "size": result.media.size, "diagnostics": len(result.diagnostics)}, ensure_ascii=False))
         return 0
     if args.command == "compare-binary":

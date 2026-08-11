@@ -23,7 +23,7 @@ from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
 from avscope.models import FieldInfo, ParseNode, Severity
 from avscope.plugins import load_plugin_parsers
-from avscope.report import export_html, export_json, export_project
+from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
@@ -87,12 +87,18 @@ class ParserTests(unittest.TestCase):
         second_frame_bits = {field.name: (field.bit_offset, field.bit_length) for field in result.root.children[1].fields}
         self.assertEqual(second_frame_bits["syncword"], (96, 12))
         html_path = ROOT / "aac_bit_report.html"
+        csv_path = ROOT / "aac_bit_report.csv"
         export_html(result, html_path)
+        export_csv(result, csv_path)
         html = html_path.read_text(encoding="utf-8")
+        csv_text = csv_path.read_text(encoding="utf-8-sig")
         self.assertIn("Bit / Size", html)
         self.assertIn("帧列表", html)
         self.assertIn("AAC LC", html)
         self.assertIn("<td>0/12</td>", html)
+        self.assertIn("section,path,name,type,index,offset,size,key,value,hex,severity,description", csv_text)
+        self.assertIn("frame", csv_text)
+        self.assertIn("syncword", csv_text)
 
     def test_h264_parser(self):
         data = b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(640, 480) + b"\x00\x00\x01\x68" + make_h264_pps() + b"\x00\x00\x01\x65\x88"
@@ -350,10 +356,12 @@ class ParserTests(unittest.TestCase):
         self.assertGreaterEqual(len(files), 6)
         html_path = ROOT / "cli_report.html"
         json_path = ROOT / "cli_report.json"
-        exit_code = cli_main(["analyze", str(sample_dir / "sample.wav"), "--html", str(html_path), "--json", str(json_path)])
+        csv_path = ROOT / "cli_report.csv"
+        exit_code = cli_main(["analyze", str(sample_dir / "sample.wav"), "--html", str(html_path), "--json", str(json_path), "--csv", str(csv_path)])
         self.assertEqual(exit_code, 0)
         self.assertTrue(html_path.exists())
         self.assertTrue(json_path.exists())
+        self.assertTrue(csv_path.exists())
         pcm_json = ROOT / "cli_pcm_report.json"
         exit_code = cli_main(
             [
