@@ -86,6 +86,81 @@ SUPPORTED_EXTENSIONS = {
 }
 
 
+def format_shortcuts_help() -> str:
+    return "\n".join(
+        [
+            "常用快捷键",
+            "",
+            "Ctrl+O：打开文件",
+            "Ctrl+R：重新解析当前文件",
+            "Ctrl+S：保存工程快照",
+            "Ctrl+F：聚焦搜索框",
+            "F3：查找下一个",
+            "Ctrl+Shift+H：导出 HTML 报告",
+            "Ctrl+Shift+J：导出 JSON 报告",
+            "Ctrl+Shift+O：复制当前 Offset",
+            "Ctrl+Shift+C：复制选中 Hex 字节",
+            "Ctrl+Shift+I：解释选中字节",
+            "",
+            "Hex 视图右键菜单可复制 offset、选中字节、ASCII，并按当前 Endian 解释整数/浮点。",
+        ]
+    )
+
+
+def format_sample_files_help() -> str:
+    return "\n".join(
+        [
+            "示例文件位置",
+            "",
+            "G:\\AVScope\\samples",
+            "",
+            "建议验收顺序：",
+            "1. sample.wav：检查 WAV 字段、音频波形和报告导出。",
+            "2. sample.aac：检查 ADTS bit 字段、帧列表和帧统计。",
+            "3. sample.h264 / sample.h265：检查 SPS/PPS/VPS 和关键帧间隔。",
+            "4. sample.mp4 / sample_changed.mp4：检查 MP4 box、chunk offset 诊断和协议对比。",
+            "5. sample.pcm / sample.yuv：检查 Raw 参数输入、波形和 YUV 首帧预览。",
+            "",
+            "完整验收清单：G:\\AVScope\\docs\\ACCEPTANCE.md",
+        ]
+    )
+
+
+def format_plugin_template_summary(parsers: list[object]) -> str:
+    lines = [
+        "插件模板状态",
+        "",
+        "模板目录：G:\\AVScope\\plugins",
+        "交付目录：G:\\AVScope\\dist\\AVScope\\_internal\\plugins",
+        "",
+    ]
+    if not parsers:
+        lines.append("当前未发现可加载的声明式插件模板。")
+        return "\n".join(lines)
+    lines.append(f"已加载 {len(parsers)} 个模板：")
+    for parser in parsers:
+        name = getattr(parser, "name", "<unnamed>")
+        extensions = ", ".join(getattr(parser, "extensions", ()) or ("无扩展名",))
+        manifest_path = getattr(parser, "manifest_path", "")
+        lines.append(f"- {name} ({extensions})")
+        if manifest_path:
+            lines.append(f"  {manifest_path}")
+    return "\n".join(lines)
+
+
+ABOUT_TEXT = "\n".join(
+    [
+        "AVScope",
+        "",
+        "面向音视频工程排障的桌面分析工具。",
+        "支持协议树、Hex/字段联动、帧时间线、预览、双文件对比、自动诊断和报告导出。",
+        "",
+        "项目目录：G:\\AVScope",
+        "交付产物：G:\\AVScope\\dist",
+    ]
+)
+
+
 class AVScopeApp(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -312,6 +387,12 @@ class AVScopeApp(tk.Tk):
         analysis_menu.add_command(label="协议结构对比", command=self.compare_protocol_files)
         analysis_menu.add_command(label="帧级对比", command=self.compare_frame_files)
         menu.add_cascade(label="分析", menu=analysis_menu)
+
+        plugin_menu = tk.Menu(menu, tearoff=False)
+        plugin_menu.add_command(label="查看已加载模板", command=self.show_plugin_templates)
+        plugin_menu.add_command(label="重新加载协议模板", command=self.reload_plugin_templates)
+        menu.add_cascade(label="插件", menu=plugin_menu)
+
         tools_menu = tk.Menu(menu, tearoff=False)
         tools_menu.add_command(label="设置当前 Raw 参数", command=self.configure_current_raw_options)
         tools_menu.add_command(label="复制当前 Offset", command=self.copy_current_offset, accelerator="Ctrl+Shift+O")
@@ -322,8 +403,35 @@ class AVScopeApp(tk.Tk):
         tools_menu.add_command(label="时间戳计算器", command=self.show_timestamp_calculator)
         tools_menu.add_command(label="码率计算器", command=self.show_bitrate_calculator)
         menu.add_cascade(label="工具", menu=tools_menu)
+
+        help_menu = tk.Menu(menu, tearoff=False)
+        help_menu.add_command(label="快捷键", command=self.show_shortcuts_help)
+        help_menu.add_command(label="示例文件", command=self.show_sample_files_help)
+        help_menu.add_separator()
+        help_menu.add_command(label="关于 AVScope", command=self.show_about)
+        menu.add_cascade(label="帮助", menu=help_menu)
+
         self.config(menu=menu)
         self._refresh_recent_menu()
+
+    def show_plugin_templates(self) -> None:
+        plugin_parsers = [parser for parser in self.analyzer.parsers if getattr(parser, "manifest_path", None)]
+        messagebox.showinfo("插件模板", format_plugin_template_summary(plugin_parsers))
+
+    def reload_plugin_templates(self) -> None:
+        self.analyzer = Analyzer()
+        self.show_plugin_templates()
+        if self.current_file:
+            self.reload_file()
+
+    def show_shortcuts_help(self) -> None:
+        messagebox.showinfo("快捷键", format_shortcuts_help())
+
+    def show_sample_files_help(self) -> None:
+        messagebox.showinfo("示例文件", format_sample_files_help())
+
+    def show_about(self) -> None:
+        messagebox.showinfo("关于 AVScope", ABOUT_TEXT)
 
     def _build_hex_context_menu(self) -> None:
         self.hex_context_menu = tk.Menu(self.hex_text, tearoff=False)

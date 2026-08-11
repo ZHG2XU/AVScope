@@ -13,8 +13,11 @@ from avscope.app import (
     calculate_timestamp_seconds,
     extract_hex_bytes_from_dump_text,
     field_highlight_size,
+    format_plugin_template_summary,
     format_frame_preview_lines,
     format_hex_interpretation,
+    format_sample_files_help,
+    format_shortcuts_help,
     format_seconds_timecode,
     first_loadable_drop_path,
     hex_bytes_to_ascii,
@@ -575,6 +578,27 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(fields["version"].value, 2)
         self.assertEqual(fields["payload_size"].value, 5)
         self.assertEqual((fields["payload_size"].bit_offset, fields["payload_size"].bit_length), (40, 16))
+
+    def test_ui_help_text(self):
+        shortcuts = format_shortcuts_help()
+        self.assertIn("Ctrl+O", shortcuts)
+        self.assertIn("Ctrl+Shift+I", shortcuts)
+        samples = format_sample_files_help()
+        self.assertIn("G:\\AVScope\\samples", samples)
+        self.assertIn("sample.mp4", samples)
+        plugin_dir = ROOT / "help_plugins"
+        plugin_dir.mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "schema_version": 1,
+            "name": "Help Plugin",
+            "extensions": [".help"],
+            "match": {"offset": 0, "hex": "48 45 4C 50"},
+            "fields": [],
+        }
+        (plugin_dir / "help.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        summary = format_plugin_template_summary(load_plugin_parsers(plugin_dir))
+        self.assertIn("Help Plugin", summary)
+        self.assertIn(".help", summary)
 
     def test_binary_compare(self):
         left = write(ROOT / "left.bin", b"abc123" + b"\x00" * 40 + b"tail-A")
