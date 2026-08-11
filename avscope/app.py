@@ -285,6 +285,9 @@ class AVScopeApp(tk.Tk):
         tools_menu.add_command(label="复制选中 Hex 字节", command=self.copy_selected_hex_bytes, accelerator="Ctrl+Shift+C")
         tools_menu.add_command(label="复制选中 ASCII", command=self.copy_selected_ascii)
         tools_menu.add_command(label="解释选中字节", command=self.show_selected_hex_interpretation, accelerator="Ctrl+Shift+I")
+        tools_menu.add_separator()
+        tools_menu.add_command(label="时间戳计算器", command=self.show_timestamp_calculator)
+        tools_menu.add_command(label="码率计算器", command=self.show_bitrate_calculator)
         menu.add_cascade(label="工具", menu=tools_menu)
         self.config(menu=menu)
         self._refresh_recent_menu()
@@ -903,6 +906,64 @@ class AVScopeApp(tk.Tk):
         self.tabs.select(self.hex_text)
         self.status.set(f"已解释 {len(data)} 个字节 ({self.hex_endian.get()} endian)")
 
+    def show_timestamp_calculator(self) -> None:
+        timestamp = simpledialog.askinteger("时间戳计算器", "时间戳 / 帧序号", initialvalue=0, parent=self)
+        if timestamp is None:
+            return
+        denominator = simpledialog.askinteger("时间戳计算器", "time_base 分母或 FPS", initialvalue=90000, minvalue=1, parent=self)
+        if denominator is None:
+            return
+        numerator = simpledialog.askinteger("时间戳计算器", "time_base 分子", initialvalue=1, minvalue=1, parent=self)
+        if numerator is None:
+            return
+        seconds = calculate_timestamp_seconds(timestamp, numerator, denominator)
+        text = "\n".join(
+            [
+                "时间戳计算器",
+                f"输入值: {timestamp}",
+                f"time_base: {numerator}/{denominator}",
+                f"秒数: {seconds:.6f}s",
+                f"时间码: {format_seconds_timecode(seconds)}",
+            ]
+        )
+        self.diagnostics.delete("1.0", tk.END)
+        self.diagnostics.insert(tk.END, text, ("info",))
+        self.status.set(f"时间戳换算完成: {seconds:.6f}s")
+
+    def show_bitrate_calculator(self) -> None:
+        default_size = self.result.media.size if self.result else 1_048_576
+        default_duration = self._current_duration_seconds() or 1.0
+        size = simpledialog.askinteger("码率计算器", "数据大小 bytes", initialvalue=int(default_size), minvalue=1, parent=self)
+        if size is None:
+            return
+        duration = simpledialog.askfloat("码率计算器", "时长 seconds", initialvalue=float(default_duration), minvalue=0.000001, parent=self)
+        if duration is None:
+            return
+        bitrate = calculate_bitrate_kbps(size, duration)
+        text = "\n".join(
+            [
+                "码率计算器",
+                f"数据大小: {size:,} bytes",
+                f"时长: {duration:.6f}s",
+                f"码率: {bitrate:.3f} kbps",
+                f"约等于: {bitrate / 1000:.6f} Mbps",
+            ]
+        )
+        self.diagnostics.delete("1.0", tk.END)
+        self.diagnostics.insert(tk.END, text, ("info",))
+        self.status.set(f"码率计算完成: {bitrate:.3f} kbps")
+
+    def _current_duration_seconds(self) -> float | None:
+        if not self.result:
+            return None
+        summary = self.result.media.summary
+        for key in ("duration_seconds", "duration"):
+            value = float_or_none(summary.get(key))
+            if value:
+                return value
+        ffprobe_format = summary.get("ffprobe", {}).get("format", {})
+        return float_or_none(ffprobe_format.get("duration"))
+
     def _selected_hex_bytes(self) -> bytes:
         try:
             text = self.hex_text.get(tk.SEL_FIRST, tk.SEL_LAST)
@@ -1082,6 +1143,41 @@ def first_loadable_drop_path(paths: list[str | Path]) -> Path | None:
         if path.exists() and (path.is_file() or path.is_dir()):
             return path
     return None
+
+
+def calculate_timestamp_seconds(timestamp: int | float, time_base_num: int | float, time_base_den: int | float) -> float:
+    if time_base_den == 0:
+        raise ValueError("time_base 分母不能为 0")
+    return float(timestamp) * float(time_base_num) / float(time_base_den)
+
+
+def calculate_bitrate_kbps(size_bytes: int | float, duration_seconds: int | float) -> float:
+    duration = float(duration_seconds)
+    if duration <= 0:
+        raise ValueError("时长必须大于 0")
+    return float(size_bytes) * 8 / duration / 1000
+
+
+def format_seconds_timecode(seconds: int | float) -> str:
+    total_ms = round(float(seconds) * 1000)
+    sign = "-" if total_ms < 0 else ""
+    total_ms = abs(total_ms)
+    ms = total_ms % 1000
+    total_seconds = total_ms // 1000
+    second = total_seconds % 60
+    total_minutes = total_seconds // 60
+    minute = total_minutes % 60
+    hour = total_minutes // 60
+    return f"{sign}{hour:02d}:{minute:02d}:{second:02d}.{ms:03d}"
+
+
+def float_or_none(value) -> float | None:
+    if value in (None, "", "N/A"):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def format_hex_interpretation(data: bytes, endian: str = "little") -> str:

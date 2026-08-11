@@ -7,8 +7,11 @@ import unittest
 from pathlib import Path
 
 from avscope.app import (
+    calculate_bitrate_kbps,
+    calculate_timestamp_seconds,
     extract_hex_bytes_from_dump_text,
     format_hex_interpretation,
+    format_seconds_timecode,
     first_loadable_drop_path,
     hex_bytes_to_ascii,
     node_has_issue,
@@ -433,6 +436,16 @@ class ParserTests(unittest.TestCase):
         self.assertIn("u16: 256", big)
         self.assertIn("u32: 16777216", big)
         self.assertIn("ASCII: ....", little)
+
+    def test_timestamp_and_bitrate_helpers(self):
+        self.assertEqual(calculate_timestamp_seconds(90000, 1, 90000), 1.0)
+        self.assertEqual(calculate_timestamp_seconds(150, 1, 30), 5.0)
+        self.assertEqual(format_seconds_timecode(3661.2345), "01:01:01.234")
+        self.assertAlmostEqual(calculate_bitrate_kbps(125000, 1), 1000.0)
+        with self.assertRaises(ValueError):
+            calculate_timestamp_seconds(1, 1, 0)
+        with self.assertRaises(ValueError):
+            calculate_bitrate_kbps(1000, 0)
 
     def test_protocol_tree_search_and_issue_helpers(self):
         root = ParseNode("root", "file", 0, 16)

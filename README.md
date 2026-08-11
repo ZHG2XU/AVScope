@@ -8,6 +8,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 支持打开文件夹、最近文件列表，以及 Hex/text 流式搜索。
 - 支持协议树节点搜索，以及只显示 warning/error 异常节点的过滤视图。
 - 支持 Ctrl+O、Ctrl+R、Ctrl+F、F3 等快捷键，以及 Hex 右键菜单复制当前 offset、选中字节、ASCII 并按大小端解释整数/浮点。
+- 工具菜单提供时间戳计算器和码率计算器，便于换算 PTS/time_base、帧序号/FPS 和文件码率。
 - 自动识别 MP4/MOV、WAV、AAC ADTS、H.264 Annex-B、H.265 Annex-B、raw PCM、raw YUV。
 - 大文件路径使用 `ByteSource` 只读随机访问，测试覆盖 128MB+ 文件头部、中部、尾部窗口读取。
 - H.264 SPS/PPS 可解析 profile、level、SPS/PPS id、PPS 引用关系和推导宽高。
