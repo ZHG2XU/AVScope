@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import struct
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from avscope.app import (
     calculate_bitrate_kbps,
@@ -24,6 +26,7 @@ from avscope.analyzer import Analyzer, build_probe_diagnostics, build_timeline_d
 from avscope.byte_source import ByteSource
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
+from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, png_dimensions, preview_output_path
 from avscope.models import FieldInfo, FrameInfo, ParseNode, Severity
 from avscope.plugins import load_plugin_parsers
 from avscope.report import export_csv, export_html, export_json, export_project
@@ -544,6 +547,44 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(lines[0], "解析器帧列表: 已提取 2 帧，关键帧 1 帧，详见“帧列表”页。")
         self.assertEqual(lines[1], "首帧: offset=0x20, size=12, PTS=1.25s")
         self.assertEqual(format_frame_preview_lines([]), [])
+
+    def test_video_preview_helpers(self):
+        source = write(ROOT / "preview input.mp4", b"not a real video")
+        target = preview_output_path(source, ROOT / "previews")
+        self.assertEqual(target.parent, ROOT / "previews")
+        self.assertEqual(target.suffix, ".png")
+        self.assertNotIn(" ", target.name)
+
+        png_path = write(ROOT / "preview.png", b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x02\x80\x00\x00\x01\xe0")
+        self.assertEqual(png_dimensions(png_path), (640, 480))
+        with patch.dict("os.environ", {"AVSCOPE_FFMPEG": str(source)}):
+            self.assertEqual(find_ffmpeg(), str(source))
+
+    def test_video_preview_build_without_ffmpeg(self):
+        with patch("avscope.ffmpeg_preview.find_ffmpeg", return_value=None):
+            result = build_video_preview(ROOT / "missing.mp4", output_dir=ROOT / "previews")
+        self.assertFalse(result["available"])
+        self.assertEqual(result["error"], "ffmpeg not found")
+
+    def test_video_preview_build_with_mocked_ffmpeg(self):
+        source = write(ROOT / "mock-video.mp4", b"mock")
+
+        def fake_run(command, capture_output, text, timeout, check):
+            output = Path(command[-1])
+            write(output, b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x01\x40\x00\x00\x00\xb4")
+
+            class Completed:
+                returncode = 0
+                stderr = ""
+
+            return Completed()
+
+        with patch("avscope.ffmpeg_preview.find_ffmpeg", return_value="ffmpeg"), patch("avscope.ffmpeg_preview.subprocess.run", side_effect=fake_run):
+            result = build_video_preview(source, output_dir=ROOT / "previews")
+        self.assertTrue(result["available"])
+        self.assertEqual(result["width"], 320)
+        self.assertEqual(result["height"], 180)
+        self.assertTrue(Path(result["path"]).exists())
 
     def test_protocol_tree_search_and_issue_helpers(self):
         root = ParseNode("root", "file", 0, 16)

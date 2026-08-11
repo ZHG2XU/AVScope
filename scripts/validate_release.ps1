@@ -5,6 +5,7 @@ $python = "E:\DevelopmentEnvironment\python\python.exe"
 $setup = "G:\AVScope\dist\AVScope-Setup.exe"
 $appExe = "G:\AVScope\dist\AVScope\AVScope.exe"
 $ffprobe = "G:\AVScope\dist\AVScope\_internal\ffprobe.exe"
+$ffmpeg = "G:\AVScope\dist\AVScope\_internal\ffmpeg.exe"
 $pluginTemplate = "G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json"
 $portableZip = "G:\AVScope\dist\AVScope-portable-win-x64.zip"
 $sourceZip = "G:\AVScope\dist\AVScope-portable-source.zip"
@@ -21,7 +22,7 @@ Write-Host "== Unit tests =="
 & $python -m unittest discover -s "$root\tests" -v
 
 Write-Host "== Required artifacts =="
-$artifacts = @($appExe, $ffprobe, $pluginTemplate, $setup, $portableZip, $sourceZip)
+$artifacts = @($appExe, $ffprobe, $ffmpeg, $pluginTemplate, $setup, $portableZip, $sourceZip)
 foreach ($artifact in $artifacts) {
     if (-not (Test-Path $artifact)) {
         throw "Missing artifact: $artifact"
@@ -56,6 +57,26 @@ foreach ($file in $sourceFiles) {
 }
 Write-Host "Mojibake scan OK"
 
+Write-Host "== Video preview smoke =="
+$previewSmokeDir = "G:\AVScope\tmp\preview-smoke-validation"
+New-Item -ItemType Directory -Force -Path $previewSmokeDir | Out-Null
+$previewSource = "$previewSmokeDir\source.mp4"
+& $ffmpeg -hide_banner -v error -y -f lavfi -i "testsrc=size=160x90:rate=1" -frames:v 1 -pix_fmt yuv420p $previewSource
+$env:AVSCOPE_FFMPEG = $ffmpeg
+$previewCheck = @'
+from pathlib import Path
+from avscope.ffmpeg_preview import build_video_preview
+result = build_video_preview(Path("G:/AVScope/tmp/preview-smoke-validation/source.mp4"), output_dir=Path("G:/AVScope/tmp/preview-smoke-validation"))
+print(result)
+if not result.get("available") or not result.get("path"):
+    raise SystemExit("Video preview PNG was not generated")
+if result.get("width") != 160 or result.get("height") != 90:
+    raise SystemExit(f"Unexpected preview size: {result}")
+'@
+$previewCheck | & $python -
+Remove-Item Env:\AVSCOPE_FFMPEG -ErrorAction SilentlyContinue
+Write-Host "Video preview smoke OK"
+
 Write-Host "== Path constraint scan =="
 $scanTargets = @("$root\avscope", "$root\packaging", "$root\plugins", "$root\scripts")
 $scanFiles = Get-ChildItem -Path $scanTargets -Recurse -File |
@@ -83,6 +104,9 @@ if (-not (Test-Path "$installDir\AVScope.exe")) {
 }
 if (-not (Test-Path "$installDir\_internal\ffprobe.exe")) {
     throw "Installed ffprobe.exe not found"
+}
+if (-not (Test-Path "$installDir\_internal\ffmpeg.exe")) {
+    throw "Installed ffmpeg.exe not found"
 }
 if (-not (Test-Path "$installDir\_internal\plugins\demo_magic.json")) {
     throw "Installed plugin template not found"

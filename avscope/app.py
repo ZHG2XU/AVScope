@@ -11,6 +11,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 from avscope.analyzer import Analyzer
 from avscope.byte_source import ByteSource
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
+from avscope.ffmpeg_preview import build_video_preview
 from avscope.hexview import format_hex, parse_offset
 from avscope.models import FieldInfo, FrameInfo, ParseNode, ParseResult, Severity
 from avscope.report import export_csv, export_html, export_json, export_project
@@ -91,6 +92,7 @@ class AVScopeApp(tk.Tk):
         self._tree_iids_in_display_order: list[str] = []
         self._field_range_by_iid: dict[str, tuple[int, int]] = {}
         self._frame_offset_by_iid: dict[str, tuple[int, int]] = {}
+        self._preview_images: list[tk.PhotoImage] = []
         self._last_search: tuple[str, str, int] | None = None
         self._last_node_search: tuple[str, int] | None = None
         self.raw_options_by_path: dict[str, dict] = {}
@@ -538,6 +540,7 @@ class AVScopeApp(tk.Tk):
         self._last_search = None
         self._last_node_search = None
         self.result = self.analyzer.analyze(path, self._raw_options_for_path(path))
+        self._attach_video_preview(path)
         self._render_result()
         self._load_hex(0)
         self.file_badge.configure(text=f"{path.name}  |  {self.result.media.format_name}")
@@ -603,6 +606,7 @@ class AVScopeApp(tk.Tk):
         self._render_diagnostics()
         self.preview.delete("1.0", tk.END)
         self.preview.insert(tk.END, self._preview_text())
+        self._render_video_preview()
 
     def _render_tree(self) -> None:
         if not self.result:
@@ -802,6 +806,16 @@ class AVScopeApp(tk.Tk):
         if frame_preview:
             lines.extend(frame_preview)
             lines.append("")
+        video_preview = self.result.media.summary.get("video_preview", {})
+        if video_preview.get("available") and video_preview.get("path"):
+            shape = ""
+            if video_preview.get("width") and video_preview.get("height"):
+                shape = f" ({video_preview.get('width')}x{video_preview.get('height')})"
+            lines.append(f"视频首帧预览: 已生成{shape}，见下方画面。")
+            lines.append("")
+        elif video_preview.get("error"):
+            lines.append(f"视频首帧预览: {video_preview.get('error')}")
+            lines.append("")
         packet_timeline = self.result.media.summary.get("packet_timeline", {})
         packets = packet_timeline.get("packets", [])
         if packets:
@@ -809,6 +823,32 @@ class AVScopeApp(tk.Tk):
         if not packets and not waveform.get("available") and not self.result.frames:
             lines.append("当前文件暂无可预览波形或 packet 时间线；仍可查看协议树、字段和 Hex。")
         return "\n".join(lines)
+
+    def _attach_video_preview(self, path: Path) -> None:
+        if not self.result:
+            return
+        streams = self.result.media.summary.get("ffprobe", {}).get("streams", [])
+        if not any(stream.get("codec_type") == "video" for stream in streams):
+            return
+        self.result.media.summary["video_preview"] = build_video_preview(path)
+
+    def _render_video_preview(self) -> None:
+        self._preview_images.clear()
+        if not self.result:
+            return
+        video_preview = self.result.media.summary.get("video_preview", {})
+        image_path = video_preview.get("path")
+        if not image_path:
+            return
+        try:
+            image = tk.PhotoImage(file=str(image_path))
+        except tk.TclError as exc:
+            self.preview.insert(tk.END, f"\n视频首帧画面加载失败: {exc}")
+            return
+        self._preview_images.append(image)
+        self.preview.insert(tk.END, "\n视频首帧画面\n")
+        self.preview.image_create(tk.END, image=image)
+        self.preview.insert(tk.END, "\n")
 
     def _load_hex(self, offset: int) -> None:
         if not self.current_file:
