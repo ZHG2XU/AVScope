@@ -12,7 +12,7 @@ from avscope.analyzer import Analyzer
 from avscope.byte_source import ByteSource
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
 from avscope.hexview import format_hex, parse_offset
-from avscope.models import FieldInfo, ParseNode, ParseResult, Severity
+from avscope.models import FieldInfo, FrameInfo, ParseNode, ParseResult, Severity
 from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.search import SearchPatternError, find_pattern, parse_search_pattern
 from avscope.settings import AppSettings
@@ -798,11 +798,15 @@ class AVScopeApp(tk.Tk):
             )
             lines.append(waveform.get("ascii", ""))
             lines.append("")
+        frame_preview = format_frame_preview_lines(self.result.frames)
+        if frame_preview:
+            lines.extend(frame_preview)
+            lines.append("")
         packet_timeline = self.result.media.summary.get("packet_timeline", {})
         packets = packet_timeline.get("packets", [])
         if packets:
             lines.append(f"packet 时间线: 已提取前 {len(packets)} 个 packet，详见“时间线”页。")
-        if not packets and not waveform.get("available"):
+        if not packets and not waveform.get("available") and not self.result.frames:
             lines.append("当前文件暂无可预览波形或 packet 时间线；仍可查看协议树、字段和 Hex。")
         return "\n".join(lines)
 
@@ -1261,6 +1265,19 @@ def issue_summary_state(errors: int, warnings: int) -> tuple[str, str]:
     if warnings:
         return f"0 error / {warnings} warning", "warning"
     return "0 error / 0 warning", "ok"
+
+
+def format_frame_preview_lines(frames: list[FrameInfo]) -> list[str]:
+    if not frames:
+        return []
+    first = frames[0]
+    keyframes = sum(1 for frame in frames if frame.keyframe)
+    pts_text = "" if first.pts is None else f"{first.pts:.6f}".rstrip("0").rstrip(".")
+    pts = "" if not pts_text else f", PTS={pts_text}s"
+    return [
+        f"解析器帧列表: 已提取 {len(frames)} 帧，关键帧 {keyframes} 帧，详见“帧列表”页。",
+        f"首帧: offset=0x{first.offset:X}, size={first.size}{pts}",
+    ]
 
 
 def float_or_none(value) -> float | None:

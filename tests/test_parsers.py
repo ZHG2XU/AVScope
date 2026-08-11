@@ -11,6 +11,7 @@ from avscope.app import (
     calculate_timestamp_seconds,
     extract_hex_bytes_from_dump_text,
     field_highlight_size,
+    format_frame_preview_lines,
     format_hex_interpretation,
     format_seconds_timecode,
     first_loadable_drop_path,
@@ -23,7 +24,7 @@ from avscope.analyzer import Analyzer, build_probe_diagnostics, build_timeline_d
 from avscope.byte_source import ByteSource
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
-from avscope.models import FieldInfo, ParseNode, Severity
+from avscope.models import FieldInfo, FrameInfo, ParseNode, Severity
 from avscope.plugins import load_plugin_parsers
 from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
@@ -533,6 +534,16 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(issue_summary_state(0, 0), ("0 error / 0 warning", "ok"))
         self.assertEqual(issue_summary_state(0, 2), ("0 error / 2 warning", "warning"))
         self.assertEqual(issue_summary_state(1, 3), ("1 error / 3 warning", "error"))
+
+    def test_frame_preview_lines(self):
+        frames = [
+            FrameInfo(index=0, offset=32, size=12, pts=1.25, keyframe=True),
+            FrameInfo(index=1, offset=44, size=10, pts=1.29, keyframe=False),
+        ]
+        lines = format_frame_preview_lines(frames)
+        self.assertEqual(lines[0], "解析器帧列表: 已提取 2 帧，关键帧 1 帧，详见“帧列表”页。")
+        self.assertEqual(lines[1], "首帧: offset=0x20, size=12, PTS=1.25s")
+        self.assertEqual(format_frame_preview_lines([]), [])
 
     def test_protocol_tree_search_and_issue_helpers(self):
         root = ParseNode("root", "file", 0, 16)
