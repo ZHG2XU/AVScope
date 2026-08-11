@@ -48,7 +48,7 @@ from avscope.frame_stats import build_frame_stats
 from avscope.models import FieldInfo, FrameInfo, MediaInfo, ParseNode, ParseResult, Severity
 from avscope.packet_stats import build_packet_stats
 from avscope.plugins import build_plugin_template_manifest, load_plugin_parsers, normalize_extension, normalize_magic_hex, write_plugin_template
-from avscope.report import export_csv, export_html, export_json, export_project, timeline_issue_rows
+from avscope.report import export_csv, export_html, export_json, export_project, timeline_issue_label_map, timeline_issue_rows
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
@@ -1110,6 +1110,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(timeline_anomaly_item_orders(summary), {2})
         self.assertEqual(timeline_issue_item_orders(summary), {2})
         self.assertEqual(timeline_issue_labels(summary), {2: "PTS 回退"})
+        self.assertEqual(timeline_issue_label_map(summary), {2: "PTS 回退"})
         self.assertEqual(timeline_item_row_tag(1, {2}), "normal")
         self.assertEqual(timeline_item_row_tag(2, {2}), "warning")
         issue_rows = timeline_issue_rows(summary)
@@ -1228,6 +1229,8 @@ class ParserTests(unittest.TestCase):
         self.assertIn("Timeline chart legend", synthetic_text)
         self.assertIn('class="timestamp-anomaly"', synthetic_text)
         self.assertIn('class="timeline-issues"', synthetic_text)
+        self.assertIn('<th>Issue</th>', synthetic_text)
+        self.assertIn("PTS 回退", synthetic_text)
         self.assertIn("PTS non-monotonic", synthetic_text)
         self.assertIn("GOP 结构图", synthetic_text)
 

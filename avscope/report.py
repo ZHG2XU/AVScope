@@ -166,8 +166,9 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     stats_summary_html = _stats_summary_html(frame_stats, packet_stats)
     timeline_summary_html = _timeline_summary_html(timeline_summary)
     timeline_chart_html = _timeline_chart_html(doc["frames"], packets)
-    timeline_html = _timeline_html(packets[:100])
-    frame_html = _frame_html(doc["frames"][:200])
+    issue_labels = timeline_issue_label_map(timeline_summary)
+    timeline_html = _timeline_html(packets[:100], issue_labels, len(result.frames))
+    frame_html = _frame_html(doc["frames"][:200], issue_labels)
     stream_html = _stream_html(result.media.summary.get("ffprobe", {}).get("streams", []))
     notes_html = _notes_html(doc.get("user_notes", ""))
     generated_at = html.escape(doc["generated_at"])
@@ -287,6 +288,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     .timeline-issues {{ margin: 12px 0 14px; }}
     .timeline-issues tr.warning-row td {{ background: #fff8e5; }}
     .timeline-issues .source {{ font-weight: 700; color: var(--warn); }}
+    .issue-text {{ color: var(--warn); font-weight: 700; }}
     details {{
       border-left: 2px solid var(--line);
       margin: 7px 0 7px 12px;
@@ -743,6 +745,31 @@ def timeline_issue_rows(timeline_summary: dict | None = None) -> list[dict[str, 
             }
         )
     return rows[:200]
+
+
+def timeline_issue_label_map(timeline_summary: dict | None = None) -> dict[int, str]:
+    summary = timeline_summary or {}
+    labels: dict[int, list[str]] = {}
+
+    def add_label(value, label: str) -> None:
+        if value in (None, ""):
+            return
+        try:
+            order = int(value)
+        except (TypeError, ValueError):
+            return
+        labels.setdefault(order, [])
+        if label not in labels[order]:
+            labels[order].append(label)
+
+    for anomaly in summary.get("timestamp_anomalies", []):
+        kind = str(anomaly.get("kind") or "timestamp").upper()
+        add_label(anomaly.get("item_order"), f"{kind} 回退")
+    for warning in summary.get("rtp_sequence", {}).get("warnings", []):
+        add_label(warning.get("item_order"), "RTP seq 跳变")
+    for warning in summary.get("pcr", {}).get("warnings", []):
+        add_label(warning.get("item_order"), "PCR 回退")
+    return {order: " / ".join(parts) for order, parts in labels.items()}
 
 
 def _timeline_legend_html(timeline_summary: dict) -> str:
@@ -1213,11 +1240,13 @@ def _stream_html(streams: list[dict]) -> str:
     return "<table><tr><th>#</th><th>类型</th><th>Codec</th><th>参数</th><th>时长</th></tr>" + "".join(rows) + "</table>"
 
 
-def _timeline_html(packets: list[dict]) -> str:
+def _timeline_html(packets: list[dict], issue_labels: dict[int, str] | None = None, start_order: int = 0) -> str:
     if not packets:
         return "<p class=\"empty\">暂无 packet 时间线。</p>"
     rows = []
-    for packet in packets:
+    issue_labels = issue_labels or {}
+    for order, packet in enumerate(packets, start=start_order):
+        issue = issue_labels.get(order, "")
         rows.append(
             "<tr>"
             f"<td>{packet.get('index', '')}</td>"
@@ -1228,16 +1257,19 @@ def _timeline_html(packets: list[dict]) -> str:
             f"<td>{packet.get('size', '')}</td>"
             f"<td>{html.escape(str(packet.get('codec_type', '')))}</td>"
             f"<td>{'yes' if packet.get('keyframe') else ''}</td>"
+            f"<td class=\"issue-text\">{html.escape(issue)}</td>"
             "</tr>"
         )
-    return "<table><tr><th>#</th><th>stream</th><th>PTS</th><th>DTS</th><th>pos</th><th>size</th><th>type</th><th>key</th></tr>" + "".join(rows) + "</table>"
+    return "<table><tr><th>#</th><th>stream</th><th>PTS</th><th>DTS</th><th>pos</th><th>size</th><th>type</th><th>key</th><th>Issue</th></tr>" + "".join(rows) + "</table>"
 
 
-def _frame_html(frames: list[dict]) -> str:
+def _frame_html(frames: list[dict], issue_labels: dict[int, str] | None = None) -> str:
     if not frames:
         return "<p class=\"empty\">暂无解析器帧列表。</p>"
     rows = []
-    for frame in frames:
+    issue_labels = issue_labels or {}
+    for order, frame in enumerate(frames):
+        issue = issue_labels.get(order, "")
         rows.append(
             "<tr>"
             f"<td>{frame.get('index', '')}</td>"
@@ -1249,9 +1281,10 @@ def _frame_html(frames: list[dict]) -> str:
             f"<td>{html.escape(str(frame.get('frame_type', '')))}</td>"
             f"<td>{'yes' if frame.get('keyframe') else ''}</td>"
             f"<td>{html.escape(_frame_metadata_summary(frame.get('metadata', {})))}</td>"
+            f"<td class=\"issue-text\">{html.escape(issue)}</td>"
             "</tr>"
         )
-    return "<table><tr><th>#</th><th>offset</th><th>size</th><th>PTS</th><th>DTS</th><th>duration</th><th>type</th><th>key</th><th>metadata</th></tr>" + "".join(rows) + "</table>"
+    return "<table><tr><th>#</th><th>offset</th><th>size</th><th>PTS</th><th>DTS</th><th>duration</th><th>type</th><th>key</th><th>metadata</th><th>Issue</th></tr>" + "".join(rows) + "</table>"
 
 
 def _frame_metadata_summary(metadata: dict) -> str:
