@@ -192,7 +192,7 @@ $previewSource = "$previewSmokeDir\source.mp4"
 $env:AVSCOPE_FFMPEG = $ffmpeg
 $previewCheck = @'
 from pathlib import Path
-from avscope.ffmpeg_preview import build_video_preview, find_video_keyframe_time
+from avscope.ffmpeg_preview import build_video_preview, find_video_frame_time, find_video_keyframe_time
 source = Path("G:/AVScope/tmp/preview-smoke-validation/source.mp4")
 outputs = [
     build_video_preview(source, output_dir=Path("G:/AVScope/tmp/preview-smoke-validation"), position_seconds=0),
@@ -212,6 +212,9 @@ if outputs[0].get("path") == outputs[1].get("path"):
 keyframe = find_video_keyframe_time(source, start_seconds=0, direction=1, window_seconds=2)
 if not keyframe.get("available") or keyframe.get("error") or keyframe.get("position_seconds", 0) <= 0:
     raise SystemExit(f"Video keyframe seek failed: {keyframe}")
+frame = find_video_frame_time(source, 1)
+if not frame.get("available") or frame.get("error") or abs(frame.get("position_seconds", 0) - 1.0) > 0.01:
+    raise SystemExit(f"Video frame index seek failed: {frame}")
 '@
 $previewCheck | & $python -
 Remove-Item Env:\AVSCOPE_FFMPEG -ErrorAction SilentlyContinue

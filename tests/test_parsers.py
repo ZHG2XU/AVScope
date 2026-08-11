@@ -39,7 +39,7 @@ from avscope.byte_source import ByteSource
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare, format_protocol_compare
 from avscope.extract import build_extract_command, extract_media_stream
-from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, find_video_keyframe_time, png_dimensions, preview_output_path, probe_video_frame_info
+from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, find_video_frame_time, find_video_keyframe_time, png_dimensions, preview_output_path, probe_video_frame_info
 from avscope.frame_stats import build_frame_stats
 from avscope.models import FieldInfo, FrameInfo, MediaInfo, ParseNode, ParseResult, Severity
 from avscope.packet_stats import build_packet_stats
@@ -1238,6 +1238,46 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(match["available"])
         self.assertEqual(match["position_seconds"], 2.25)
         self.assertEqual(match["source"], "ffprobe")
+
+    def test_video_frame_time_by_index(self):
+        source = write(ROOT / "frame-index-probe.mp4", b"mock")
+
+        def fake_run(command, capture_output, text, timeout, check):
+            self.assertIn("-read_intervals", command)
+            self.assertIn("%+#3", command)
+
+            class Completed:
+                returncode = 0
+                stderr = ""
+                stdout = json.dumps(
+                    {
+                        "frames": [
+                            {"best_effort_timestamp_time": "0.0", "pict_type": "I", "key_frame": 1},
+                            {"best_effort_timestamp_time": "0.04", "pict_type": "P", "key_frame": 0},
+                            {
+                                "best_effort_timestamp_time": "0.08",
+                                "pkt_dts_time": "0.04",
+                                "pkt_duration_time": "0.04",
+                                "pkt_size": "1200",
+                                "pict_type": "B",
+                                "key_frame": 0,
+                                "width": 320,
+                                "height": 180,
+                                "pix_fmt": "yuv420p",
+                            },
+                        ]
+                    }
+                )
+
+            return Completed()
+
+        with patch("avscope.ffmpeg_preview.find_ffprobe", return_value="ffprobe"), patch("avscope.ffmpeg_preview.subprocess.run", side_effect=fake_run):
+            match = find_video_frame_time(source, 2)
+        self.assertTrue(match["available"])
+        self.assertEqual(match["frame_index"], 2)
+        self.assertEqual(match["position_seconds"], 0.08)
+        self.assertEqual(match["frame_info"]["frame_type"], "B")
+        self.assertEqual(match["frame_info"]["width"], 320)
 
     def test_extract_media_stream_helpers(self):
         source = write(ROOT / "extract_source.mp4", b"media")

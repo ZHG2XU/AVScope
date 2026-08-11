@@ -216,6 +216,64 @@ def find_video_keyframe_time(
     }
 
 
+def find_video_frame_time(
+    path: str | Path,
+    frame_index: int,
+    timeout: int = 12,
+    max_scan_frames: int = 10000,
+) -> dict[str, Any]:
+    target_index = int(frame_index)
+    if target_index < 0:
+        return {"available": True, "error": "frame index must be >= 0", "frame_index": target_index}
+    if target_index >= max_scan_frames:
+        return {
+            "available": True,
+            "error": f"frame index exceeds scan limit {max_scan_frames - 1}",
+            "frame_index": target_index,
+        }
+    exe = find_ffprobe()
+    if not exe:
+        return {"available": False, "error": "ffprobe not found", "frame_index": target_index}
+    command = [
+        exe,
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-read_intervals",
+        f"%+#{target_index + 1}",
+        "-show_frames",
+        "-show_entries",
+        "frame=best_effort_timestamp_time,pts_time,pkt_dts_time,pkt_duration_time,pkt_size,pict_type,key_frame,width,height,pix_fmt",
+        "-of",
+        "json",
+        str(path),
+    ]
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=False)
+    except Exception as exc:
+        return {"available": True, "error": str(exc), "frame_index": target_index}
+    if completed.returncode != 0:
+        return {"available": True, "error": completed.stderr.strip() or f"ffprobe exited {completed.returncode}", "frame_index": target_index}
+    try:
+        data = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        return {"available": True, "error": f"invalid ffprobe json: {exc}", "frame_index": target_index}
+    frames = data.get("frames", [])
+    if target_index >= len(frames):
+        return {"available": True, "error": f"frame index {target_index} not found", "frame_index": target_index}
+    frame = frames[target_index]
+    position = _frame_time(frame)
+    if position is None:
+        return {"available": True, "error": f"frame index {target_index} has no timestamp", "frame_index": target_index}
+    return {
+        "available": True,
+        "frame_index": target_index,
+        "position_seconds": position,
+        "frame_info": _video_frame_info(frame, position),
+    }
+
+
 def preview_output_path(source: Path, output_dir: Path, position_seconds: float = 0.0) -> Path:
     try:
         stat = source.stat()
@@ -290,4 +348,20 @@ def _keyframe_from_packet_timeline(packet_timeline: dict, position: float, direc
         "source": "packet_timeline",
         "packet_index": packet.get("index"),
         "keyframe": True,
+    }
+
+
+def _video_frame_info(frame: dict[str, Any], position: float) -> dict[str, Any]:
+    return {
+        "available": True,
+        "position_seconds": position,
+        "pts": _float_or_none(frame.get("best_effort_timestamp_time") or frame.get("pts_time")),
+        "dts": _float_or_none(frame.get("pkt_dts_time")),
+        "duration": _float_or_none(frame.get("pkt_duration_time")),
+        "size": _int_or_none(frame.get("pkt_size")),
+        "frame_type": str(frame.get("pict_type") or ""),
+        "keyframe": str(frame.get("key_frame", "")) == "1",
+        "width": _int_or_none(frame.get("width")),
+        "height": _int_or_none(frame.get("height")),
+        "pix_fmt": str(frame.get("pix_fmt") or ""),
     }
