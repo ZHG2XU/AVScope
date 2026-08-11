@@ -89,6 +89,7 @@ SUPPORTED_EXTENSIONS = {
 }
 
 VIDEO_PREVIEW_STEP_SECONDS = 1.0
+YUV_PREVIEW_STEP_FRAMES = 1
 
 
 def format_shortcuts_help() -> str:
@@ -131,7 +132,7 @@ def format_sample_files_help() -> str:
             "2. sample.aac：检查 ADTS bit 字段、帧列表和帧统计。",
             "3. sample.h264 / sample.h265：检查 SPS/PPS/VPS 和关键帧间隔。",
             "4. sample.mp4 / sample_changed.mp4：检查 MP4 box、chunk offset 诊断和协议对比。",
-            "5. sample.pcm / sample.yuv：检查 Raw 参数输入、波形和 YUV 首帧预览。",
+            "5. sample.pcm / sample.yuv：检查 Raw 参数输入、波形和 YUV 逐帧预览。",
             "",
             "完整验收清单：G:\\AVScope\\docs\\ACCEPTANCE.md",
         ]
@@ -240,6 +241,7 @@ class AVScopeApp(tk.Tk):
         self._binary_diff_indices: list[str] = []
         self._binary_diff_cursor = -1
         self._video_preview_position_seconds = 0.0
+        self._yuv_preview_frame_index = 0
         self.log_panel_visible = tk.BooleanVar(value=True)
         self.hex_endian = tk.StringVar(value="little")
         self.issue_filter = tk.BooleanVar(value=False)
@@ -479,6 +481,8 @@ class AVScopeApp(tk.Tk):
         analysis_menu.add_separator()
         analysis_menu.add_command(label="上一预览帧", command=lambda: self.step_video_preview(-VIDEO_PREVIEW_STEP_SECONDS))
         analysis_menu.add_command(label="下一预览帧", command=lambda: self.step_video_preview(VIDEO_PREVIEW_STEP_SECONDS))
+        analysis_menu.add_command(label="上一 YUV 帧", command=lambda: self.step_yuv_preview(-YUV_PREVIEW_STEP_FRAMES))
+        analysis_menu.add_command(label="下一 YUV 帧", command=lambda: self.step_yuv_preview(YUV_PREVIEW_STEP_FRAMES))
         analysis_menu.add_separator()
         analysis_menu.add_command(label="二进制对比", command=self.compare_files)
         analysis_menu.add_command(label="下一个二进制差异", command=self.jump_next_binary_diff, accelerator="F4")
@@ -819,6 +823,7 @@ class AVScopeApp(tk.Tk):
         self._last_search = None
         self._last_node_search = None
         self._video_preview_position_seconds = 0.0
+        self._yuv_preview_frame_index = 0
         started_at = perf_counter()
         self.result = self.analyzer.analyze(path, self._raw_options_for_path(path))
         self.last_parse_elapsed_seconds = perf_counter() - started_at
@@ -845,6 +850,7 @@ class AVScopeApp(tk.Tk):
         self.result = self.analyzer.analyze(self.current_file, self._raw_options_for_path(self.current_file, force=True))
         self.last_parse_elapsed_seconds = perf_counter() - started_at
         self.result.media.summary["analysis_elapsed_seconds"] = round(self.last_parse_elapsed_seconds, 6)
+        self._yuv_preview_frame_index = 0
         self._attach_waveform_preview(self.current_file)
         self._attach_yuv_preview(self.current_file)
         self._render_result()
@@ -1182,13 +1188,15 @@ class AVScopeApp(tk.Tk):
             lines.append("")
         yuv_preview = self.result.media.summary.get("yuv_preview", {})
         if yuv_preview.get("available") and yuv_preview.get("path"):
+            frame_index = int(yuv_preview.get("frame_index", 0))
+            total_frames = int(yuv_preview.get("total_frames", 0))
             lines.append(
-                f"Raw YUV 首帧预览: 已生成 {yuv_preview.get('width')}x{yuv_preview.get('height')} "
+                f"Raw YUV 预览帧: #{frame_index + 1}/{total_frames} 已生成 {yuv_preview.get('width')}x{yuv_preview.get('height')} "
                 f"{yuv_preview.get('pixel_format')}，见下方画面。"
             )
             lines.append("")
         elif yuv_preview.get("error"):
-            lines.append(f"Raw YUV 首帧预览: {yuv_preview.get('error')}")
+            lines.append(f"Raw YUV 预览帧: {yuv_preview.get('error')}")
             lines.append("")
         packet_timeline = self.result.media.summary.get("packet_timeline", {})
         packets = packet_timeline.get("packets", [])
@@ -1233,6 +1241,7 @@ class AVScopeApp(tk.Tk):
             int(summary.get("width", 0)),
             int(summary.get("height", 0)),
             str(summary.get("pixel_format", "")),
+            frame_index=self._yuv_preview_frame_index,
         )
 
     def _render_video_preview(self) -> None:
@@ -1321,12 +1330,43 @@ class AVScopeApp(tk.Tk):
         try:
             image = tk.PhotoImage(file=str(image_path))
         except tk.TclError as exc:
-            self.preview.insert(tk.END, f"\nRaw YUV 首帧画面加载失败: {exc}")
+            self.preview.insert(tk.END, f"\nRaw YUV 预览帧画面加载失败: {exc}")
             return
         self._preview_images.append(image)
-        self.preview.insert(tk.END, "\nRaw YUV 首帧画面\n")
+        frame_index = int(yuv_preview.get("frame_index", 0))
+        total_frames = int(yuv_preview.get("total_frames", 0))
+        self.preview.insert(tk.END, f"\nRaw YUV 预览帧 #{frame_index + 1}/{total_frames}\n")
         self.preview.image_create(tk.END, image=image)
         self.preview.insert(tk.END, "\n")
+
+    def step_yuv_preview(self, delta_frames: int) -> None:
+        if not self.current_file or not self.result or self.result.media.format_name != "Raw YUV":
+            messagebox.showinfo("Raw YUV 预览", "请先打开 Raw YUV 文件。")
+            return
+        summary = self.result.media.summary
+        current = int(summary.get("yuv_preview", {}).get("frame_index", self._yuv_preview_frame_index))
+        total_frames = int(summary.get("yuv_preview", {}).get("total_frames", summary.get("frames", 0)) or 0)
+        if total_frames <= 0:
+            messagebox.showinfo("Raw YUV 预览", "当前 Raw YUV 参数下没有完整帧。")
+            return
+        target = min(max(0, current + int(delta_frames)), total_frames - 1)
+        self._yuv_preview_frame_index = target
+        self.status.set(f"正在生成 Raw YUV 预览帧 #{target + 1}/{total_frames}...")
+        self.update_idletasks()
+        preview = build_yuv_preview(
+            self.current_file,
+            int(summary.get("width", 0)),
+            int(summary.get("height", 0)),
+            str(summary.get("pixel_format", "")),
+            frame_index=target,
+        )
+        self.result.media.summary["yuv_preview"] = preview
+        self._render_result()
+        self.tabs.select(self.preview)
+        if preview.get("error"):
+            self.status.set(f"Raw YUV 预览帧生成失败: {preview.get('error')}")
+        else:
+            self.status.set(f"已生成 Raw YUV 预览帧 #{target + 1}/{total_frames}")
 
     def _load_hex(self, offset: int) -> None:
         if not self.current_file:

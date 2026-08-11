@@ -30,7 +30,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 - 发布产物清单 SHA256/size 校验
 - UI/报告源码乱码扫描
 - C 盘写入目标扫描
-- 音频波形、视频预览帧步进和 Raw YUV 预览冒烟测试
+- 音频波形、视频预览帧步进和 Raw YUV 逐帧预览冒烟测试
 - 绿色版 GUI 启动冒烟测试
 - 安装包静默安装到 G 盘、启动、卸载冒烟测试
 - 发布验证报告生成
@@ -60,7 +60,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 19. 打开 `G:\AVScope\samples\sample.ts`，检查“时间线”页顶部是否显示帧/packet 大小柱状图，“预览”页是否显示 packet 统计摘要，并检查 MPEG-TS packet 节点中是否显示 `pid`、`payload_unit_start_indicator`、`adaptation_field_control` 和 `continuity_counter`，确认诊断规则可覆盖 continuity counter 跳变。
 20. 打开 `G:\AVScope\samples\sample.pcap`，检查 PCAP/RTP 节点中是否显示 `src_ip`、`dst_ip`、`udp_src_port`、`rtp_payload_type`、`rtp_sequence`、`rtp_timestamp` 和 `rtp_ssrc`。
 21. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；`sample.pcm` 可设置采样率、声道、位深、大小端和有符号/无符号，也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
-22. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“预览”页是否显示 Raw YUV 首帧画面。
+22. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“预览”页是否显示 Raw YUV 预览帧；对多帧 Raw YUV 文件使用“分析 / 下一 YUV 帧”和“分析 / 上一 YUV 帧”确认可逐帧刷新画面。
 23. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
 24. 使用“分析 / 提取音频”“分析 / 提取视频”“分析 / 提取首个关键帧”对真实音视频文件导出到 G 盘临时验收目录，确认失败时有可读错误、成功时状态栏显示输出路径和大小。
 25. 打开“插件 / 查看已加载模板”，确认可看到 `Demo Magic Container`；打开“帮助 / 快捷键”和“帮助 / 示例文件”，确认可看到验收操作提示。

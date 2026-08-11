@@ -16,10 +16,12 @@ def build_yuv_preview(
     pixel_format: str,
     output_dir: str | Path = DEFAULT_YUV_PREVIEW_DIR,
     max_width: int = 640,
+    frame_index: int = 0,
 ) -> dict[str, Any]:
     width = int(width)
     height = int(height)
     pixel_format = pixel_format.lower()
+    frame_index = max(0, int(frame_index or 0))
     if width <= 0 or height <= 0:
         return {"available": False, "error": "Raw YUV width/height must be positive"}
     if pixel_format not in SUPPORTED_PIXEL_FORMATS:
@@ -27,7 +29,22 @@ def build_yuv_preview(
 
     source = Path(path)
     frame_size = yuv_frame_size(width, height, pixel_format)
+    try:
+        file_size = source.stat().st_size
+    except OSError as exc:
+        return {"available": False, "error": str(exc)}
+    total_frames = file_size // frame_size if frame_size > 0 else 0
+    if file_size < frame_size and frame_index == 0:
+        return {"available": False, "error": f"Raw YUV frame is incomplete: expected={frame_size} actual={file_size}"}
+    if frame_index >= total_frames:
+        return {
+            "available": False,
+            "error": f"Raw YUV frame index out of range: frame={frame_index} total={total_frames}",
+            "frame_index": frame_index,
+            "total_frames": total_frames,
+        }
     with source.open("rb") as handle:
+        handle.seek(frame_index * frame_size)
         data = handle.read(frame_size)
     if len(data) < frame_size:
         return {"available": False, "error": f"Raw YUV frame is incomplete: expected={frame_size} actual={len(data)}"}
@@ -42,7 +59,7 @@ def build_yuv_preview(
 
     target_dir = Path(output_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
-    target = yuv_preview_output_path(source, target_dir, width, height, pixel_format)
+    target = yuv_preview_output_path(source, target_dir, width, height, pixel_format, frame_index)
     write_ppm(target, out_width, out_height, rgb)
     return {
         "available": True,
@@ -52,6 +69,8 @@ def build_yuv_preview(
         "source_width": width,
         "source_height": height,
         "pixel_format": pixel_format,
+        "frame_index": frame_index,
+        "total_frames": total_frames,
         "size": target.stat().st_size,
     }
 
@@ -124,15 +143,16 @@ def write_ppm(path: str | Path, width: int, height: int, rgb: bytes) -> None:
     Path(path).write_bytes(f"P6\n{width} {height}\n255\n".encode("ascii") + rgb)
 
 
-def yuv_preview_output_path(source: Path, output_dir: Path, width: int, height: int, pixel_format: str) -> Path:
+def yuv_preview_output_path(source: Path, output_dir: Path, width: int, height: int, pixel_format: str, frame_index: int = 0) -> Path:
     try:
         stat = source.stat()
-        marker = f"{source.resolve()}|{stat.st_size}|{stat.st_mtime_ns}|{width}|{height}|{pixel_format}"
+        marker = f"{source.resolve()}|{stat.st_size}|{stat.st_mtime_ns}|{width}|{height}|{pixel_format}|{frame_index}"
     except OSError:
-        marker = f"{source}|{width}|{height}|{pixel_format}"
+        marker = f"{source}|{width}|{height}|{pixel_format}|{frame_index}"
     digest = hashlib.sha1(marker.encode("utf-8", errors="replace")).hexdigest()[:12]
     stem = "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in source.stem)[:40] or "yuv"
-    return output_dir / f"{stem}-{digest}.ppm"
+    suffix = "" if frame_index == 0 else f"-frame-{frame_index}"
+    return output_dir / f"{stem}-{digest}{suffix}.ppm"
 
 
 def _write_rgb(rgb: bytearray, pixel_index: int, y_value: int, u_value: int, v_value: int) -> None:

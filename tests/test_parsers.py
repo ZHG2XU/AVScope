@@ -48,7 +48,7 @@ from scripts.sample_reports import build_sample_reports
 from scripts.validation_report import build_validation_report, write_validation_report
 from avscope.timeline_viz import timeline_chart_items
 from avscope.waveform import build_waveform_preview
-from avscope.yuv_preview import build_yuv_preview, yuv_frame_size, yuv_to_rgb
+from avscope.yuv_preview import build_yuv_preview, yuv_frame_size, yuv_preview_output_path, yuv_to_rgb
 
 
 ROOT = Path("G:/AVScope/tmp/testdata")
@@ -1002,12 +1002,28 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(result["height"], 48)
         ppm = Path(result["path"]).read_bytes()
         self.assertTrue(ppm.startswith(b"P6\n64 48\n255\n"))
+        self.assertEqual(result["frame_index"], 0)
+        self.assertEqual(result["total_frames"], 1)
+
+        two_frame = write(ROOT / "two_frame.yuv", bytes([235, 235, 235, 235, 128, 128]) + bytes([16, 16, 16, 16, 128, 128]))
+        first = build_yuv_preview(two_frame, 2, 2, "yuv420p", output_dir=ROOT / "yuv-previews", frame_index=0)
+        second = build_yuv_preview(two_frame, 2, 2, "yuv420p", output_dir=ROOT / "yuv-previews", frame_index=1)
+        self.assertTrue(first["available"])
+        self.assertTrue(second["available"])
+        self.assertEqual(second["frame_index"], 1)
+        self.assertEqual(second["total_frames"], 2)
+        self.assertNotEqual(first["path"], second["path"])
+        self.assertNotEqual(Path(first["path"]).read_bytes(), Path(second["path"]).read_bytes())
+        self.assertIn("frame-1", yuv_preview_output_path(two_frame, ROOT / "yuv-previews", 2, 2, "yuv420p", 1).name)
 
     def test_yuv_preview_rejects_incomplete_frame(self):
         path = write(ROOT / "short.yuv", b"\x10" * 4)
         result = build_yuv_preview(path, 4, 4, "yuv420p", output_dir=ROOT / "yuv-previews")
         self.assertFalse(result["available"])
         self.assertIn("incomplete", result["error"])
+        out_of_range = build_yuv_preview(path, 1, 1, "yuyv422", output_dir=ROOT / "yuv-previews", frame_index=2)
+        self.assertFalse(out_of_range["available"])
+        self.assertIn("out of range", out_of_range["error"])
 
     def test_protocol_tree_search_and_issue_helpers(self):
         root = ParseNode("root", "file", 0, 16)

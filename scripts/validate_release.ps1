@@ -181,13 +181,23 @@ Write-Host "== Raw YUV preview smoke =="
 $yuvCheck = @'
 from pathlib import Path
 from avscope.yuv_preview import build_yuv_preview
-source = Path("G:/AVScope/samples/sample.yuv")
-result = build_yuv_preview(source, 64, 48, "yuv420p", output_dir=Path("G:/AVScope/tmp/yuv-preview-validation"))
-print(result)
-if not result.get("available") or not result.get("path"):
-    raise SystemExit("Raw YUV preview was not generated")
-if result.get("width") != 64 or result.get("height") != 48:
-    raise SystemExit(f"Unexpected Raw YUV preview size: {result}")
+source = Path("G:/AVScope/tmp/yuv-preview-validation/two-frame.yuv")
+source.parent.mkdir(parents=True, exist_ok=True)
+source.write_bytes(bytes([235, 235, 235, 235, 128, 128]) + bytes([16, 16, 16, 16, 128, 128]))
+outputs = [
+    build_yuv_preview(source, 2, 2, "yuv420p", output_dir=Path("G:/AVScope/tmp/yuv-preview-validation"), frame_index=0),
+    build_yuv_preview(source, 2, 2, "yuv420p", output_dir=Path("G:/AVScope/tmp/yuv-preview-validation"), frame_index=1),
+]
+print(outputs)
+for result in outputs:
+    if not result.get("available") or not result.get("path"):
+        raise SystemExit("Raw YUV preview was not generated")
+    if result.get("width") != 2 or result.get("height") != 2:
+        raise SystemExit(f"Unexpected Raw YUV preview size: {result}")
+    if result.get("total_frames") != 2:
+        raise SystemExit(f"Unexpected Raw YUV frame count: {result}")
+if outputs[0].get("path") == outputs[1].get("path"):
+    raise SystemExit("Raw YUV frame stepping did not produce a distinct cache path")
 '@
 $yuvCheck | & $python -
 Write-Host "Raw YUV preview smoke OK"
