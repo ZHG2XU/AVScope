@@ -102,6 +102,8 @@ class Mp4Parser(FormatParser):
             )
             if box_type == "ftyp":
                 self._parse_ftyp(source, node)
+            elif box_type == "mvhd":
+                self._parse_mvhd(source, node)
             elif box_type in CONTAINER_BOXES:
                 child_start = offset + header_size
                 if box_type == "meta":
@@ -128,5 +130,46 @@ class Mp4Parser(FormatParser):
                 FieldInfo("major_brand", major, node.offset + 8, 4, payload[:4].hex(" ").upper()),
                 FieldInfo("minor_version", minor, node.offset + 12, 4, hex(minor)),
                 FieldInfo("compatible_brands", ", ".join(brands), node.offset + 16, max(0, len(payload) - 8)),
+            ]
+        )
+
+    def _parse_mvhd(self, source: ByteSource, node: ParseNode) -> None:
+        payload = source.read_at(node.offset + 8, min(node.size - 8, 120))
+        if len(payload) < 20:
+            node.severity = Severity.WARNING
+            return
+        version = payload[0]
+        flags = int.from_bytes(payload[1:4], "big")
+        node.fields.extend(
+            [
+                FieldInfo("version", version, node.offset + 8, 1, hex(version)),
+                FieldInfo("flags", flags, node.offset + 9, 3, hex(flags)),
+            ]
+        )
+        if version == 1:
+            if len(payload) < 32:
+                node.severity = Severity.WARNING
+                return
+            creation_time = u64be(payload, 4)
+            modification_time = u64be(payload, 12)
+            timescale = u32be(payload, 20)
+            duration = u64be(payload, 24)
+            timescale_offset = node.offset + 28
+            duration_offset = node.offset + 32
+        else:
+            creation_time = u32be(payload, 4)
+            modification_time = u32be(payload, 8)
+            timescale = u32be(payload, 12)
+            duration = u32be(payload, 16)
+            timescale_offset = node.offset + 20
+            duration_offset = node.offset + 24
+        duration_seconds = duration / timescale if timescale else None
+        node.fields.extend(
+            [
+                FieldInfo("creation_time", creation_time, node.offset + 12, 4 if version == 0 else 8, hex(creation_time)),
+                FieldInfo("modification_time", modification_time, node.offset + (16 if version == 0 else 20), 4 if version == 0 else 8, hex(modification_time)),
+                FieldInfo("timescale", timescale, timescale_offset, 4, hex(timescale), description="movie time units per second"),
+                FieldInfo("duration", duration, duration_offset, 4 if version == 0 else 8, hex(duration), description="movie duration in timescale units"),
+                FieldInfo("duration_seconds", duration_seconds, duration_offset, 0, description="duration / timescale"),
             ]
         )

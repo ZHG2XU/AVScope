@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-11T22:57:42",
+  "generated_at": "2026-08-11T23:22:27",
   "tool_version": "0.1.0",
   "media": {
     "path": "G:\\AVScope\\samples\\sample.mp4",
-    "size": 80,
+    "size": 156,
     "format_name": "MP4/MOV",
     "summary": {
       "boxes": 3,
@@ -31,7 +31,7 @@
     "name": "sample.mp4",
     "node_type": "MP4/MOV",
     "offset": 0,
-    "size": 80,
+    "size": 156,
     "fields": [],
     "children": [
       {
@@ -104,14 +104,14 @@
         "name": "moov",
         "node_type": "box",
         "offset": 24,
-        "size": 40,
+        "size": 116,
         "fields": [
           {
             "name": "size",
-            "value": 40,
+            "value": 116,
             "offset": 24,
             "size": 8,
-            "hex_value": "0x28",
+            "hex_value": "0x74",
             "bit_offset": null,
             "bit_length": null,
             "description": "box 总长度",
@@ -134,14 +134,14 @@
             "name": "mvhd",
             "node_type": "box",
             "offset": 32,
-            "size": 32,
+            "size": 108,
             "fields": [
               {
                 "name": "size",
-                "value": 32,
+                "value": 108,
                 "offset": 32,
                 "size": 8,
-                "hex_value": "0x20",
+                "hex_value": "0x6c",
                 "bit_offset": null,
                 "bit_length": null,
                 "description": "box 总长度",
@@ -157,6 +157,83 @@
                 "bit_length": null,
                 "description": "box 类型",
                 "severity": "normal"
+              },
+              {
+                "name": "version",
+                "value": 0,
+                "offset": 40,
+                "size": 1,
+                "hex_value": "0x0",
+                "bit_offset": null,
+                "bit_length": null,
+                "description": "",
+                "severity": "normal"
+              },
+              {
+                "name": "flags",
+                "value": 0,
+                "offset": 41,
+                "size": 3,
+                "hex_value": "0x0",
+                "bit_offset": null,
+                "bit_length": null,
+                "description": "",
+                "severity": "normal"
+              },
+              {
+                "name": "creation_time",
+                "value": 0,
+                "offset": 44,
+                "size": 4,
+                "hex_value": "0x0",
+                "bit_offset": null,
+                "bit_length": null,
+                "description": "",
+                "severity": "normal"
+              },
+              {
+                "name": "modification_time",
+                "value": 0,
+                "offset": 48,
+                "size": 4,
+                "hex_value": "0x0",
+                "bit_offset": null,
+                "bit_length": null,
+                "description": "",
+                "severity": "normal"
+              },
+              {
+                "name": "timescale",
+                "value": 1000,
+                "offset": 52,
+                "size": 4,
+                "hex_value": "0x3e8",
+                "bit_offset": null,
+                "bit_length": null,
+                "description": "movie time units per second",
+                "severity": "normal"
+              },
+              {
+                "name": "duration",
+                "value": 5000,
+                "offset": 56,
+                "size": 4,
+                "hex_value": "0x1388",
+                "bit_offset": null,
+                "bit_length": null,
+                "description": "movie duration in timescale units",
+                "severity": "normal"
+              },
+              {
+                "name": "duration_seconds",
+                "value": 5.0,
+                "offset": 56,
+                "size": 0,
+                "hex_value": "",
+                "bit_offset": null,
+                "bit_length": null,
+                "description": "duration / timescale",
+                "severity": "normal"
               }
             ],
             "children": [],
@@ -170,13 +247,13 @@
       {
         "name": "mdat",
         "node_type": "box",
-        "offset": 64,
+        "offset": 140,
         "size": 16,
         "fields": [
           {
             "name": "size",
             "value": 16,
-            "offset": 64,
+            "offset": 140,
             "size": 8,
             "hex_value": "0x10",
             "bit_offset": null,
@@ -187,7 +264,7 @@
           {
             "name": "type",
             "value": "mdat",
-            "offset": 68,
+            "offset": 144,
             "size": 4,
             "hex_value": "6D 64 61 74",
             "bit_offset": null,

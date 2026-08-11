@@ -74,6 +74,17 @@ class ParserTests(unittest.TestCase):
         self.assertIn("媒体摘要", html_path.read_text(encoding="utf-8"))
         self.assertIn("MP4/MOV", json_path.read_text(encoding="utf-8"))
 
+    def test_mp4_mvhd_parser(self):
+        sample_dir = ROOT / "mp4_sample"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample.mp4")
+        moov = next(node for node in result.root.children if node.name == "moov")
+        mvhd = next(node for node in moov.children if node.name == "mvhd")
+        fields = {field.name: field.value for field in mvhd.fields}
+        self.assertEqual(fields["timescale"], 1000)
+        self.assertEqual(fields["duration"], 5000)
+        self.assertEqual(fields["duration_seconds"], 5.0)
+
     def test_binary_compare(self):
         left = write(ROOT / "left.bin", b"abc123")
         right = write(ROOT / "right.bin", b"abc923")

@@ -101,7 +101,7 @@ class _BitWriter:
 def _mp4_sample(extra_free: bool = False) -> bytes:
     ftyp_payload = b"isom" + struct.pack(">I", 0) + b"isomiso2"
     ftyp = struct.pack(">I4s", len(ftyp_payload) + 8, b"ftyp") + ftyp_payload
-    mvhd_payload = b"\x00" * 24
+    mvhd_payload = _mvhd_payload(timescale=1000, duration=5000)
     mvhd = struct.pack(">I4s", len(mvhd_payload) + 8, b"mvhd") + mvhd_payload
     moov_payload = mvhd
     if extra_free:
@@ -110,3 +110,17 @@ def _mp4_sample(extra_free: bool = False) -> bytes:
     mdat_payload = b"\x00\x01\x02\x03\x04\x05\x06\x07"
     mdat = struct.pack(">I4s", len(mdat_payload) + 8, b"mdat") + mdat_payload
     return ftyp + moov + mdat
+
+
+def _mvhd_payload(timescale: int, duration: int) -> bytes:
+    return (
+        b"\x00\x00\x00\x00"
+        + struct.pack(">IIII", 0, 0, timescale, duration)
+        + struct.pack(">I", 0x00010000)
+        + struct.pack(">H", 0x0100)
+        + b"\x00\x00"
+        + b"\x00" * 8
+        + struct.pack(">9I", 0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000)
+        + b"\x00" * 24
+        + struct.pack(">I", 2)
+    )
