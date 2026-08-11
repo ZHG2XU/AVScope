@@ -49,7 +49,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 17. 打开 `G:\AVScope\samples\sample.ps`，检查 MPEG-PS 节点中是否显示 `pack_header`、`system_header`、`video_stream[0]`、`packet_length`、`pts_seconds` 和 `payload_offset`。
 18. 打开 `G:\AVScope\samples\sample.ts`，检查“时间线”页顶部是否显示帧/packet 大小柱状图，并检查 MPEG-TS packet 节点中是否显示 `pid`、`payload_unit_start_indicator`、`adaptation_field_control` 和 `continuity_counter`，确认诊断规则可覆盖 continuity counter 跳变。
 19. 打开 `G:\AVScope\samples\sample.pcap`，检查 PCAP/RTP 节点中是否显示 `src_ip`、`dst_ip`、`udp_src_port`、`rtp_payload_type`、`rtp_sequence`、`rtp_timestamp` 和 `rtp_ssrc`。
-20. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
+20. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；`sample.pcm` 可设置采样率、声道、位深、大小端和有符号/无符号，也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
 21. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“预览”页是否显示 Raw YUV 首帧画面。
 22. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
 23. 查看诊断面板，确认工具可在 ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调或音视频时长差异时输出 warning。

@@ -22,6 +22,8 @@ def main(argv: list[str] | None = None) -> int:
     analyze.add_argument("--sample-rate", type=int, help="Raw PCM sample rate")
     analyze.add_argument("--channels", type=int, help="Raw PCM channel count")
     analyze.add_argument("--bits-per-sample", type=int, help="Raw PCM bits per sample")
+    analyze.add_argument("--endian", choices=("little", "big"), help="Raw PCM sample byte order")
+    analyze.add_argument("--unsigned-pcm", action="store_true", help="Treat Raw PCM samples as unsigned integers")
     analyze.add_argument("--width", type=int, help="Raw YUV frame width")
     analyze.add_argument("--height", type=int, help="Raw YUV frame height")
     analyze.add_argument("--pixel-format", help="Raw YUV pixel format, such as yuv420p/nv12/yuyv422")
@@ -90,6 +92,8 @@ def _analyze_options(args: argparse.Namespace) -> dict:
         "sample_rate": args.sample_rate,
         "channels": args.channels,
         "bits_per_sample": args.bits_per_sample,
+        "endian": args.endian,
+        "signed": False if args.unsigned_pcm else None,
         "width": args.width,
         "height": args.height,
         "pixel_format": args.pixel_format,

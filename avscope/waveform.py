@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 import hashlib
-import struct
 import wave
 from pathlib import Path
 from typing import Iterable
@@ -158,7 +157,11 @@ def _pcm_summary(path: str | Path, media_summary: dict, points: int) -> dict:
     sample_rate = int(media_summary.get("sample_rate", 48000))
     channels = int(media_summary.get("channels", 2))
     bits_per_sample = int(media_summary.get("bits_per_sample", 16))
-    sample_width = max(1, bits_per_sample // 8)
+    endian = str(media_summary.get("endian", "little")).lower()
+    if endian not in {"little", "big"}:
+        endian = "little"
+    signed = _bool_option(media_summary.get("signed", True))
+    sample_width = max(1, (bits_per_sample + 7) // 8)
     frame_size = max(1, channels * sample_width)
     size = Path(path).stat().st_size
     total_frames = size // frame_size
@@ -171,7 +174,7 @@ def _pcm_summary(path: str | Path, media_summary: dict, points: int) -> dict:
                 break
             want = min(frames_per_bucket, scan_frames - len(peaks) * frames_per_bucket)
             data = fh.read(want * frame_size)
-            samples = list(_decode_samples(data, sample_width, channels))
+            samples = list(_decode_samples(data, sample_width, channels, endian=endian, signed=signed))
             peaks.append(_bucket(samples))
     return {
         "available": True,
@@ -179,6 +182,8 @@ def _pcm_summary(path: str | Path, media_summary: dict, points: int) -> dict:
         "sample_rate": sample_rate,
         "channels": channels,
         "sample_width": sample_width,
+        "endian": endian,
+        "signed": signed,
         "total_frames": total_frames,
         "scanned_frames": scan_frames,
         "duration_seconds": total_frames / sample_rate if sample_rate else None,
@@ -187,11 +192,11 @@ def _pcm_summary(path: str | Path, media_summary: dict, points: int) -> dict:
     }
 
 
-def _decode_samples(data: bytes, sample_width: int, channels: int) -> Iterable[float]:
+def _decode_samples(data: bytes, sample_width: int, channels: int, endian: str = "little", signed: bool = True) -> Iterable[float]:
     channels = max(1, channels)
     if sample_width == 1:
         for index in range(0, len(data), channels):
-            values = [(data[index + c] - 128) / 128 for c in range(channels) if index + c < len(data)]
+            values = [_decode_one(data[index + c : index + c + 1], endian, signed) for c in range(channels) if index + c < len(data)]
             if values:
                 yield sum(values) / len(values)
         return
@@ -200,23 +205,16 @@ def _decode_samples(data: bytes, sample_width: int, channels: int) -> Iterable[f
         values = []
         for channel in range(channels):
             pos = index + channel * sample_width
-            values.append(_decode_one(data[pos : pos + sample_width]))
+            values.append(_decode_one(data[pos : pos + sample_width], endian, signed))
         yield sum(values) / len(values)
 
 
-def _decode_one(raw: bytes) -> float:
-    if len(raw) == 2:
-        return struct.unpack("<h", raw)[0] / 32768
-    if len(raw) == 3:
-        value = int.from_bytes(raw, "little", signed=False)
-        if value & 0x800000:
-            value -= 0x1000000
-        return value / 8388608
-    if len(raw) == 4:
-        return struct.unpack("<i", raw)[0] / 2147483648
-    value = int.from_bytes(raw, "little", signed=True)
-    scale = float(1 << (8 * len(raw) - 1))
-    return value / scale if scale else 0.0
+def _decode_one(raw: bytes, endian: str = "little", signed: bool = True) -> float:
+    bits = max(1, len(raw) * 8)
+    scale = float(1 << (bits - 1))
+    if signed:
+        return int.from_bytes(raw, endian, signed=True) / scale
+    return (int.from_bytes(raw, endian, signed=False) - scale) / scale
 
 
 def _bucket(samples: list[float]) -> dict:
@@ -231,6 +229,14 @@ def _bucket(samples: list[float]) -> dict:
 def _amp_to_row(value: float, height: int) -> int:
     clamped = max(-1.0, min(1.0, value))
     return int(round((1.0 - clamped) * (height - 1) / 2.0))
+
+
+def _bool_option(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() not in {"0", "false", "no", "unsigned", "无符号"}
+    return bool(value)
 
 
 def _preview_value_to_y(value: float, top: int, bottom: int) -> int:

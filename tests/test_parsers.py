@@ -81,6 +81,23 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(Path(preview["path"]).read_bytes().startswith(b"P6\n320 120\n255\n"))
         self.assertFalse([i for i in result.diagnostics if i.severity.value == "error"])
 
+    def test_raw_pcm_endian_and_signed_options(self):
+        data = bytes([0x00, 0x00, 0x80, 0x00, 0xFF, 0xFF])
+        result = self.analyzer.analyze(
+            write(ROOT / "be_unsigned.pcm", data),
+            {"sample_rate": 3, "channels": 1, "bits_per_sample": 16, "endian": "big", "signed": False},
+        )
+        self.assertEqual(result.media.summary["endian"], "big")
+        self.assertFalse(result.media.summary["signed"])
+        self.assertEqual(result.media.summary["bytes_per_sample"], 2)
+        waveform = result.media.summary["waveform"]
+        self.assertTrue(waveform["available"])
+        self.assertEqual(waveform["endian"], "big")
+        self.assertFalse(waveform["signed"])
+        self.assertEqual(waveform["peaks"][0]["min"], -1.0)
+        self.assertEqual(waveform["peaks"][1]["max"], 0.0)
+        self.assertEqual(waveform["peaks"][2]["max"], 1.0)
+
     def test_aac_parser(self):
         frame = bytes([0xFF, 0xF1, 0x50, 0x80, 0x01, 0x9F, 0xFC]) + b"\x00" * 5
         result = self.analyzer.analyze(write(ROOT / "ok.aac", frame * 3))
@@ -522,6 +539,9 @@ class ParserTests(unittest.TestCase):
                 "1",
                 "--bits-per-sample",
                 "16",
+                "--endian",
+                "big",
+                "--unsigned-pcm",
                 "--json",
                 str(pcm_json),
             ]
@@ -530,6 +550,8 @@ class ParserTests(unittest.TestCase):
         pcm_summary = json.loads(pcm_json.read_text(encoding="utf-8"))["media"]["summary"]
         self.assertEqual(pcm_summary["sample_rate"], 8000)
         self.assertEqual(pcm_summary["channels"], 1)
+        self.assertEqual(pcm_summary["endian"], "big")
+        self.assertFalse(pcm_summary["signed"])
         yuv_json = ROOT / "cli_yuv_report.json"
         exit_code = cli_main(
             [

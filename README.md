@@ -24,7 +24,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - PCAP/RTP 可解析 PCAP global header、packet record、Ethernet/IPv4/UDP/RTP 字段、payload type、sequence、timestamp、SSRC，并诊断 RTP sequence 跳变。
 - AAC ADTS 可解析 profile、采样率、声道布局、帧时长、平均码率，并在字段表和 HTML 报告中显示 header 字段 bit offset/bit length。
 - WAV 可解析 PCM 格式参数、data 字节数、帧数、时长，并校验 byte_rate/block_align。
-- Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、宽高、像素格式和帧率。
+- Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、大小端、有符号/无符号、宽高、像素格式和帧率。
 - Raw YUV 可在预览页显示首帧画面，支持 `yuv420p`、`nv12`、`nv21`、`yuyv422`。
 - 显示协议树、字段表、Hex 分页视图、帧列表和带帧大小柱状图的基础时间线，协议树、字段表和帧列表均可联动跳转 Hex。
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
@@ -68,7 +68,7 @@ E:\DevelopmentEnvironment\python\python.exe -m avscope make-samples --out G:\AVS
 
 ```powershell
 E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.wav --html G:\AVScope\samples\sample_report.html --json G:\AVScope\samples\sample_report.json --csv G:\AVScope\samples\sample_report.csv
-E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.pcm --sample-rate 8000 --channels 1 --bits-per-sample 16 --json G:\AVScope\samples\sample_pcm_report.json
+E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.pcm --sample-rate 8000 --channels 1 --bits-per-sample 16 --endian little --json G:\AVScope\samples\sample_pcm_report.json
 E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.yuv --width 64 --height 48 --pixel-format yuv420p --fps 30 --json G:\AVScope\samples\sample_yuv_report.json
 ```
 

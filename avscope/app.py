@@ -596,10 +596,22 @@ class AVScopeApp(tk.Tk):
         sample_rate = simpledialog.askinteger("Raw PCM 参数", "采样率", initialvalue=int(defaults.get("sample_rate", 48000)), minvalue=1, parent=self)
         channels = simpledialog.askinteger("Raw PCM 参数", "声道数", initialvalue=int(defaults.get("channels", 2)), minvalue=1, parent=self)
         bits = simpledialog.askinteger("Raw PCM 参数", "位深", initialvalue=int(defaults.get("bits_per_sample", 16)), minvalue=1, parent=self)
+        endian_value = simpledialog.askstring("Raw PCM 参数", "大小端 little/big", initialvalue=str(defaults.get("endian", "little")), parent=self)
+        endian = str(endian_value or defaults.get("endian", "little")).strip().lower()
+        if endian not in {"little", "big"}:
+            endian = "little"
+        signed = messagebox.askyesno(
+            "Raw PCM 参数",
+            "样本是否为有符号整数？\n选择“否”表示无符号 PCM。",
+            default="yes" if bool(defaults.get("signed", True)) else "no",
+            parent=self,
+        )
         return {
             "sample_rate": sample_rate or int(defaults.get("sample_rate", 48000)),
             "channels": channels or int(defaults.get("channels", 2)),
             "bits_per_sample": bits or int(defaults.get("bits_per_sample", 16)),
+            "endian": endian,
+            "signed": signed,
         }
 
     def _ask_yuv_options(self, defaults: dict) -> dict:

@@ -18,8 +18,13 @@ class RawPcmParser(FormatParser):
         sample_rate = int(opts.get("sample_rate", 48000))
         channels = int(opts.get("channels", 2))
         bits_per_sample = int(opts.get("bits_per_sample", 16))
+        endian = str(opts.get("endian", "little")).lower()
+        if endian not in {"little", "big"}:
+            endian = "little"
+        signed = _bool_option(opts.get("signed", True))
         root = root_node(source, self.name)
-        frame_bytes = max(1, channels * bits_per_sample // 8)
+        sample_bytes = max(1, (bits_per_sample + 7) // 8)
+        frame_bytes = max(1, channels * sample_bytes)
         samples = source.size // frame_bytes
         duration = samples / sample_rate if sample_rate else None
         root.fields.extend(
@@ -27,6 +32,9 @@ class RawPcmParser(FormatParser):
                 FieldInfo("sample_rate", sample_rate),
                 FieldInfo("channels", channels),
                 FieldInfo("bits_per_sample", bits_per_sample),
+                FieldInfo("endian", endian),
+                FieldInfo("signed", signed),
+                FieldInfo("bytes_per_sample", sample_bytes),
                 FieldInfo("samples_per_channel", samples),
                 FieldInfo("duration_seconds", duration),
             ]
@@ -38,6 +46,9 @@ class RawPcmParser(FormatParser):
                 sample_rate=sample_rate,
                 channels=channels,
                 bits_per_sample=bits_per_sample,
+                endian=endian,
+                signed=signed,
+                bytes_per_sample=sample_bytes,
                 samples_per_channel=samples,
                 duration=duration,
             ),
@@ -86,3 +97,11 @@ class RawYuvParser(FormatParser):
             ),
             root,
         )
+
+
+def _bool_option(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() not in {"0", "false", "no", "unsigned", "无符号"}
+    return bool(value)
