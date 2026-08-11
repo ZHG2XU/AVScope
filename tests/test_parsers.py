@@ -4,7 +4,9 @@ import json
 import os
 import struct
 import tempfile
+import types
 import unittest
+import wave
 from pathlib import Path
 from unittest.mock import patch
 
@@ -30,6 +32,7 @@ from avscope.app import (
     node_matches_query,
 )
 from avscope.analyzer import Analyzer, build_probe_diagnostics, build_timeline_diagnostics
+from avscope.audio_preview import build_audio_preview_clip, play_audio_preview_clip
 from avscope.byte_source import ByteSource
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare, format_protocol_compare
@@ -110,6 +113,67 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(waveform["peaks"][0]["min"], -1.0)
         self.assertEqual(waveform["peaks"][1]["max"], 0.0)
         self.assertEqual(waveform["peaks"][2]["max"], 1.0)
+
+    def test_audio_preview_clip_helpers(self):
+        wav_path = ROOT / "preview_audio.wav"
+        with wave.open(str(wav_path), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(8000)
+            wav.writeframes(b"\x00\x00" * 800)
+        clip = build_audio_preview_clip(wav_path, "WAV", {}, output_dir=ROOT / "audio-previews", duration_seconds=0.05)
+        self.assertTrue(clip["available"])
+        self.assertLessEqual(clip["frames"], 800)
+        with wave.open(clip["path"], "rb") as clipped:
+            self.assertEqual(clipped.getframerate(), 8000)
+            self.assertEqual(clipped.getnchannels(), 1)
+
+        pcm_path = write(ROOT / "preview_audio.pcm", b"\x00\x00\x01\x00" * 800)
+        pcm_clip = build_audio_preview_clip(
+            pcm_path,
+            "Raw PCM",
+            {"sample_rate": 8000, "channels": 1, "bits_per_sample": 16, "endian": "little", "signed": True},
+            output_dir=ROOT / "audio-previews",
+            duration_seconds=0.05,
+        )
+        self.assertTrue(pcm_clip["available"])
+        with wave.open(pcm_clip["path"], "rb") as clipped:
+            self.assertEqual(clipped.getsampwidth(), 2)
+            self.assertEqual(clipped.getframerate(), 8000)
+
+        calls = []
+        fake_winsound = types.SimpleNamespace(
+            SND_FILENAME=1,
+            SND_ASYNC=2,
+            PlaySound=lambda path, flags: calls.append((path, flags)),
+        )
+        with patch.dict("sys.modules", {"winsound": fake_winsound}):
+            playback = play_audio_preview_clip(clip["path"])
+        self.assertTrue(playback["available"])
+        self.assertEqual(calls[0][0], clip["path"])
+
+    def test_audio_preview_clip_with_mocked_ffmpeg(self):
+        source = write(ROOT / "preview_audio.aac", b"not real aac")
+
+        def fake_run(command, capture_output, text, timeout, check):
+            output = Path(command[-1])
+            with wave.open(str(output), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(8000)
+                wav.writeframes(b"\x00\x00" * 80)
+
+            class Completed:
+                returncode = 0
+                stderr = ""
+
+            return Completed()
+
+        with patch("avscope.audio_preview.find_ffmpeg", return_value="ffmpeg"), patch("avscope.audio_preview.subprocess.run", side_effect=fake_run):
+            clip = build_audio_preview_clip(source, "AAC ADTS", {}, output_dir=ROOT / "audio-previews", duration_seconds=0.1)
+        self.assertTrue(clip["available"])
+        self.assertEqual(clip["sample_rate"], 8000)
+        self.assertTrue(Path(clip["path"]).exists())
 
     def test_aac_parser(self):
         frame = bytes([0xFF, 0xF1, 0x50, 0x80, 0x01, 0x9F, 0xFC]) + b"\x00" * 5

@@ -150,6 +150,33 @@ if result.get("width") != 720 or result.get("height") != 180:
 $waveformCheck | & $python -
 Write-Host "Waveform preview smoke OK"
 
+Write-Host "== Audio preview clip smoke =="
+$audioClipCheck = @'
+from pathlib import Path
+from avscope.analyzer import Analyzer
+from avscope.audio_preview import build_audio_preview_clip
+analyzer = Analyzer()
+wav_source = Path("G:/AVScope/samples/sample.wav")
+wav_analysis = analyzer.analyze(wav_source)
+pcm_source = Path("G:/AVScope/samples/sample.pcm")
+pcm_analysis = analyzer.analyze(
+    pcm_source,
+    {"sample_rate": 8000, "channels": 1, "bits_per_sample": 16, "endian": "little", "signed": True},
+)
+outputs = [
+    build_audio_preview_clip(wav_source, wav_analysis.media.format_name, wav_analysis.media.summary, output_dir=Path("G:/AVScope/tmp/audio-preview-validation")),
+    build_audio_preview_clip(pcm_source, pcm_analysis.media.format_name, pcm_analysis.media.summary, output_dir=Path("G:/AVScope/tmp/audio-preview-validation")),
+]
+print(outputs)
+for result in outputs:
+    if not result.get("available") or not result.get("path"):
+        raise SystemExit(f"Audio preview clip was not generated: {result}")
+    if result.get("frames", 0) <= 0 or result.get("size", 0) <= 44:
+        raise SystemExit(f"Unexpected audio preview clip: {result}")
+'@
+$audioClipCheck | & $python -
+Write-Host "Audio preview clip smoke OK"
+
 Write-Host "== Video preview smoke =="
 $previewSmokeDir = "G:\AVScope\tmp\preview-smoke-validation"
 New-Item -ItemType Directory -Force -Path $previewSmokeDir | Out-Null

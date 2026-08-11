@@ -11,6 +11,7 @@ from time import perf_counter
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from avscope.analyzer import Analyzer
+from avscope.audio_preview import build_audio_preview_clip, play_audio_preview_clip, stop_audio_preview
 from avscope.byte_source import ByteSource
 from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare, format_protocol_compare
 from avscope.extract import extract_media_stream
@@ -479,6 +480,9 @@ class AVScopeApp(tk.Tk):
         analysis_menu.add_command(label="提取音频", command=lambda: self.extract_current_media("audio"))
         analysis_menu.add_command(label="提取视频", command=lambda: self.extract_current_media("video"))
         analysis_menu.add_command(label="提取首个关键帧", command=lambda: self.extract_current_media("keyframe"))
+        analysis_menu.add_separator()
+        analysis_menu.add_command(label="播放音频片段", command=self.play_audio_preview)
+        analysis_menu.add_command(label="停止音频播放", command=self.stop_audio_preview)
         analysis_menu.add_separator()
         analysis_menu.add_command(label="上一预览帧", command=lambda: self.step_video_preview(-VIDEO_PREVIEW_STEP_SECONDS))
         analysis_menu.add_command(label="下一预览帧", command=lambda: self.step_video_preview(VIDEO_PREVIEW_STEP_SECONDS))
@@ -1195,6 +1199,7 @@ class AVScopeApp(tk.Tk):
             lines.append(
                 f"音频波形预览: 已生成 {waveform_preview.get('width')}x{waveform_preview.get('height')}，见下方画面。"
             )
+            lines.append("音频播放: 可使用“分析 / 播放音频片段”试听前 3 秒。")
             lines.append("")
         elif waveform_preview.get("error"):
             lines.append(f"音频波形预览: {waveform_preview.get('error')}")
@@ -1347,6 +1352,41 @@ class AVScopeApp(tk.Tk):
         self.preview.insert(tk.END, "\n音频波形图\n")
         self.preview.image_create(tk.END, image=image)
         self.preview.insert(tk.END, "\n")
+
+    def play_audio_preview(self) -> None:
+        if not self.current_file or not self.result:
+            messagebox.showinfo("音频预览", "请先打开包含音频的文件。")
+            return
+        if not self._current_file_can_preview_audio():
+            messagebox.showinfo("音频预览", "当前文件未发现可播放的音频片段。")
+            return
+        self.status.set("正在生成音频预览片段...")
+        self.update_idletasks()
+        clip = build_audio_preview_clip(self.current_file, self.result.media.format_name, self.result.media.summary)
+        if not clip.get("available") or not clip.get("path"):
+            self.status.set(f"音频预览片段生成失败: {clip.get('error', 'unknown error')}")
+            return
+        playback = play_audio_preview_clip(clip["path"])
+        if playback.get("error"):
+            self.status.set(f"音频播放失败: {playback.get('error')}")
+            return
+        duration = format_seconds_timecode(float(clip.get("duration_seconds") or 0.0))
+        self.status.set(f"正在播放音频片段 {duration}: {clip.get('path')}")
+
+    def stop_audio_preview(self) -> None:
+        result = stop_audio_preview()
+        if result.get("error"):
+            self.status.set(f"停止音频播放失败: {result.get('error')}")
+        else:
+            self.status.set("已停止音频播放")
+
+    def _current_file_can_preview_audio(self) -> bool:
+        if not self.result:
+            return False
+        if self.result.media.format_name in {"WAV", "Raw PCM"}:
+            return True
+        streams = self.result.media.summary.get("ffprobe", {}).get("streams", [])
+        return any(stream.get("codec_type") == "audio" for stream in streams)
 
     def _render_yuv_preview(self) -> None:
         if not self.result:
