@@ -198,6 +198,30 @@ if result.get("added") or result.get("removed") or result.get("changed"):
 $frameCompareCheck | & $python -
 Write-Host "Frame compare smoke OK"
 
+Write-Host "== Media extraction smoke =="
+$extractSmokeDir = "G:\AVScope\tmp\extract-smoke-validation"
+New-Item -ItemType Directory -Force -Path $extractSmokeDir | Out-Null
+$extractSource = "$extractSmokeDir\source.mp4"
+& $ffmpeg -hide_banner -v error -y -f lavfi -i "testsrc=size=160x90:rate=1" -f lavfi -i "sine=frequency=1000:duration=1" -shortest -pix_fmt yuv420p $extractSource
+$env:AVSCOPE_FFMPEG = $ffmpeg
+$extractCheck = @'
+from pathlib import Path
+from avscope.extract import extract_media_stream
+source = Path("G:/AVScope/tmp/extract-smoke-validation/source.mp4")
+outputs = [
+    extract_media_stream(source, Path("G:/AVScope/tmp/extract-smoke-validation/audio.aac"), "audio"),
+    extract_media_stream(source, Path("G:/AVScope/tmp/extract-smoke-validation/video.h264"), "video"),
+    extract_media_stream(source, Path("G:/AVScope/tmp/extract-smoke-validation/keyframe.png"), "keyframe"),
+]
+print(outputs)
+for item in outputs:
+    if item.get("error") or not item.get("output") or item.get("size", 0) <= 0:
+        raise SystemExit(f"Media extraction failed: {item}")
+'@
+$extractCheck | & $python -
+Remove-Item Env:\AVSCOPE_FFMPEG -ErrorAction SilentlyContinue
+Write-Host "Media extraction smoke OK"
+
 Write-Host "== Path constraint scan =="
 $scanTargets = @("$root\avscope", "$root\packaging", "$root\plugins", "$root\scripts")
 $scanFiles = Get-ChildItem -Path $scanTargets -Recurse -File |

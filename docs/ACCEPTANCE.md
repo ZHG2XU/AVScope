@@ -33,6 +33,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 - 安装包静默安装到 G 盘、启动、卸载冒烟测试
 - 发布验证报告生成
 - WAV/MP4 示例报告与对比 JSON 生成
+- 音频、视频和关键帧提取冒烟测试
 
 ## 手工验收建议
 
