@@ -20,6 +20,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 验证内容包括：
 
 - 单元测试
+- 128MB+ 大文件只读随机访问测试
 - 损坏 MP4/WAV/AAC/H.264/AVI 文件的诊断回归测试
 - 关键产物存在性检查
 - UI/报告源码乱码扫描

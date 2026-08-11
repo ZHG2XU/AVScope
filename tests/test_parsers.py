@@ -14,6 +14,7 @@ from avscope.app import (
     node_matches_query,
 )
 from avscope.analyzer import Analyzer, build_timeline_diagnostics
+from avscope.byte_source import ByteSource
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
 from avscope.models import FieldInfo, ParseNode, Severity
@@ -440,6 +441,21 @@ class ParserTests(unittest.TestCase):
         self.assertLessEqual(len(recent), MAX_RECENT_FILES)
         settings_reloaded = AppSettings(settings_path)
         self.assertEqual(settings_reloaded.recent_files()[0], str(ROOT / "file_3.wav"))
+
+    def test_byte_source_large_file_random_access(self):
+        path = ROOT / "large_random_access.bin"
+        size = 128 * 1024 * 1024 + 17
+        with path.open("wb") as fh:
+            fh.write(b"HEAD")
+            fh.seek(size - 4)
+            fh.write(b"TAIL")
+
+        with ByteSource(path) as source:
+            self.assertEqual(source.size, size)
+            self.assertEqual(source.head(4), b"HEAD")
+            self.assertEqual(source.read_at(size - 4, 16), b"TAIL")
+            self.assertEqual(source.read_at(size + 1, 16), b"")
+            self.assertEqual(len(source.read_at(64 * 1024 * 1024, 4096)), 4096)
 
 
 if __name__ == "__main__":
