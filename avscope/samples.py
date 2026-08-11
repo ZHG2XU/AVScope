@@ -18,6 +18,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample.mp4", _mp4_sample()),
         _write(target / "sample_changed.mp4", _mp4_sample(extra_free=True)),
         _write(target / "sample.avi", _avi_sample()),
+        _write(target / "sample.flv", _flv_sample()),
         _write(target / "sample.ts", _mpegts_sample()),
         _write(target / "sample.pcm", b"\x00\x00\x10\x00\xf0\xff" * 64),
         _write(target / "sample.yuv", b"\x10" * (64 * 48) + b"\x80" * (64 * 48 // 2)),
@@ -66,6 +67,26 @@ def _mpegts_sample() -> bytes:
         + _ts_packet(pid=0x0100, payload_unit_start=True, continuity_counter=0, payload=b"\x00\x00\x01\xe0\x00\x00\x80\x80\x05")
         + _ts_packet(pid=0x0101, payload_unit_start=False, continuity_counter=1, payload=b"\x00\x00\x01\xc0\x00\x00\x80\x80\x05")
     )
+
+
+def _flv_sample() -> bytes:
+    header = b"FLV" + bytes([1, 0x05]) + struct.pack(">I", 9) + struct.pack(">I", 0)
+    script_payload = b"\x02\x00\x0AonMetaData\x08\x00\x00\x00\x00\x00\x00\x09"
+    video_payload = b"\x17\x01\x00\x00\x00\x65\x88\x84"
+    return header + _flv_tag(18, 0, script_payload) + _flv_tag(9, 40, video_payload)
+
+
+def _flv_tag(tag_type: int, timestamp: int, payload: bytes) -> bytes:
+    data_size = len(payload)
+    header = (
+        bytes([tag_type])
+        + data_size.to_bytes(3, "big")
+        + (timestamp & 0xFFFFFF).to_bytes(3, "big")
+        + bytes([(timestamp >> 24) & 0xFF])
+        + b"\x00\x00\x00"
+    )
+    previous_tag_size = len(header) + data_size
+    return header + payload + struct.pack(">I", previous_tag_size)
 
 
 def _ts_packet(pid: int, payload_unit_start: bool, continuity_counter: int, payload: bytes) -> bytes:

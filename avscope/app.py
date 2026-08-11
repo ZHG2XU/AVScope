@@ -55,6 +55,7 @@ PALETTES = {
 SUPPORTED_EXTENSIONS = {
     ".aac",
     ".avi",
+    ".flv",
     ".h264",
     ".h265",
     ".264",
@@ -1093,7 +1094,7 @@ class AVScopeApp(tk.Tk):
         self.preview.insert(
             tk.END,
             "打开一个音视频文件开始分析。\n\n"
-            "支持 MP4/MOV、AVI、MPEG-TS、WAV、AAC ADTS、H.264/H.265 Annex-B、PCM、YUV。\n"
+            "支持 MP4/MOV、AVI、FLV、MPEG-TS、WAV、AAC ADTS、H.264/H.265 Annex-B、PCM、YUV。\n"
             "可以拖拽文件到窗口打开；解析后会显示协议树、Hex、字段、帧列表、时间线、波形和诊断报告。",
         )
         self.diagnostics.delete("1.0", tk.END)

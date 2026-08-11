@@ -237,6 +237,21 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(fields["pid"].value, "0x0000")
         self.assertEqual((fields["pid"].bit_offset, fields["pid"].bit_length), (11, 13))
 
+    def test_flv_parser(self):
+        sample_dir = ROOT / "flv_sample"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample.flv")
+        self.assertEqual(result.media.format_name, "FLV")
+        self.assertTrue(result.media.summary["has_audio"])
+        self.assertTrue(result.media.summary["has_video"])
+        self.assertEqual(result.media.summary["tags"], 2)
+        self.assertEqual(result.media.summary["tag_counts"]["script"], 1)
+        self.assertEqual(result.media.summary["tag_counts"]["video"], 1)
+        self.assertEqual(result.root.children[1].name, "Tag[1] video")
+        fields = {field.name: field.value for field in result.root.children[1].fields}
+        self.assertEqual(fields["tag_type"], "video")
+        self.assertEqual(fields["timestamp"], 40)
+
     def test_mpegts_continuity_counter_diagnostic(self):
         def packet(pid: int, counter: int) -> bytes:
             header = bytes([0x47, (pid >> 8) & 0x1F, pid & 0xFF, 0x10 | counter])
@@ -284,6 +299,11 @@ class ParserTests(unittest.TestCase):
         result = self.analyzer.analyze(truncated_ts)
         self.assertEqual(result.media.format_name, "MPEG-TS")
         self.assertTrue(diagnostics_with(result, "warning"))
+
+        truncated_flv = write(ROOT / "truncated.flv", b"FLV\x01\x05\x00\x00\x00\x09\x00\x00\x00\x00\x09\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00")
+        result = self.analyzer.analyze(truncated_flv)
+        self.assertEqual(result.media.format_name, "FLV")
+        self.assertTrue(diagnostics_with(result, "error"))
 
     def test_timeline_diagnostics(self):
         summary = {

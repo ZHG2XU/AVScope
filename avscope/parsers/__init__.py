@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .aac import AacAdtsParser
 from .avi import AviParser
+from .flv import FlvParser
 from .h26x import H264AnnexBParser, H265AnnexBParser
 from .mpegts import MpegTsParser
 from .mp4 import Mp4Parser
@@ -12,6 +13,7 @@ from .wav import WavParser
 DEFAULT_PARSERS = [
     Mp4Parser(),
     AviParser(),
+    FlvParser(),
     MpegTsParser(),
     WavParser(),
     AacAdtsParser(),
