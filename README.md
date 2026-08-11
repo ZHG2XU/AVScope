@@ -67,6 +67,8 @@ E:\DevelopmentEnvironment\python\python.exe -m unittest discover -s tests
 PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 ```
 
+验收清单见 `G:\AVScope\docs\ACCEPTANCE.md`。
+
 ## 目录结构
 
 ```text

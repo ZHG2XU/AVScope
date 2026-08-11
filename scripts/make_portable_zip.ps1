@@ -19,6 +19,7 @@ $items = @(
     "G:\AVScope\scripts",
     "G:\AVScope\tests",
     "G:\AVScope\data",
+    "G:\AVScope\docs",
     "G:\AVScope\INSTALLATIONS.md",
     "G:\AVScope\README.md",
     "G:\AVScope\run_avscope.py"
