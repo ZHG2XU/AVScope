@@ -1049,8 +1049,51 @@ class AVScopeApp(tk.Tk):
                 canvas.create_line(x, top, x, min(bottom, y0), fill=p["accent2"], dash=(2, 3))
         label = f"{len(items)} 项 | max size {max_size} bytes"
         canvas.create_text(left, bottom + 13, text=label, fill=p["muted"], anchor=tk.W, font=("Microsoft YaHei UI", 9))
+        self._render_timestamp_curves(canvas, left, right, top, bottom)
         self._render_bitrate_curve(canvas, left, right, top, bottom)
         canvas.create_line(left, mid, right, mid, fill=p["border"])
+
+    def _render_timestamp_curves(self, canvas: tk.Canvas, left: int, right: int, top: int, bottom: int) -> None:
+        if not self.result:
+            return
+        summary = self.result.media.summary.get("timeline_summary", {})
+        series = summary.get("series", [])
+        if not series:
+            return
+        values = [
+            float(point[key])
+            for point in series
+            for key in ("pts", "dts")
+            if point.get(key) is not None
+        ]
+        if len(values) < 2:
+            return
+        value_min = min(values)
+        value_max = max(values)
+        if value_max <= value_min:
+            return
+        p = self._palette
+        span = right - left
+        denom = max(1, len(series) - 1)
+        y_span = bottom - top
+        for key, color, dash in (("pts", p["accent2"], ()), ("dts", p["error"], (4, 3))):
+            points = []
+            for index, point in enumerate(series):
+                value = point.get(key)
+                if value is None:
+                    continue
+                x = left + span * index / denom
+                y = bottom - (float(value) - value_min) / (value_max - value_min) * y_span
+                points.extend([x, y])
+            if len(points) >= 4:
+                canvas.create_line(*points, fill=color, width=1.7, dash=dash, smooth=True)
+        anomalies = summary.get("timestamp_anomalies", [])
+        if anomalies:
+            for anomaly in anomalies[:16]:
+                order = int(anomaly.get("item_order", 0) or 0)
+                x = left + span * min(max(order, 0), len(series) - 1) / denom
+                canvas.create_oval(x - 4, top + 3, x + 4, top + 11, fill=p["error"], outline="")
+            canvas.create_text(left, top - 2, text=f"timestamp anomalies {len(anomalies)}", fill=p["error"], anchor=tk.NW, font=("Microsoft YaHei UI", 8))
 
     def _render_bitrate_curve(self, canvas: tk.Canvas, left: int, right: int, top: int, bottom: int) -> None:
         if not self.result:
@@ -2082,6 +2125,14 @@ def format_timeline_summary_lines(timeline_summary: dict | None = None) -> list[
             f"DTS span={_fmt_seconds(dts.get('span'))} "
             f"range={_fmt_seconds(dts.get('first'))}..{_fmt_seconds(dts.get('last'))} "
             f"non_monotonic={dts.get('non_monotonic', 0)}"
+        )
+    anomalies = summary.get("timestamp_anomalies", [])
+    if anomalies:
+        first = anomalies[0]
+        lines.append(
+            "  "
+            f"时间戳异常: {len(anomalies)} 处，first={first.get('kind', '').upper()} "
+            f"#{first.get('index')} {first.get('previous')}->{first.get('current')}"
         )
     bitrate = summary.get("bitrate", {})
     if bitrate.get("available"):

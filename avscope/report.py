@@ -306,6 +306,9 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     .timeline-chart .key {{ fill: var(--ok); }}
     .timeline-chart .bitrate {{ fill: none; stroke: var(--warn); stroke-width: 2.2; stroke-linecap: round; }}
     .timeline-chart .bitrate-dot {{ fill: var(--warn); }}
+    .timeline-chart .pts {{ fill: none; stroke: var(--ok); stroke-width: 2; stroke-linecap: round; }}
+    .timeline-chart .dts {{ fill: none; stroke: var(--err); stroke-width: 1.8; stroke-linecap: round; stroke-dasharray: 5 4; }}
+    .timeline-chart .timestamp-anomaly {{ fill: var(--err); }}
     .chart-caption {{ color: var(--muted); font-size: 12px; margin: -4px 0 8px; }}
     .waveform {{ white-space: pre; line-height: 1.1; margin-top: 10px; }}
     @media (max-width: 720px) {{
@@ -633,7 +636,75 @@ def _timeline_summary_html(timeline_summary: dict) -> str:
         "<table><tr><th>指标</th><th>值</th></tr>"
         + body
         + "</table>"
+        + _timestamp_svg_html(timeline_summary)
         + _bitrate_svg_html(bitrate)
+    )
+
+
+def _timestamp_svg_html(timeline_summary: dict) -> str:
+    series = timeline_summary.get("series", [])
+    values = [
+        float(point[key])
+        for point in series
+        for key in ("pts", "dts")
+        if point.get(key) is not None
+    ]
+    if len(values) < 2:
+        return ""
+    value_min = min(values)
+    value_max = max(values)
+    if value_max <= value_min:
+        return ""
+    width = 720
+    height = 120
+    left = 12
+    right = width - 12
+    top = 12
+    bottom = height - 20
+    plot_width = max(1, right - left)
+    y_span = max(1, bottom - top)
+    denom = max(1, len(series) - 1)
+    polylines = []
+    for key, cls in (("pts", "pts"), ("dts", "dts")):
+        pairs = []
+        for index, point in enumerate(series):
+            value = point.get(key)
+            if value is None:
+                continue
+            x = left + plot_width * index / denom
+            y = bottom - (float(value) - value_min) / (value_max - value_min) * y_span
+            pairs.append(f"{x:.2f},{y:.2f}")
+        if len(pairs) >= 2:
+            polylines.append(f'<polyline class="{cls}" points="{" ".join(pairs)}" />')
+    if not polylines:
+        return ""
+    anomalies = []
+    for anomaly in timeline_summary.get("timestamp_anomalies", [])[:48]:
+        try:
+            order = int(anomaly.get("item_order", 0) or 0)
+        except (TypeError, ValueError):
+            order = 0
+        x = left + plot_width * min(max(order, 0), len(series) - 1) / denom
+        anomalies.append(f'<circle class="timestamp-anomaly" cx="{x:.2f}" cy="{top + 7:.2f}" r="3.8" />')
+    grid_lines = "\n".join(
+        [
+            f'<line class="grid" x1="{left}" y1="{top + y_span * 0.33:.2f}" x2="{right}" y2="{top + y_span * 0.33:.2f}" />',
+            f'<line class="grid" x1="{left}" y1="{top + y_span * 0.66:.2f}" x2="{right}" y2="{top + y_span * 0.66:.2f}" />',
+            f'<line class="axis" x1="{left}" y1="{bottom}" x2="{right}" y2="{bottom}" />',
+        ]
+    )
+    caption = (
+        f"PTS/DTS range={_format_seconds(value_min)}..{_format_seconds(value_max)}, "
+        f"timestamp anomalies={len(timeline_summary.get('timestamp_anomalies', []))}"
+    )
+    return (
+        f'<svg class="timeline-chart" viewBox="0 0 {width} {height}" role="img" aria-label="PTS/DTS 曲线">'
+        f'<rect class="bg" x="0" y="0" width="{width}" height="{height}" rx="8" />'
+        f"{grid_lines}"
+        f"{''.join(polylines)}"
+        f"{''.join(anomalies)}"
+        "</svg>"
+        f'<p class="chart-caption">{html.escape(caption)}</p>'
     )
 
 

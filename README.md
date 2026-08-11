@@ -169,5 +169,5 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\make_release_manifes
 ## 时间线曲线摘要
 
 - 分析结果会写入 `media.summary.timeline_summary`，包含 PTS/DTS 范围、非单调计数、码率 bucket 曲线、关键帧/GOP 间隔和抽样后的曲线点。
-- GUI “时间线”页会在帧/packet 大小柱状图上叠加码率曲线；“预览”页会显示 PTS/DTS、码率和 GOP 摘要。
-- HTML 报告会显示“时间线曲线摘要”表和码率曲线，JSON/CSV 报告会保留 `timeline_summary` 结构化数据。
+- GUI “时间线”页会在帧/packet 大小柱状图上叠加 PTS/DTS 曲线、码率曲线和时间戳异常标记；“预览”页会显示 PTS/DTS、码率、GOP 和异常摘要。
+- HTML 报告会显示“时间线曲线摘要”表、PTS/DTS 曲线、码率曲线和异常点，JSON/CSV 报告会保留 `timeline_summary` 结构化数据。

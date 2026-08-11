@@ -40,7 +40,7 @@ from avscope.compare import compare_binary, compare_frames, compare_protocol, fo
 from avscope.extract import build_extract_command, extract_media_stream
 from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, png_dimensions, preview_output_path
 from avscope.frame_stats import build_frame_stats
-from avscope.models import FieldInfo, FrameInfo, ParseNode, Severity
+from avscope.models import FieldInfo, FrameInfo, MediaInfo, ParseNode, ParseResult, Severity
 from avscope.packet_stats import build_packet_stats
 from avscope.plugins import build_plugin_template_manifest, load_plugin_parsers, normalize_extension, normalize_magic_hex, write_plugin_template
 from avscope.report import export_csv, export_html, export_json, export_project
@@ -1039,6 +1039,19 @@ class ParserTests(unittest.TestCase):
         lines = format_timeline_summary_lines(summary)
         self.assertTrue(any("码率曲线" in line for line in lines))
 
+    def test_timeline_summary_marks_timestamp_anomalies(self):
+        frames = [
+            FrameInfo(index=0, offset=0x100, size=1000, pts=0.0, dts=0.0, duration=0.04, keyframe=True),
+            FrameInfo(index=1, offset=0x200, size=500, pts=0.08, dts=0.08, duration=0.04),
+            FrameInfo(index=2, offset=0x300, size=900, pts=0.04, dts=0.12, duration=0.04),
+        ]
+        summary = build_timeline_summary(frames, [], bucket_seconds=0.04)
+        self.assertEqual(summary["pts"]["non_monotonic"], 1)
+        self.assertEqual(summary["timestamp_anomalies"][0]["kind"], "pts")
+        self.assertEqual(summary["timestamp_anomalies"][0]["index"], 2)
+        lines = format_timeline_summary_lines(summary)
+        self.assertTrue(any("时间戳异常" in line for line in lines))
+
     def test_timeline_summary_from_packets_and_reports(self):
         packets = [
             {"index": 0, "stream_index": 0, "codec_type": "video", "pts": 0.0, "dts": 0.0, "duration": 0.04, "size": 1000, "keyframe": True},
@@ -1065,6 +1078,24 @@ class ParserTests(unittest.TestCase):
         self.assertIn("码率曲线", html_path.read_text(encoding="utf-8"))
         self.assertIn("timeline_summary", csv_path.read_text(encoding="utf-8-sig"))
         self.assertIn("timeline_summary", json_path.read_text(encoding="utf-8"))
+
+        frames = [
+            FrameInfo(index=0, offset=0, size=1000, pts=0.0, dts=0.0, duration=0.04, keyframe=True),
+            FrameInfo(index=1, offset=1000, size=500, pts=0.08, dts=0.04, duration=0.04),
+            FrameInfo(index=2, offset=1500, size=1200, pts=0.04, dts=0.08, duration=0.04, keyframe=True),
+        ]
+        synthetic = ParseResult(
+            MediaInfo(str(ROOT / "synthetic_timeline.aac"), 2700, "Synthetic Timeline"),
+            ParseNode("synthetic_timeline.aac", "Synthetic", 0, 2700),
+            frames=frames,
+        )
+        synthetic.media.summary["timeline_summary"] = build_timeline_summary(frames, [], bucket_seconds=0.04)
+        synthetic_html = ROOT / "timeline_curves_report.html"
+        export_html(synthetic, synthetic_html)
+        synthetic_text = synthetic_html.read_text(encoding="utf-8")
+        self.assertIn('class="pts"', synthetic_text)
+        self.assertIn('class="dts"', synthetic_text)
+        self.assertIn('class="timestamp-anomaly"', synthetic_text)
 
     def test_video_preview_helpers(self):
         source = write(ROOT / "preview input.mp4", b"not a real video")

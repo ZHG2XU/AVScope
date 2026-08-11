@@ -273,8 +273,8 @@ json_path = out_dir / "timeline.json"
 csv_path = out_dir / "timeline.csv"
 frames = [
     FrameInfo(index=0, offset=0, size=1000, pts=0.0, dts=0.0, duration=0.04, keyframe=True),
-    FrameInfo(index=1, offset=1000, size=500, pts=0.04, dts=0.04, duration=0.04, keyframe=False),
-    FrameInfo(index=2, offset=1500, size=1200, pts=0.08, dts=0.08, duration=0.04, keyframe=True),
+    FrameInfo(index=1, offset=1000, size=500, pts=0.08, dts=0.04, duration=0.04, keyframe=False),
+    FrameInfo(index=2, offset=1500, size=1200, pts=0.04, dts=0.08, duration=0.04, keyframe=True),
 ]
 synthetic = ParseResult(
     MediaInfo("G:/AVScope/tmp/timeline-summary-validation/synthetic.aac", 2700, "Synthetic Timeline"),
@@ -288,6 +288,10 @@ export_csv(synthetic, csv_path)
 html_text = html_path.read_text(encoding="utf-8")
 if 'class="bitrate"' not in html_text:
     raise SystemExit("HTML bitrate curve missing")
+if 'class="pts"' not in html_text or 'class="dts"' not in html_text:
+    raise SystemExit("HTML PTS/DTS curves missing")
+if 'class="timestamp-anomaly"' not in html_text:
+    raise SystemExit("HTML timestamp anomaly marker missing")
 if "timeline_summary" not in json_path.read_text(encoding="utf-8"):
     raise SystemExit("JSON timeline summary missing")
 if "timeline_summary" not in csv_path.read_text(encoding="utf-8-sig"):

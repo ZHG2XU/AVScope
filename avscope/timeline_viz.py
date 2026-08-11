@@ -60,6 +60,7 @@ def build_timeline_summary(frames: Iterable[Any], packets: Iterable[dict], max_p
         "series": _sample_series(items, max_points),
         "pts": _timestamp_summary(pts_values),
         "dts": _timestamp_summary(dts_values),
+        "timestamp_anomalies": _timestamp_anomalies(items),
         "gop": _gop_summary(key_indices, len(items)),
         "bitrate": _bitrate_summary(items, bucket_seconds),
     }
@@ -123,6 +124,36 @@ def _timestamp_summary(values: list[float]) -> dict:
         "max": round(max(values), 6),
         "non_monotonic": non_monotonic,
     }
+
+
+def _timestamp_anomalies(items: list[dict], tolerance: float = 0.000001) -> list[dict]:
+    anomalies = []
+    last_by_stream: dict[tuple[str, str], tuple[int, Any, float]] = {}
+    for item_order, item in enumerate(items):
+        stream = str(item.get("stream", ""))
+        for key in ("pts", "dts"):
+            current = item.get(key)
+            if current is None:
+                continue
+            marker = (stream, key)
+            previous = last_by_stream.get(marker)
+            if previous is not None:
+                previous_order, previous_index, previous_value = previous
+                if current + tolerance < previous_value:
+                    anomalies.append(
+                        {
+                            "kind": key,
+                            "stream": stream,
+                            "item_order": item_order,
+                            "index": item.get("index"),
+                            "previous_order": previous_order,
+                            "previous_index": previous_index,
+                            "previous": round(previous_value, 6),
+                            "current": round(current, 6),
+                        }
+                    )
+            last_by_stream[marker] = (item_order, item.get("index"), current)
+    return anomalies[:100]
 
 
 def _gop_summary(key_indices: list[Any], item_count: int) -> dict:
