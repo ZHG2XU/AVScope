@@ -61,6 +61,12 @@ $env:TMP='G:\AVScope\tmp'
 E:\DevelopmentEnvironment\python\python.exe -m unittest discover -s tests
 ```
 
+明早验收前可运行完整验证：
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
+```
+
 ## 目录结构
 
 ```text
