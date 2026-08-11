@@ -20,6 +20,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample.avi", _avi_sample()),
         _write(target / "sample.flv", _flv_sample()),
         _write(target / "sample.mkv", _matroska_sample()),
+        _write(target / "sample.ps", _mpegps_sample()),
         _write(target / "sample.ts", _mpegts_sample()),
         _write(target / "sample.pcm", b"\x00\x00\x10\x00\xf0\xff" * 64),
         _write(target / "sample.yuv", b"\x10" * (64 * 48) + b"\x80" * (64 * 48 // 2)),
@@ -67,6 +68,33 @@ def _mpegts_sample() -> bytes:
         _ts_packet(pid=0x0000, payload_unit_start=True, continuity_counter=0, payload=b"\x00\xb0\r\x00\x01\xc1\x00\x00\x00\x01\xe1\x00")
         + _ts_packet(pid=0x0100, payload_unit_start=True, continuity_counter=0, payload=b"\x00\x00\x01\xe0\x00\x00\x80\x80\x05")
         + _ts_packet(pid=0x0101, payload_unit_start=False, continuity_counter=1, payload=b"\x00\x00\x01\xc0\x00\x00\x80\x80\x05")
+    )
+
+
+def _mpegps_sample() -> bytes:
+    pack = b"\x00\x00\x01\xBA" + bytes.fromhex("44 00 04 00 04 01 00 01 89 C0")
+    system_payload = b"\x80\x04\x04\xE0\x7F\xFF"
+    system = b"\x00\x00\x01\xBB" + struct.pack(">H", len(system_payload)) + system_payload
+    pes_payload = _pes_header(pts_90k=90000) + b"\x00\x00\x01\x65\x88\x84\x21"
+    video_pes = b"\x00\x00\x01\xE0" + struct.pack(">H", len(pes_payload)) + pes_payload
+    audio_payload = _pes_header(pts_90k=90000) + b"\x11\x22\x33\x44"
+    audio_pes = b"\x00\x00\x01\xC0" + struct.pack(">H", len(audio_payload)) + audio_payload
+    return pack + system + video_pes + audio_pes
+
+
+def _pes_header(pts_90k: int) -> bytes:
+    return b"\x80\x80\x05" + _encode_pts(pts_90k, prefix=0x20)
+
+
+def _encode_pts(value: int, prefix: int) -> bytes:
+    return bytes(
+        [
+            prefix | (((value >> 30) & 0x07) << 1) | 1,
+            (value >> 22) & 0xFF,
+            (((value >> 15) & 0x7F) << 1) | 1,
+            (value >> 7) & 0xFF,
+            ((value & 0x7F) << 1) | 1,
+        ]
     )
 
 

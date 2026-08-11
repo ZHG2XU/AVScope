@@ -242,6 +242,23 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(fields["pid"].value, "0x0000")
         self.assertEqual((fields["pid"].bit_offset, fields["pid"].bit_length), (11, 13))
 
+    def test_mpegps_parser(self):
+        sample_dir = ROOT / "ps_sample"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample.ps")
+        self.assertEqual(result.media.format_name, "MPEG-PS")
+        self.assertEqual(result.media.summary["stream_counts"]["pack_header"], 1)
+        self.assertEqual(result.media.summary["stream_counts"]["system_header"], 1)
+        self.assertEqual(result.media.summary["stream_counts"]["video_stream[0]"], 1)
+        self.assertEqual(result.media.summary["stream_counts"]["audio_stream[0]"], 1)
+        self.assertEqual(result.media.summary["frames"], 2)
+        self.assertEqual(result.frames[0].pts, 1.0)
+        self.assertEqual(result.frames[0].frame_type, "video_stream[0]")
+        self.assertTrue(result.frames[0].keyframe)
+        fields = {field.name: field.value for field in result.root.children[2].fields}
+        self.assertEqual(fields["stream_id"], "0xE0")
+        self.assertEqual(fields["pts_seconds"], 1.0)
+
     def test_flv_parser(self):
         sample_dir = ROOT / "flv_sample"
         generate_samples(sample_dir)
@@ -319,6 +336,11 @@ class ParserTests(unittest.TestCase):
         result = self.analyzer.analyze(truncated_ts)
         self.assertEqual(result.media.format_name, "MPEG-TS")
         self.assertTrue(diagnostics_with(result, "warning"))
+
+        truncated_ps = write(ROOT / "truncated.ps", b"\x00\x00\x01\xBA\x44\x00")
+        result = self.analyzer.analyze(truncated_ps)
+        self.assertEqual(result.media.format_name, "MPEG-PS")
+        self.assertTrue(diagnostics_with(result, "error"))
 
         truncated_flv = write(ROOT / "truncated.flv", b"FLV\x01\x05\x00\x00\x00\x09\x00\x00\x00\x00\x09\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00")
         result = self.analyzer.analyze(truncated_flv)
