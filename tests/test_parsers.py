@@ -16,6 +16,7 @@ from avscope.app import (
     extract_hex_bytes_from_dump_text,
     field_highlight_size,
     format_plugin_template_summary,
+    format_elapsed_seconds,
     format_frame_preview_lines,
     format_hex_interpretation,
     format_sample_files_help,
@@ -606,6 +607,11 @@ class ParserTests(unittest.TestCase):
         summary = format_plugin_template_summary(load_plugin_parsers(plugin_dir))
         self.assertIn("Help Plugin", summary)
         self.assertIn(".help", summary)
+
+    def test_elapsed_formatting(self):
+        self.assertEqual(format_elapsed_seconds(None), "--")
+        self.assertEqual(format_elapsed_seconds(0.0123), "12 ms")
+        self.assertEqual(format_elapsed_seconds(1.23456), "1.235 s")
 
     def test_binary_compare(self):
         left = write(ROOT / "left.bin", b"abc123" + b"\x00" * 40 + b"tail-A")

@@ -39,7 +39,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 1. 打开 `G:\AVScope\dist\AVScope\AVScope.exe`。
 2. 使用“打开”加载 `G:\AVScope\samples\sample.wav`。
 3. 将 `G:\AVScope\samples\sample.aac` 拖入主窗口，确认可自动打开；也可把样例文件拖到 `AVScope.exe` 图标上验证启动打开。
-4. 查看协议树、Hex、字段、帧列表、时间线、预览、诊断面板。
+4. 查看协议树、Hex、字段、帧列表、时间线、预览、诊断面板，并确认顶部摘要条和底部状态栏显示本次解析耗时。
 5. 使用“视图”菜单切换 Hex、字段表、帧列表、时间线、预览和诊断面板，并按 `Ctrl+L` 显示/隐藏底部日志。
 6. 打开 `G:\AVScope\samples\sample.wav`，检查“预览”页是否显示音频波形图。
 7. 对真实含视频流文件打开后，在“预览”页检查是否出现“视频首帧画面”；若文件不可解码，预览区应给出 ffmpeg 错误文本而不是崩溃。

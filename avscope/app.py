@@ -7,6 +7,7 @@ import sys
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from avscope.analyzer import Analyzer
@@ -169,6 +170,14 @@ def binary_compare_preview_indices(text: str, offsets: list[int]) -> list[str]:
     return indices
 
 
+def format_elapsed_seconds(seconds: float | None) -> str:
+    if seconds is None:
+        return "--"
+    if seconds < 1:
+        return f"{seconds * 1000:.0f} ms"
+    return f"{seconds:.3f} s"
+
+
 ABOUT_TEXT = "\n".join(
     [
         "AVScope",
@@ -192,6 +201,7 @@ class AVScopeApp(tk.Tk):
         self.result: ParseResult | None = None
         self.current_file: Path | None = None
         self.current_hex_offset = 0
+        self.last_parse_elapsed_seconds: float | None = None
         self._node_by_iid: dict[str, ParseNode] = {}
         self._tree_iids_in_display_order: list[str] = []
         self._field_range_by_iid: dict[str, tuple[int, int]] = {}
@@ -264,7 +274,7 @@ class AVScopeApp(tk.Tk):
         self.summary_frame.pack(side=tk.TOP, fill=tk.X, padx=12, pady=(0, 10))
         self.summary_cards: dict[str, tk.Frame] = {}
         self.summary_values: dict[str, tk.Label] = {}
-        for label, key in [("格式", "format"), ("大小", "size"), ("节点", "nodes"), ("诊断", "issues")]:
+        for label, key in [("格式", "format"), ("大小", "size"), ("节点", "nodes"), ("诊断", "issues"), ("耗时", "elapsed")]:
             card = tk.Frame(self.summary_frame, height=54)
             card.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
             card.pack_propagate(False)
@@ -759,14 +769,19 @@ class AVScopeApp(tk.Tk):
         self.current_file = path
         self._last_search = None
         self._last_node_search = None
+        started_at = perf_counter()
         self.result = self.analyzer.analyze(path, self._raw_options_for_path(path))
+        self.last_parse_elapsed_seconds = perf_counter() - started_at
+        self.result.media.summary["analysis_elapsed_seconds"] = round(self.last_parse_elapsed_seconds, 6)
         self._attach_waveform_preview(path)
         self._attach_video_preview(path)
         self._attach_yuv_preview(path)
         self._render_result()
         self._load_hex(0)
         self.file_badge.configure(text=f"{path.name}  |  {self.result.media.format_name}")
-        self.status.set(f"{path.name} | {self.result.media.format_name} | {self.result.media.size} bytes")
+        self.status.set(
+            f"{path.name} | {self.result.media.format_name} | {self.result.media.size} bytes | 解析 {format_elapsed_seconds(self.last_parse_elapsed_seconds)}"
+        )
         self._render_summary_cards()
         self.settings.add_recent_file(path)
         self._refresh_recent_menu()
@@ -776,12 +791,18 @@ class AVScopeApp(tk.Tk):
             messagebox.showinfo("Raw 参数", "请先打开 .pcm 或 .yuv 文件。")
             return
         self.raw_options_by_path.pop(str(self.current_file), None)
+        started_at = perf_counter()
         self.result = self.analyzer.analyze(self.current_file, self._raw_options_for_path(self.current_file, force=True))
+        self.last_parse_elapsed_seconds = perf_counter() - started_at
+        self.result.media.summary["analysis_elapsed_seconds"] = round(self.last_parse_elapsed_seconds, 6)
         self._attach_waveform_preview(self.current_file)
         self._attach_yuv_preview(self.current_file)
         self._render_result()
         self._load_hex(self.current_hex_offset)
         self._render_summary_cards()
+        self.status.set(
+            f"{self.current_file.name} | {self.result.media.format_name} | {self.result.media.size} bytes | 解析 {format_elapsed_seconds(self.last_parse_elapsed_seconds)}"
+        )
 
     def _raw_options_for_path(self, path: Path, force: bool = False) -> dict:
         suffix = path.suffix.lower()
@@ -1586,6 +1607,7 @@ class AVScopeApp(tk.Tk):
         self.summary_values["size"].configure(text=f"{self.result.media.size:,} bytes")
         self.summary_values["nodes"].configure(text=str(self._count_nodes(self.result.root)))
         self.summary_values["issues"].configure(text=issue_text)
+        self.summary_values["elapsed"].configure(text=format_elapsed_seconds(self.last_parse_elapsed_seconds))
         for key in ("format", "size", "nodes"):
             self._paint_summary_card(key, "normal")
         self._paint_summary_card("issues", issue_state)
