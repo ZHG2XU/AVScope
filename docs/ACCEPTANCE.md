@@ -35,6 +35,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 - 安装包静默安装到 G 盘、启动、卸载冒烟测试
 - 发布验证报告生成
 - WAV/MP4 示例报告与对比 JSON 生成
+- 插件模板创建与加载冒烟测试
 - 音频、视频和关键帧提取冒烟测试
 
 ## 手工验收建议
@@ -63,7 +64,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 22. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“预览”页是否显示 Raw YUV 预览帧；对多帧 Raw YUV 文件使用“分析 / 下一 YUV 帧”和“分析 / 上一 YUV 帧”确认可逐帧刷新画面。
 23. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
 24. 使用“分析 / 提取音频”“分析 / 提取视频”“分析 / 提取首个关键帧”对真实音视频文件导出到 G 盘临时验收目录，确认失败时有可读错误、成功时状态栏显示输出路径和大小。
-25. 打开“插件 / 查看已加载模板”，确认可看到 `Demo Magic Container`；打开“帮助 / 快捷键”和“帮助 / 示例文件”，确认可看到验收操作提示。
+25. 打开“插件 / 查看已加载模板”，确认可看到 `Demo Magic Container`；使用“插件 / 新建协议模板”可在 `G:\AVScope\plugins` 下生成声明式 JSON 模板，随后“插件 / 重新加载协议模板”可加载新模板；打开“帮助 / 快捷键”和“帮助 / 示例文件”，确认可看到验收操作提示。
 26. 查看诊断面板，确认工具可在 MP4 chunk offset 异常、ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调、音视频时长差异或帧/packet 大小尖峰时输出 warning/error。
 27. 使用“分析 / 协议结构对比”对比：
     - `G:\AVScope\samples\sample.mp4`

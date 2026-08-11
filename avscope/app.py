@@ -17,6 +17,7 @@ from avscope.extract import extract_media_stream
 from avscope.ffmpeg_preview import build_video_preview
 from avscope.hexview import format_hex, parse_offset
 from avscope.models import CompareResult, FieldInfo, FrameInfo, ParseNode, ParseResult, Severity
+from avscope.plugins import DEFAULT_PLUGIN_DIR, write_plugin_template
 from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.search import SearchPatternError, find_pattern, parse_search_pattern
 from avscope.settings import AppSettings
@@ -493,6 +494,7 @@ class AVScopeApp(tk.Tk):
         plugin_menu = tk.Menu(menu, tearoff=False)
         plugin_menu.add_command(label="查看已加载模板", command=self.show_plugin_templates)
         plugin_menu.add_command(label="重新加载协议模板", command=self.reload_plugin_templates)
+        plugin_menu.add_command(label="新建协议模板", command=self.create_plugin_template)
         menu.add_cascade(label="插件", menu=plugin_menu)
 
         tools_menu = tk.Menu(menu, tearoff=False)
@@ -525,6 +527,32 @@ class AVScopeApp(tk.Tk):
         self.show_plugin_templates()
         if self.current_file:
             self.reload_file()
+
+    def create_plugin_template(self) -> None:
+        name = simpledialog.askstring("新建协议模板", "模板名称", initialvalue="Custom Container", parent=self)
+        if not name:
+            return
+        extension = simpledialog.askstring("新建协议模板", "文件扩展名，例如 .bin", initialvalue=".bin", parent=self)
+        if not extension:
+            return
+        magic_hex = simpledialog.askstring("新建协议模板", "文件起始魔数，例如 41 56 53 43", initialvalue="41 56 53 43", parent=self)
+        if not magic_hex:
+            return
+        try:
+            path = write_plugin_template(name, extension, magic_hex, DEFAULT_PLUGIN_DIR)
+        except FileExistsError as exc:
+            messagebox.showerror("协议模板已存在", f"模板文件已存在：\n{exc}")
+            return
+        except ValueError as exc:
+            messagebox.showerror("协议模板无效", str(exc))
+            return
+        except OSError as exc:
+            messagebox.showerror("协议模板写入失败", str(exc))
+            return
+        self.analyzer = Analyzer()
+        self._refresh_recent_menu()
+        self.status.set(f"已新建协议模板: {path}")
+        messagebox.showinfo("协议模板已创建", f"已写入：\n{path}\n\n可在 G:\\AVScope\\plugins 中编辑字段定义。")
 
     def show_shortcuts_help(self) -> None:
         messagebox.showinfo("快捷键", format_shortcuts_help())

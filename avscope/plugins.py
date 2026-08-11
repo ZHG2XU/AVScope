@@ -12,6 +12,7 @@ from avscope.parsers.common import media_info, root_node, warn
 
 
 PLUGIN_SCHEMA_VERSION = 1
+DEFAULT_PLUGIN_DIR = Path("G:/AVScope/plugins")
 
 
 class PluginTemplateParser(FormatParser):
@@ -60,6 +61,86 @@ def load_plugin_parsers(plugin_dir: str | Path | None = None) -> list[PluginTemp
             except (OSError, json.JSONDecodeError, TypeError, ValueError):
                 continue
     return parsers
+
+
+def build_plugin_template_manifest(name: str, extension: str, magic_hex: str) -> dict[str, Any]:
+    clean_name = str(name).strip() or "Custom Template"
+    clean_extension = normalize_extension(extension)
+    clean_magic = normalize_magic_hex(magic_hex)
+    magic_size = len(_hex_to_bytes(clean_magic))
+    return {
+        "schema_version": PLUGIN_SCHEMA_VERSION,
+        "name": clean_name,
+        "extensions": [clean_extension],
+        "match": {
+            "offset": 0,
+            "hex": clean_magic,
+        },
+        "fields": [
+            {
+                "name": "magic",
+                "offset": 0,
+                "size": magic_size,
+                "type": "hex",
+                "description": "模板匹配魔数",
+            },
+            {
+                "name": "version",
+                "offset": magic_size,
+                "size": 1,
+                "type": "uint",
+                "description": "示例版本字段，可按实际协议修改",
+            },
+            {
+                "name": "payload",
+                "offset": magic_size + 1,
+                "size": 4,
+                "type": "hex",
+                "description": "示例载荷字段，可按实际协议修改",
+            },
+        ],
+    }
+
+
+def write_plugin_template(
+    name: str,
+    extension: str,
+    magic_hex: str,
+    plugin_dir: str | Path = DEFAULT_PLUGIN_DIR,
+    overwrite: bool = False,
+) -> Path:
+    manifest = build_plugin_template_manifest(name, extension, magic_hex)
+    directory = Path(plugin_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{plugin_template_filename(str(manifest['name']))}.json"
+    if path.exists() and not overwrite:
+        raise FileExistsError(str(path))
+    path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
+
+def plugin_template_filename(name: str) -> str:
+    clean = "".join(char.lower() if char.isalnum() else "_" for char in str(name).strip())
+    clean = "_".join(part for part in clean.split("_") if part)
+    return clean[:48] or "custom_template"
+
+
+def normalize_extension(extension: str) -> str:
+    clean = str(extension).strip().lower()
+    if not clean:
+        raise ValueError("扩展名不能为空")
+    if not clean.startswith("."):
+        clean = f".{clean}"
+    if any(char in clean for char in "\\/:*?\"<>|"):
+        raise ValueError(f"扩展名包含非法字符: {extension}")
+    return clean
+
+
+def normalize_magic_hex(magic_hex: str) -> str:
+    data = _hex_to_bytes(str(magic_hex))
+    if not data:
+        raise ValueError("魔数必须是偶数长度的十六进制字节")
+    return data.hex(" ").upper()
 
 
 def _candidate_plugin_dirs(plugin_dir: str | Path | None) -> list[Path]:

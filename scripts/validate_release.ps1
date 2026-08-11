@@ -217,6 +217,23 @@ if result.get("added") or result.get("removed") or result.get("changed"):
 $frameCompareCheck | & $python -
 Write-Host "Frame compare smoke OK"
 
+Write-Host "== Plugin template create smoke =="
+$pluginCreateCheck = @'
+from pathlib import Path
+from avscope.plugins import load_plugin_parsers, write_plugin_template
+plugin_dir = Path("G:/AVScope/tmp/plugin-create-validation")
+plugin_dir.mkdir(parents=True, exist_ok=True)
+for target in plugin_dir.glob("*.json"):
+    target.unlink()
+path = write_plugin_template("Validation Template", ".vtmp", "56 54 4D 50", plugin_dir)
+print(path)
+parsers = load_plugin_parsers(plugin_dir)
+if len(parsers) != 1 or parsers[0].name != "Validation Template":
+    raise SystemExit(f"Plugin template was not loadable: {parsers}")
+'@
+$pluginCreateCheck | & $python -
+Write-Host "Plugin template create smoke OK"
+
 Write-Host "== Media extraction smoke =="
 $extractSmokeDir = "G:\AVScope\tmp\extract-smoke-validation"
 New-Item -ItemType Directory -Force -Path $extractSmokeDir | Out-Null

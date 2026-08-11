@@ -38,7 +38,7 @@ from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, png_dimensi
 from avscope.frame_stats import build_frame_stats
 from avscope.models import FieldInfo, FrameInfo, ParseNode, Severity
 from avscope.packet_stats import build_packet_stats
-from avscope.plugins import load_plugin_parsers
+from avscope.plugins import build_plugin_template_manifest, load_plugin_parsers, normalize_extension, normalize_magic_hex, write_plugin_template
 from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
 from avscope.search import find_pattern, parse_search_pattern
@@ -585,6 +585,31 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(fields["version"].value, 2)
         self.assertEqual(fields["payload_size"].value, 5)
         self.assertEqual((fields["payload_size"].bit_offset, fields["payload_size"].bit_length), (40, 16))
+
+    def test_write_plugin_template(self):
+        plugin_dir = ROOT / "new_plugins"
+        plugin_dir.mkdir(parents=True, exist_ok=True)
+        for path in plugin_dir.glob("*.json"):
+            path.unlink()
+        path = write_plugin_template("Unit Template", "unitx", "55 4E 49 54", plugin_dir)
+        self.assertEqual(path.parent, plugin_dir)
+        self.assertTrue(path.exists())
+        self.assertEqual(normalize_extension("unitx"), ".unitx")
+        self.assertEqual(normalize_magic_hex("55-4e:49 54"), "55 4E 49 54")
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["schema_version"], 1)
+        self.assertEqual(manifest["extensions"], [".unitx"])
+        self.assertEqual(manifest["match"]["hex"], "55 4E 49 54")
+        self.assertEqual(manifest["fields"][0]["size"], 4)
+        parsers = load_plugin_parsers(plugin_dir)
+        self.assertEqual(len(parsers), 1)
+        self.assertEqual(parsers[0].name, "Unit Template")
+        with self.assertRaises(FileExistsError):
+            write_plugin_template("Unit Template", ".unitx", "55 4E 49 54", plugin_dir)
+        with self.assertRaises(ValueError):
+            build_plugin_template_manifest("Bad", "", "00")
+        with self.assertRaises(ValueError):
+            build_plugin_template_manifest("Bad", ".bad", "0")
 
     def test_ui_help_text(self):
         shortcuts = format_shortcuts_help()
