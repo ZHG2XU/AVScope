@@ -136,6 +136,7 @@ def export_html(result: ParseResult, path: str | Path) -> None:
     packets = result.media.summary.get("packet_timeline", {}).get("packets", [])
     frame_stats = result.media.summary.get("frame_stats", {})
     packet_stats = result.media.summary.get("packet_stats", {})
+    stats_summary_html = _stats_summary_html(frame_stats, packet_stats)
     timeline_chart_html = _timeline_chart_html(doc["frames"], packets)
     timeline_html = _timeline_html(packets[:100])
     frame_html = _frame_html(doc["frames"][:200])
@@ -206,6 +207,7 @@ def export_html(result: ParseResult, path: str | Path) -> None:
       padding: 20px 22px;
     }}
     h2 {{ margin: 0 0 14px; font-size: 17px; color: var(--head); }}
+    h3 {{ margin: 16px 0 8px; font-size: 14px; color: var(--head); }}
     code, pre {{
       background: var(--code);
       border: 1px solid var(--line);
@@ -321,6 +323,10 @@ def export_html(result: ParseResult, path: str | Path) -> None:
       <h2>媒体摘要</h2>
       {stream_html}
       <pre>{summary_json}</pre>
+    </section>
+    <section>
+      <h2>统计摘要</h2>
+      {stats_summary_html}
     </section>
     <section>
       <h2>音频波形</h2>
@@ -531,6 +537,70 @@ def _timeline_chart_html(frames: list[dict], packets: list[dict]) -> str:
         f"{''.join(bars)}"
         "</svg>"
         f'<p class="chart-caption">{caption}</p>'
+    )
+
+
+def _stats_summary_html(frame_stats: dict, packet_stats: dict) -> str:
+    blocks = []
+    blocks.append(_frame_stats_table(frame_stats))
+    blocks.append(_packet_stats_table(packet_stats))
+    return "\n".join(blocks)
+
+
+def _frame_stats_table(frame_stats: dict) -> str:
+    if not frame_stats.get("available"):
+        return "<p class=\"empty\">暂无解析器帧统计。</p>"
+    overview = [
+        ("帧数", frame_stats.get("frames", 0)),
+        ("关键帧", frame_stats.get("keyframes", 0)),
+        ("平均大小", f"{frame_stats.get('average_size', 0)} bytes"),
+        ("最大大小", f"{frame_stats.get('max_size', 0)} bytes"),
+        ("最大帧", f"#{frame_stats.get('largest_index', '')} @ 0x{int(frame_stats.get('largest_offset', 0)):X}"),
+    ]
+    overview_rows = "".join(f"<tr><td>{html.escape(str(name))}</td><td>{html.escape(str(value))}</td></tr>" for name, value in overview)
+    type_rows = "".join(
+        f"<tr><td>{html.escape(str(name))}</td><td>{count}</td></tr>"
+        for name, count in frame_stats.get("frame_types", {}).items()
+    )
+    type_table = (
+        "<table><tr><th>帧类型</th><th>数量</th></tr>" + type_rows + "</table>"
+        if type_rows
+        else "<p class=\"empty\">暂无帧类型分布。</p>"
+    )
+    return (
+        "<h3>帧统计</h3>"
+        "<table><tr><th>指标</th><th>值</th></tr>"
+        + overview_rows
+        + "</table>"
+        + type_table
+    )
+
+
+def _packet_stats_table(packet_stats: dict) -> str:
+    if not packet_stats.get("available"):
+        return "<p class=\"empty\">暂无 packet 统计。</p>"
+    rows = []
+    for stream, item in packet_stats.get("by_stream", {}).items():
+        codec_types = ", ".join(f"{name}:{count}" for name, count in item.get("codec_types", {}).items())
+        pts_span = item.get("pts_span", "")
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(str(stream))}</td>"
+            f"<td>{item.get('packets', 0)}</td>"
+            f"<td>{item.get('keyframes', 0)}</td>"
+            f"<td>{item.get('average_size', 0)}</td>"
+            f"<td>{item.get('max_size', 0)}</td>"
+            f"<td>{html.escape(str(pts_span))}</td>"
+            f"<td>{html.escape(codec_types)}</td>"
+            "</tr>"
+        )
+    if not rows:
+        return "<p class=\"empty\">暂无 packet stream 分布。</p>"
+    return (
+        "<h3>Packet 统计</h3>"
+        "<table><tr><th>Stream</th><th>Packets</th><th>Key</th><th>Avg Size</th><th>Max Size</th><th>PTS Span</th><th>类型</th></tr>"
+        + "".join(rows)
+        + "</table>"
     )
 
 

@@ -131,6 +131,7 @@ class ParserTests(unittest.TestCase):
         self.assertIn("Bit / Size", html)
         self.assertIn("帧列表", html)
         self.assertIn("帧统计", html)
+        self.assertIn("统计摘要", html)
         self.assertIn("AAC LC", html)
         self.assertIn("<td>0/12</td>", html)
         self.assertIn("section,path,name,type,index,offset,size,key,value,hex,severity,description", csv_text)
@@ -552,6 +553,8 @@ class ParserTests(unittest.TestCase):
         self.assertIn('class="timeline-chart"', html_text)
         self.assertIn("帧/Packet 大小图", html_text)
         self.assertIn("Packet 统计", html_text)
+        self.assertIn("统计摘要", html_text)
+        self.assertIn("<th>Stream</th>", html_text)
         self.assertIn("packet_stats", csv_path.read_text(encoding="utf-8-sig"))
         pcm_json = ROOT / "cli_pcm_report.json"
         exit_code = cli_main(
