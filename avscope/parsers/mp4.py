@@ -104,6 +104,12 @@ class Mp4Parser(FormatParser):
                 self._parse_ftyp(source, node)
             elif box_type == "mvhd":
                 self._parse_mvhd(source, node)
+            elif box_type == "tkhd":
+                self._parse_tkhd(source, node)
+            elif box_type == "mdhd":
+                self._parse_mdhd(source, node)
+            elif box_type == "hdlr":
+                self._parse_hdlr(source, node)
             elif box_type in CONTAINER_BOXES:
                 child_start = offset + header_size
                 if box_type == "meta":
@@ -173,3 +179,111 @@ class Mp4Parser(FormatParser):
                 FieldInfo("duration_seconds", duration_seconds, duration_offset, 0, description="duration / timescale"),
             ]
         )
+
+    def _parse_tkhd(self, source: ByteSource, node: ParseNode) -> None:
+        payload = source.read_at(node.offset + 8, min(node.size - 8, 120))
+        if len(payload) < 84:
+            node.severity = Severity.WARNING
+            return
+        version = payload[0]
+        flags = int.from_bytes(payload[1:4], "big")
+        if version == 1:
+            if len(payload) < 96:
+                node.severity = Severity.WARNING
+                return
+            creation_time = u64be(payload, 4)
+            modification_time = u64be(payload, 12)
+            track_id = u32be(payload, 20)
+            duration = u64be(payload, 28)
+            width_offset = 88
+            height_offset = 92
+        else:
+            creation_time = u32be(payload, 4)
+            modification_time = u32be(payload, 8)
+            track_id = u32be(payload, 12)
+            duration = u32be(payload, 20)
+            width_offset = 76
+            height_offset = 80
+        width_raw = u32be(payload, width_offset)
+        height_raw = u32be(payload, height_offset)
+        width = width_raw / 65536
+        height = height_raw / 65536
+        node.fields.extend(
+            [
+                FieldInfo("version", version, node.offset + 8, 1, hex(version)),
+                FieldInfo("flags", flags, node.offset + 9, 3, hex(flags)),
+                FieldInfo("creation_time", creation_time, node.offset + 12, 4 if version == 0 else 8, hex(creation_time)),
+                FieldInfo("modification_time", modification_time, node.offset + (16 if version == 0 else 20), 4 if version == 0 else 8, hex(modification_time)),
+                FieldInfo("track_id", track_id, node.offset + (20 if version == 0 else 28), 4, hex(track_id)),
+                FieldInfo("duration", duration, node.offset + (28 if version == 0 else 36), 4 if version == 0 else 8, hex(duration)),
+                FieldInfo("width", width, node.offset + 8 + width_offset, 4, hex(width_raw), description="16.16 fixed point"),
+                FieldInfo("height", height, node.offset + 8 + height_offset, 4, hex(height_raw), description="16.16 fixed point"),
+            ]
+        )
+
+    def _parse_mdhd(self, source: ByteSource, node: ParseNode) -> None:
+        payload = source.read_at(node.offset + 8, min(node.size - 8, 48))
+        if len(payload) < 24:
+            node.severity = Severity.WARNING
+            return
+        version = payload[0]
+        flags = int.from_bytes(payload[1:4], "big")
+        if version == 1:
+            if len(payload) < 36:
+                node.severity = Severity.WARNING
+                return
+            creation_time = u64be(payload, 4)
+            modification_time = u64be(payload, 12)
+            timescale = u32be(payload, 20)
+            duration = u64be(payload, 24)
+            language_raw = int.from_bytes(payload[32:34], "big")
+            language_offset = 32
+        else:
+            creation_time = u32be(payload, 4)
+            modification_time = u32be(payload, 8)
+            timescale = u32be(payload, 12)
+            duration = u32be(payload, 16)
+            language_raw = int.from_bytes(payload[20:22], "big")
+            language_offset = 20
+        duration_seconds = duration / timescale if timescale else None
+        node.fields.extend(
+            [
+                FieldInfo("version", version, node.offset + 8, 1, hex(version)),
+                FieldInfo("flags", flags, node.offset + 9, 3, hex(flags)),
+                FieldInfo("creation_time", creation_time, node.offset + 12, 4 if version == 0 else 8, hex(creation_time)),
+                FieldInfo("modification_time", modification_time, node.offset + (16 if version == 0 else 20), 4 if version == 0 else 8, hex(modification_time)),
+                FieldInfo("timescale", timescale, node.offset + (20 if version == 0 else 28), 4, hex(timescale), description="media time units per second"),
+                FieldInfo("duration", duration, node.offset + (24 if version == 0 else 32), 4 if version == 0 else 8, hex(duration), description="media duration in timescale units"),
+                FieldInfo("duration_seconds", duration_seconds, node.offset + (24 if version == 0 else 32), 0, description="duration / timescale"),
+                FieldInfo("language", _decode_mp4_language(language_raw), node.offset + 8 + language_offset, 2, hex(language_raw)),
+            ]
+        )
+
+    def _parse_hdlr(self, source: ByteSource, node: ParseNode) -> None:
+        payload = source.read_at(node.offset + 8, min(node.size - 8, 256))
+        if len(payload) < 24:
+            node.severity = Severity.WARNING
+            return
+        version = payload[0]
+        flags = int.from_bytes(payload[1:4], "big")
+        handler_type = payload[8:12].decode("ascii", errors="replace")
+        name = payload[24:].split(b"\x00", 1)[0].decode("utf-8", errors="replace")
+        node.fields.extend(
+            [
+                FieldInfo("version", version, node.offset + 8, 1, hex(version)),
+                FieldInfo("flags", flags, node.offset + 9, 3, hex(flags)),
+                FieldInfo("handler_type", handler_type, node.offset + 16, 4, payload[8:12].hex(" ").upper()),
+                FieldInfo("name", name, node.offset + 32, len(name)),
+            ]
+        )
+
+
+def _decode_mp4_language(value: int) -> str:
+    if value == 0:
+        return ""
+    chars = [
+        chr(((value >> 10) & 0x1F) + 0x60),
+        chr(((value >> 5) & 0x1F) + 0x60),
+        chr((value & 0x1F) + 0x60),
+    ]
+    return "".join(chars)

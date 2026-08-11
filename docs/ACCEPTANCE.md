@@ -36,7 +36,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 6. 打开 `G:\AVScope\samples\sample.h265`，检查 VPS/SPS 节点里是否显示 `general_profile_idc`、`general_level_idc`、`derived_width`、`derived_height`、`bit_depth_luma`。
 7. 打开 `G:\AVScope\samples\sample.aac`，检查 ADTS frame 字段里是否显示 `profile`、`sample_rate`、`channel_configuration`、`duration_seconds`。
 8. 在工具栏搜索框输入 `RIFF`，模式选择 `text`，点击“查找下一个”。
-9. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`。
+9. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`，并检查 `trak/tkhd/mdia/mdhd/hdlr` 相关节点里的 `track_id`、`width`、`height`、`handler_type`。
 10. 打开 `G:\AVScope\samples\sample.avi`，检查 `hdrl/avih` 节点里是否显示 `dwWidth`、`dwHeight`、`dwTotalFrames`、`fps`。
 11. 使用“分析 / 协议结构对比”对比：
     - `G:\AVScope\samples\sample.mp4`

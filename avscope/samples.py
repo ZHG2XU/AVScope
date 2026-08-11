@@ -169,15 +169,15 @@ class _BitWriter:
 
 def _mp4_sample(extra_free: bool = False) -> bytes:
     ftyp_payload = b"isom" + struct.pack(">I", 0) + b"isomiso2"
-    ftyp = struct.pack(">I4s", len(ftyp_payload) + 8, b"ftyp") + ftyp_payload
+    ftyp = _mp4_box(b"ftyp", ftyp_payload)
     mvhd_payload = _mvhd_payload(timescale=1000, duration=5000)
-    mvhd = struct.pack(">I4s", len(mvhd_payload) + 8, b"mvhd") + mvhd_payload
-    moov_payload = mvhd
+    mvhd = _mp4_box(b"mvhd", mvhd_payload)
+    moov_payload = mvhd + _mp4_track_sample()
     if extra_free:
-        moov_payload += struct.pack(">I4s", 8, b"free")
-    moov = struct.pack(">I4s", len(moov_payload) + 8, b"moov") + moov_payload
+        moov_payload += _mp4_box(b"free", b"")
+    moov = _mp4_box(b"moov", moov_payload)
     mdat_payload = b"\x00\x01\x02\x03\x04\x05\x06\x07"
-    mdat = struct.pack(">I4s", len(mdat_payload) + 8, b"mdat") + mdat_payload
+    mdat = _mp4_box(b"mdat", mdat_payload)
     return ftyp + moov + mdat
 
 
@@ -193,6 +193,53 @@ def _mvhd_payload(timescale: int, duration: int) -> bytes:
         + b"\x00" * 24
         + struct.pack(">I", 2)
     )
+
+
+def _mp4_track_sample() -> bytes:
+    tkhd = _mp4_box(b"tkhd", _tkhd_payload(track_id=1, duration=5000, width=640, height=360))
+    mdhd = _mp4_box(b"mdhd", _mdhd_payload(timescale=30000, duration=150000, language="und"))
+    hdlr = _mp4_box(b"hdlr", _hdlr_payload(handler_type=b"vide", name="VideoHandler"))
+    mdia = _mp4_box(b"mdia", mdhd + hdlr)
+    return _mp4_box(b"trak", tkhd + mdia)
+
+
+def _tkhd_payload(track_id: int, duration: int, width: int, height: int) -> bytes:
+    return (
+        b"\x00\x00\x00\x07"
+        + struct.pack(">IIII", 0, 0, track_id, 0)
+        + struct.pack(">I", duration)
+        + b"\x00" * 8
+        + struct.pack(">hhHh", 0, 0, 0, 0)
+        + struct.pack(">9I", 0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000)
+        + struct.pack(">II", width << 16, height << 16)
+    )
+
+
+def _mdhd_payload(timescale: int, duration: int, language: str) -> bytes:
+    return (
+        b"\x00\x00\x00\x00"
+        + struct.pack(">IIII", 0, 0, timescale, duration)
+        + struct.pack(">H", _encode_mp4_language(language))
+        + b"\x00\x00"
+    )
+
+
+def _hdlr_payload(handler_type: bytes, name: str) -> bytes:
+    return b"\x00\x00\x00\x00" + b"\x00" * 4 + handler_type + b"\x00" * 12 + name.encode("utf-8") + b"\x00"
+
+
+def _mp4_box(box_type: bytes, payload: bytes) -> bytes:
+    return struct.pack(">I4s", len(payload) + 8, box_type) + payload
+
+
+def _encode_mp4_language(language: str) -> int:
+    text = (language or "und")[:3].lower()
+    if len(text) != 3:
+        text = "und"
+    value = 0
+    for char in text:
+        value = (value << 5) | max(0, min(31, ord(char) - 0x60))
+    return value
 
 
 def _avi_sample() -> bytes:

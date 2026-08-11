@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-11T23:47:11",
+  "generated_at": "2026-08-11T23:53:20",
   "tool_version": "0.1.0",
   "media": {
     "path": "G:\\AVScope\\samples\\sample.mp4",
-    "size": 156,
+    "size": 341,
     "format_name": "MP4/MOV",
     "summary": {
       "boxes": 3,
@@ -13,11 +13,30 @@
         "available": true,
         "format": {
           "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
-          "duration": "",
-          "bit_rate": "",
+          "duration": "5.000000",
+          "bit_rate": "545",
           "probe_score": 100
         },
-        "streams": []
+        "streams": [
+          {
+            "index": 0,
+            "codec_type": "video",
+            "codec_name": "",
+            "profile": "",
+            "width": 0,
+            "height": 0,
+            "sample_rate": null,
+            "channels": null,
+            "pix_fmt": "",
+            "sample_fmt": "",
+            "duration": "5.000000",
+            "bit_rate": "",
+            "nb_frames": "",
+            "r_frame_rate": "30000/1",
+            "avg_frame_rate": "0/0",
+            "time_base": "1/30000"
+          }
+        ]
       },
       "packet_timeline": {
         "available": true,
@@ -31,7 +50,7 @@
     "name": "sample.mp4",
     "node_type": "MP4/MOV",
     "offset": 0,
-    "size": 156,
+    "size": 341,
     "fields": [],
     "children": [
       {
@@ -104,14 +123,14 @@
         "name": "moov",
         "node_type": "box",
         "offset": 24,
-        "size": 116,
+        "size": 301,
         "fields": [
           {
             "name": "size",
-            "value": 116,
+            "value": 301,
             "offset": 24,
             "size": 8,
-            "hex_value": "0x74",
+            "hex_value": "0x12d",
             "bit_offset": null,
             "bit_length": null,
             "description": "box 总长度",
@@ -239,6 +258,393 @@
             "children": [],
             "severity": "normal",
             "description": ""
+          },
+          {
+            "name": "trak",
+            "node_type": "box",
+            "offset": 140,
+            "size": 185,
+            "fields": [
+              {
+                "name": "size",
+                "value": 185,
+                "offset": 140,
+                "size": 8,
+                "hex_value": "0xb9",
+                "bit_offset": null,
+                "bit_length": null,
+                "description": "box 总长度",
+                "severity": "normal"
+              },
+              {
+                "name": "type",
+                "value": "trak",
+                "offset": 144,
+                "size": 4,
+                "hex_value": "74 72 61 6B",
+                "bit_offset": null,
+                "bit_length": null,
+                "description": "box 类型",
+                "severity": "normal"
+              }
+            ],
+            "children": [
+              {
+                "name": "tkhd",
+                "node_type": "box",
+                "offset": 148,
+                "size": 92,
+                "fields": [
+                  {
+                    "name": "size",
+                    "value": 92,
+                    "offset": 148,
+                    "size": 8,
+                    "hex_value": "0x5c",
+                    "bit_offset": null,
+                    "bit_length": null,
+                    "description": "box 总长度",
+                    "severity": "normal"
+                  },
+                  {
+                    "name": "type",
+                    "value": "tkhd",
+                    "offset": 152,
+                    "size": 4,
+                    "hex_value": "74 6B 68 64",
+                    "bit_offset": null,
+                    "bit_length": null,
+                    "description": "box 类型",
+                    "severity": "normal"
+                  },
+                  {
+                    "name": "version",
+                    "value": 0,
+                    "offset": 156,
+                    "size": 1,
+                    "hex_value": "0x0",
+                    "bit_offset": null,
+                    "bit_length": null,
+                    "description": "",
+                    "severity": "normal"
+                  },
+                  {
+                    "name": "flags",
+                    "value": 7,
+                    "offset": 157,
+                    "size": 3,
+                    "hex_value": "0x7",
+                    "bit_offset": null,
+                    "bit_length": null,
+                    "description": "",
+                    "severity": "normal"
+                  },
+                  {
+                    "name": "creation_time",
+                    "value": 0,
+                    "offset": 160,
+                    "size": 4,
+                    "hex_value": "0x0",
+                    "bit_offset": null,
+                    "bit_length": null,
+                    "description": "",
+                    "severity": "normal"
+                  },
+                  {
+                    "name": "modification_time",
+                    "value": 0,
+                    "offset": 164,
+                    "size": 4,
+                    "hex_value": "0x0",
+                    "bit_offset": null,
+                    "bit_length": null,
+                    "description": "",
+                    "severity": "normal"
+                  },
+                  {
+                    "name": "track_id",
+                    "value": 1,
+                    "offset": 168,
+                    "size": 4,
+                    "hex_value": "0x1",
+                    "bit_offset": null,
+                    "bit_length": null,
+                    "description": "",
+                    "severity": "normal"
+                  },
+                  {
+                    "name": "duration",
+                    "value": 5000,
+                    "offset": 176,
+                    "size": 4,
+                    "hex_value": "0x1388",
+                    "bit_offset": null,
+                    "bit_length": null,
+                    "description": "",
+                    "severity": "normal"
+                  },
+                  {
+                    "name": "width",
+                    "value": 640.0,
+                    "offset": 232,
+                    "size": 4,
+                    "hex_value": "0x2800000",
+                    "bit_offset": null,
+                    "bit_length": null,
+                    "description": "16.16 fixed point",
+                    "severity": "normal"
+                  },
+                  {
+                    "name": "height",
+                    "value": 360.0,
+                    "offset": 236,
+                    "size": 4,
+                    "hex_value": "0x1680000",
+                    "bit_offset": null,
+                    "bit_length": null,
+                    "description": "16.16 fixed point",
+                    "severity": "normal"
+                  }
+                ],
+                "children": [],
+                "severity": "normal",
+                "description": ""
+              },
+              {
+                "name": "mdia",
+                "node_type": "box",
+                "offset": 240,
+                "size": 85,
+                "fields": [
+                  {
+                    "name": "size",
+                    "value": 85,
+                    "offset": 240,
+                    "size": 8,
+                    "hex_value": "0x55",
+                    "bit_offset": null,
+                    "bit_length": null,
+                    "description": "box 总长度",
+                    "severity": "normal"
+                  },
+                  {
+                    "name": "type",
+                    "value": "mdia",
+                    "offset": 244,
+                    "size": 4,
+                    "hex_value": "6D 64 69 61",
+                    "bit_offset": null,
+                    "bit_length": null,
+                    "description": "box 类型",
+                    "severity": "normal"
+                  }
+                ],
+                "children": [
+                  {
+                    "name": "mdhd",
+                    "node_type": "box",
+                    "offset": 248,
+                    "size": 32,
+                    "fields": [
+                      {
+                        "name": "size",
+                        "value": 32,
+                        "offset": 248,
+                        "size": 8,
+                        "hex_value": "0x20",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "box 总长度",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "type",
+                        "value": "mdhd",
+                        "offset": 252,
+                        "size": 4,
+                        "hex_value": "6D 64 68 64",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "box 类型",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "version",
+                        "value": 0,
+                        "offset": 256,
+                        "size": 1,
+                        "hex_value": "0x0",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "flags",
+                        "value": 0,
+                        "offset": 257,
+                        "size": 3,
+                        "hex_value": "0x0",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "creation_time",
+                        "value": 0,
+                        "offset": 260,
+                        "size": 4,
+                        "hex_value": "0x0",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "modification_time",
+                        "value": 0,
+                        "offset": 264,
+                        "size": 4,
+                        "hex_value": "0x0",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "timescale",
+                        "value": 30000,
+                        "offset": 268,
+                        "size": 4,
+                        "hex_value": "0x7530",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "media time units per second",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "duration",
+                        "value": 150000,
+                        "offset": 272,
+                        "size": 4,
+                        "hex_value": "0x249f0",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "media duration in timescale units",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "duration_seconds",
+                        "value": 5.0,
+                        "offset": 272,
+                        "size": 0,
+                        "hex_value": "",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "duration / timescale",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "language",
+                        "value": "und",
+                        "offset": 276,
+                        "size": 2,
+                        "hex_value": "0x55c4",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "",
+                        "severity": "normal"
+                      }
+                    ],
+                    "children": [],
+                    "severity": "normal",
+                    "description": ""
+                  },
+                  {
+                    "name": "hdlr",
+                    "node_type": "box",
+                    "offset": 280,
+                    "size": 45,
+                    "fields": [
+                      {
+                        "name": "size",
+                        "value": 45,
+                        "offset": 280,
+                        "size": 8,
+                        "hex_value": "0x2d",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "box 总长度",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "type",
+                        "value": "hdlr",
+                        "offset": 284,
+                        "size": 4,
+                        "hex_value": "68 64 6C 72",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "box 类型",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "version",
+                        "value": 0,
+                        "offset": 288,
+                        "size": 1,
+                        "hex_value": "0x0",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "flags",
+                        "value": 0,
+                        "offset": 289,
+                        "size": 3,
+                        "hex_value": "0x0",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "handler_type",
+                        "value": "vide",
+                        "offset": 296,
+                        "size": 4,
+                        "hex_value": "76 69 64 65",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "name",
+                        "value": "VideoHandler",
+                        "offset": 312,
+                        "size": 12,
+                        "hex_value": "",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "",
+                        "severity": "normal"
+                      }
+                    ],
+                    "children": [],
+                    "severity": "normal",
+                    "description": ""
+                  }
+                ],
+                "severity": "normal",
+                "description": ""
+              }
+            ],
+            "severity": "normal",
+            "description": ""
           }
         ],
         "severity": "normal",
@@ -247,13 +653,13 @@
       {
         "name": "mdat",
         "node_type": "box",
-        "offset": 140,
+        "offset": 325,
         "size": 16,
         "fields": [
           {
             "name": "size",
             "value": 16,
-            "offset": 140,
+            "offset": 325,
             "size": 8,
             "hex_value": "0x10",
             "bit_offset": null,
@@ -264,7 +670,7 @@
           {
             "name": "type",
             "value": "mdat",
-            "offset": 144,
+            "offset": 329,
             "size": 4,
             "hex_value": "6D 64 61 74",
             "bit_offset": null,

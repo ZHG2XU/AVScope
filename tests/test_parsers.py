@@ -113,6 +113,22 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(fields["timescale"], 1000)
         self.assertEqual(fields["duration"], 5000)
         self.assertEqual(fields["duration_seconds"], 5.0)
+        trak = next(node for node in moov.children if node.name == "trak")
+        tkhd = next(node for node in trak.children if node.name == "tkhd")
+        tkhd_fields = {field.name: field.value for field in tkhd.fields}
+        self.assertEqual(tkhd_fields["track_id"], 1)
+        self.assertEqual(tkhd_fields["width"], 640)
+        self.assertEqual(tkhd_fields["height"], 360)
+        mdia = next(node for node in trak.children if node.name == "mdia")
+        mdhd = next(node for node in mdia.children if node.name == "mdhd")
+        mdhd_fields = {field.name: field.value for field in mdhd.fields}
+        self.assertEqual(mdhd_fields["timescale"], 30000)
+        self.assertEqual(mdhd_fields["duration"], 150000)
+        self.assertEqual(mdhd_fields["duration_seconds"], 5.0)
+        self.assertEqual(mdhd_fields["language"], "und")
+        hdlr = next(node for node in mdia.children if node.name == "hdlr")
+        hdlr_fields = {field.name: field.value for field in hdlr.fields}
+        self.assertEqual(hdlr_fields["handler_type"], "vide")
 
     def test_avi_parser(self):
         sample_dir = ROOT / "avi_sample"
