@@ -39,6 +39,7 @@ from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
 from scripts.release_manifest import build_release_manifest, write_release_manifest
+from scripts.validation_report import build_validation_report, write_validation_report
 from avscope.timeline_viz import timeline_chart_items
 from avscope.waveform import build_waveform_preview
 from avscope.yuv_preview import build_yuv_preview, yuv_frame_size, yuv_to_rgb
@@ -771,6 +772,18 @@ class ParserTests(unittest.TestCase):
         output = manifest_root / "dist" / "manifest.json"
         written = write_release_manifest(manifest_root, output, ["dist/AVScope-Setup.exe"])
         self.assertEqual(len(written["artifacts"]), 1)
+        self.assertTrue(output.exists())
+
+    def test_validation_report(self):
+        report_root = ROOT / "validation_report_root"
+        artifact = write(report_root / "dist" / "AVScope-Setup.exe", b"setup")
+        report = build_validation_report(report_root, ["dist/AVScope-Setup.exe"])
+        self.assertIn("AVScope 发布验证报告", report)
+        self.assertIn("验证结果：通过", report)
+        self.assertIn(str(artifact.stat().st_size), report)
+        output = report_root / "dist" / "validation.md"
+        written = write_validation_report(report_root, output, ["dist/AVScope-Setup.exe"])
+        self.assertIn("AVScope-Setup.exe", written)
         self.assertTrue(output.exists())
 
     def test_ui_text_is_not_mojibake(self):

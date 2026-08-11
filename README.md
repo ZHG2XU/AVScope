@@ -43,6 +43,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 预留声明式插件模板机制，可在 `plugins\*.json` 中按魔数扩展私有格式识别和字段展示。
 - GUI 提供“插件”菜单查看/重新加载声明式模板，并在“帮助”菜单提供快捷键、示例文件和关于信息。
 - 发布构建会生成 `G:\AVScope\dist\AVScope-release-manifest.json`，记录安装包、绿色版、源码包和内置 FFmpeg/插件文件的大小与 SHA256。
+- 完整验证通过后会生成 `G:\AVScope\dist\AVScope-validation-report.md`，作为明早验收测试报告。
 - 深色/浅色主题。
 
 ## 运行

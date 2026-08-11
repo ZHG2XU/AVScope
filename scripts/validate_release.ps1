@@ -10,6 +10,7 @@ $pluginTemplate = "G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json"
 $portableZip = "G:\AVScope\dist\AVScope-portable-win-x64.zip"
 $sourceZip = "G:\AVScope\dist\AVScope-portable-source.zip"
 $manifestPath = "G:\AVScope\dist\AVScope-release-manifest.json"
+$validationReportPath = "G:\AVScope\dist\AVScope-validation-report.md"
 $installDir = "G:\AVScopeInstalled\ValidationSmoke-$([DateTime]::Now.ToString('yyyyMMddHHmmss'))"
 
 $env:PYTHONPATH = $root
@@ -206,5 +207,12 @@ if (Test-Path "$installDir\AVScope.exe") {
     throw "Uninstall did not remove AVScope.exe"
 }
 Write-Host "Installer smoke OK"
+
+Write-Host "== Validation report =="
+& $python "$root\scripts\validation_report.py" --root $root --output $validationReportPath
+if (-not (Test-Path $validationReportPath)) {
+    throw "Validation report was not generated"
+}
+Write-Host "Validation report OK"
 
 Write-Host "== Validation complete =="
