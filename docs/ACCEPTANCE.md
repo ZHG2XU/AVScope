@@ -32,13 +32,14 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 2. 使用“打开”载入 `G:\AVScope\samples\sample.wav`。
 3. 查看协议树、Hex、字段、时间线、预览、诊断面板。
 4. 打开 `G:\AVScope\samples\sample.h264`，检查 SPS 节点里是否显示 `profile_idc`、`level_idc`、`derived_width`、`derived_height`。
-5. 在工具栏搜索框输入 `RIFF`，模式选择 `text`，点击“查找下一个”。
-6. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`。
-7. 使用“分析 / 协议结构对比”对比：
+5. 打开 `G:\AVScope\samples\sample.aac`，检查 ADTS frame 字段里是否显示 `profile`、`sample_rate`、`channel_configuration`、`duration_seconds`。
+6. 在工具栏搜索框输入 `RIFF`，模式选择 `text`，点击“查找下一个”。
+7. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`。
+8. 使用“分析 / 协议结构对比”对比：
    - `G:\AVScope\samples\sample.mp4`
    - `G:\AVScope\samples\sample_changed.mp4`
-8. 导出 HTML/JSON 报告并打开检查。
-9. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
+9. 导出 HTML/JSON 报告并打开检查。
+10. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
 
 ## 当前已知边界
 

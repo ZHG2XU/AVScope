@@ -47,6 +47,13 @@ class ParserTests(unittest.TestCase):
         result = self.analyzer.analyze(write(ROOT / "ok.aac", frame * 3))
         self.assertEqual(result.media.format_name, "AAC ADTS")
         self.assertEqual(result.media.summary["frames"], 3)
+        self.assertEqual(result.media.summary["profile"], "AAC LC")
+        self.assertEqual(result.media.summary["sample_rate"], 44100)
+        self.assertEqual(result.media.summary["channels"], 2)
+        self.assertGreater(result.media.summary["average_bitrate"], 0)
+        fields = {field.name: field.value for field in result.root.children[0].fields}
+        self.assertEqual(fields["samples_per_frame"], 1024)
+        self.assertIn("duration_seconds", fields)
 
     def test_h264_parser(self):
         data = b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(640, 480) + b"\x00\x00\x01\x68\xee" + b"\x00\x00\x01\x65\x88"

@@ -9,6 +9,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 自动识别 MP4/MOV、WAV、AAC ADTS、H.264 Annex-B、H.265 Annex-B、raw PCM、raw YUV。
 - H.264 SPS 可解析 profile、level、SPS id 和推导宽高。
 - MP4 `mvhd` 可解析 timescale、duration 和秒级时长。
+- AAC ADTS 可解析 profile、采样率、声道布局、帧时长和平均码率。
 - 显示协议树、字段表、Hex 分页视图、基础时间线。
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
 - 为 WAV/PCM 生成抽样波形摘要。
