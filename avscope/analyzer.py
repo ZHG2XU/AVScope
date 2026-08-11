@@ -63,8 +63,25 @@ class Analyzer:
 
 def build_timeline_diagnostics(summary: dict, tolerance: float = 0.000001) -> list[DiagnosticIssue]:
     diagnostics: list[DiagnosticIssue] = []
+    diagnostics.extend(build_probe_diagnostics(summary))
     diagnostics.extend(_packet_monotonic_diagnostics(summary.get("packet_timeline", {}), tolerance))
     diagnostics.extend(_stream_duration_diagnostics(summary.get("ffprobe", {})))
+    return diagnostics
+
+
+def build_probe_diagnostics(summary: dict) -> list[DiagnosticIssue]:
+    diagnostics: list[DiagnosticIssue] = []
+    seen: set[tuple[str, str]] = set()
+    for key, label in (("ffprobe", "ffprobe 媒体流探测"), ("packet_timeline", "ffprobe packet 时间线探测")):
+        section = summary.get(key, {})
+        message = str(section.get("error") or "").strip()
+        if not message:
+            continue
+        marker = (key, message)
+        if marker in seen:
+            continue
+        diagnostics.append(DiagnosticIssue(Severity.WARNING, f"{label}失败：{message}", None, "ffprobe"))
+        seen.add(marker)
     return diagnostics
 
 

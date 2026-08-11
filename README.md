@@ -23,7 +23,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
 - 为 WAV/PCM 生成抽样波形摘要。
 - 桌面端提供深色/浅色专业工作台主题、品牌图标、关键指标摘要条和空状态，导出 HTML 报告带结构化视觉样式。
-- 输出基础诊断 warning/error，并基于 packet 时间线提示 PTS/DTS 非单调和音视频时长差异。
+- 输出基础诊断 warning/error，ffprobe 媒体流或 packet 时间线探测失败会转为可读 warning，并基于 packet 时间线提示 PTS/DTS 非单调和音视频时长差异。
 - 单元测试覆盖 MP4/WAV/AAC/H.264/AVI 典型损坏文件，验证解析失败不会导致程序崩溃并会输出诊断。
 - 支持保存 `.avscope.json` 工程快照，记录当前分析结果、源文件路径和 Raw 参数。
 - 导出独立 HTML 报告和 JSON 报告。

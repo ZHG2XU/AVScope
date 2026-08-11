@@ -13,7 +13,7 @@ from avscope.app import (
     node_has_issue,
     node_matches_query,
 )
-from avscope.analyzer import Analyzer, build_timeline_diagnostics
+from avscope.analyzer import Analyzer, build_probe_diagnostics, build_timeline_diagnostics
 from avscope.byte_source import ByteSource
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
@@ -263,6 +263,18 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(any("DTS 非单调" in message for message in messages))
         self.assertTrue(any("音视频时长差异" in message for message in messages))
         self.assertEqual({issue.severity for issue in issues}, {Severity.WARNING})
+
+    def test_ffprobe_errors_emit_diagnostics(self):
+        summary = {
+            "ffprobe": {"available": True, "error": "moov atom not found"},
+            "packet_timeline": {"available": True, "error": "invalid data", "packets": []},
+        }
+        issues = build_probe_diagnostics(summary)
+        messages = [issue.message for issue in issues]
+        self.assertEqual(len(issues), 2)
+        self.assertEqual({issue.severity for issue in issues}, {Severity.WARNING})
+        self.assertTrue(any("ffprobe 媒体流探测失败" in message and "moov atom not found" in message for message in messages))
+        self.assertTrue(any("packet 时间线探测失败" in message and "invalid data" in message for message in messages))
 
     def test_plugin_template_parser(self):
         plugin_dir = ROOT / "plugins"

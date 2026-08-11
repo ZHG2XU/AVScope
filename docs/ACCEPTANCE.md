@@ -21,7 +21,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 
 - 单元测试
 - 128MB+ 大文件只读随机访问测试
-- 损坏 MP4/WAV/AAC/H.264/AVI 文件的诊断回归测试
+- 损坏 MP4/WAV/AAC/H.264/AVI 文件与 ffprobe 探测失败的诊断回归测试
 - 关键产物存在性检查
 - UI/报告源码乱码扫描
 - C 盘写入目标扫描
@@ -42,7 +42,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 10. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`，并检查 `trak/tkhd/mdia/mdhd/hdlr/stbl` 相关节点里的 `track_id`、`width`、`height`、`handler_type`、`sample_count`、`chunk_offset`。
 11. 打开 `G:\AVScope\samples\sample.avi`，检查 `hdrl/avih` 节点里是否显示 `dwWidth`、`dwHeight`、`dwTotalFrames`、`fps`。
 12. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
-13. 查看诊断面板，确认工具可在发现 packet PTS/DTS 非单调或音视频时长差异时输出 warning。
+13. 查看诊断面板，确认工具可在 ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调或音视频时长差异时输出 warning。
 14. 使用“分析 / 协议结构对比”对比：
     - `G:\AVScope\samples\sample.mp4`
     - `G:\AVScope\samples\sample_changed.mp4`
