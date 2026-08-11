@@ -57,6 +57,23 @@ foreach ($file in $sourceFiles) {
 }
 Write-Host "Mojibake scan OK"
 
+Write-Host "== Waveform preview smoke =="
+$waveformCheck = @'
+from pathlib import Path
+from avscope.analyzer import Analyzer
+from avscope.waveform import build_waveform_preview
+source = Path("G:/AVScope/samples/sample.wav")
+analysis = Analyzer().analyze(source)
+result = build_waveform_preview(source, analysis.media.format_name, analysis.media.summary, output_dir=Path("G:/AVScope/tmp/waveform-preview-validation"))
+print(result)
+if not result.get("available") or not result.get("path"):
+    raise SystemExit("Waveform preview was not generated")
+if result.get("width") != 720 or result.get("height") != 180:
+    raise SystemExit(f"Unexpected waveform preview size: {result}")
+'@
+$waveformCheck | & $python -
+Write-Host "Waveform preview smoke OK"
+
 Write-Host "== Video preview smoke =="
 $previewSmokeDir = "G:\AVScope\tmp\preview-smoke-validation"
 New-Item -ItemType Directory -Force -Path $previewSmokeDir | Out-Null

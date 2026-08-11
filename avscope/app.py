@@ -17,6 +17,7 @@ from avscope.models import FieldInfo, FrameInfo, ParseNode, ParseResult, Severit
 from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.search import SearchPatternError, find_pattern, parse_search_pattern
 from avscope.settings import AppSettings
+from avscope.waveform import build_waveform_preview
 from avscope.yuv_preview import build_yuv_preview
 
 
@@ -546,6 +547,7 @@ class AVScopeApp(tk.Tk):
         self._last_search = None
         self._last_node_search = None
         self.result = self.analyzer.analyze(path, self._raw_options_for_path(path))
+        self._attach_waveform_preview(path)
         self._attach_video_preview(path)
         self._attach_yuv_preview(path)
         self._render_result()
@@ -562,6 +564,7 @@ class AVScopeApp(tk.Tk):
             return
         self.raw_options_by_path.pop(str(self.current_file), None)
         self.result = self.analyzer.analyze(self.current_file, self._raw_options_for_path(self.current_file, force=True))
+        self._attach_waveform_preview(self.current_file)
         self._attach_yuv_preview(self.current_file)
         self._render_result()
         self._load_hex(self.current_hex_offset)
@@ -612,8 +615,10 @@ class AVScopeApp(tk.Tk):
         self._render_frames()
         self._render_timeline()
         self._render_diagnostics()
+        self._preview_images.clear()
         self.preview.delete("1.0", tk.END)
         self.preview.insert(tk.END, self._preview_text())
+        self._render_waveform_preview()
         self._render_video_preview()
         self._render_yuv_preview()
 
@@ -811,6 +816,15 @@ class AVScopeApp(tk.Tk):
             )
             lines.append(waveform.get("ascii", ""))
             lines.append("")
+        waveform_preview = self.result.media.summary.get("waveform_preview", {})
+        if waveform_preview.get("available") and waveform_preview.get("path"):
+            lines.append(
+                f"音频波形预览: 已生成 {waveform_preview.get('width')}x{waveform_preview.get('height')}，见下方画面。"
+            )
+            lines.append("")
+        elif waveform_preview.get("error"):
+            lines.append(f"音频波形预览: {waveform_preview.get('error')}")
+            lines.append("")
         frame_preview = format_frame_preview_lines(self.result.frames)
         if frame_preview:
             lines.extend(frame_preview)
@@ -851,6 +865,15 @@ class AVScopeApp(tk.Tk):
             return
         self.result.media.summary["video_preview"] = build_video_preview(path)
 
+    def _attach_waveform_preview(self, path: Path) -> None:
+        if not self.result or self.result.media.format_name not in {"WAV", "Raw PCM"}:
+            return
+        self.result.media.summary["waveform_preview"] = build_waveform_preview(
+            path,
+            self.result.media.format_name,
+            self.result.media.summary,
+        )
+
     def _attach_yuv_preview(self, path: Path) -> None:
         if not self.result or self.result.media.format_name != "Raw YUV":
             return
@@ -863,7 +886,6 @@ class AVScopeApp(tk.Tk):
         )
 
     def _render_video_preview(self) -> None:
-        self._preview_images.clear()
         if not self.result:
             return
         video_preview = self.result.media.summary.get("video_preview", {})
@@ -877,6 +899,23 @@ class AVScopeApp(tk.Tk):
             return
         self._preview_images.append(image)
         self.preview.insert(tk.END, "\n视频首帧画面\n")
+        self.preview.image_create(tk.END, image=image)
+        self.preview.insert(tk.END, "\n")
+
+    def _render_waveform_preview(self) -> None:
+        if not self.result:
+            return
+        waveform_preview = self.result.media.summary.get("waveform_preview", {})
+        image_path = waveform_preview.get("path")
+        if not image_path:
+            return
+        try:
+            image = tk.PhotoImage(file=str(image_path))
+        except tk.TclError as exc:
+            self.preview.insert(tk.END, f"\n音频波形图加载失败: {exc}")
+            return
+        self._preview_images.append(image)
+        self.preview.insert(tk.END, "\n音频波形图\n")
         self.preview.image_create(tk.END, image=image)
         self.preview.insert(tk.END, "\n")
 

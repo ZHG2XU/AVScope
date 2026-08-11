@@ -33,6 +33,7 @@ from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
+from avscope.waveform import build_waveform_preview
 from avscope.yuv_preview import build_yuv_preview, yuv_frame_size, yuv_to_rgb
 
 
@@ -72,6 +73,11 @@ class ParserTests(unittest.TestCase):
         self.assertIn("ffprobe", result.media.summary)
         self.assertIn("packet_timeline", result.media.summary)
         self.assertTrue(result.media.summary["waveform"]["available"])
+        preview = build_waveform_preview(ROOT / "ok.wav", "WAV", result.media.summary, output_dir=ROOT / "waveform-previews", width=320, height=120)
+        self.assertTrue(preview["available"])
+        self.assertEqual(preview["width"], 320)
+        self.assertEqual(preview["height"], 120)
+        self.assertTrue(Path(preview["path"]).read_bytes().startswith(b"P6\n320 120\n255\n"))
         self.assertFalse([i for i in result.diagnostics if i.severity.value == "error"])
 
     def test_aac_parser(self):
