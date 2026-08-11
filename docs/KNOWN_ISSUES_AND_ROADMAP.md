@@ -31,5 +31,5 @@
 ## 本轮更新状态
 
 - 已补充基础时间线曲线摘要：PTS/DTS 范围、非单调计数、时间戳异常点、码率 bucket、关键帧/GOP 间隔、GOP 分组结构、RTP sequence 摘要、MPEG-TS PCR 摘要和抽样曲线点会写入 `timeline_summary`。
-- GUI 时间线页已叠加 PTS/DTS 曲线、码率曲线、GOP 分段、RTP sequence 曲线、PCR 曲线和异常标记，时间戳、RTP sequence 与带行号 PCR 异常会在表格中高亮并通过 `Issue` 列说明原因，同时提供“只看时间线异常”筛选；预览页会显示时间线曲线摘要；HTML 报告会汇总时间戳、RTP sequence 和 PCR 异常清单，并在帧列表/Packet 时间线中标注 `Issue` 原因，宽表在窄屏下可横向滚动；CSV 导出会写入可筛选的 `timeline_issue` section；HTML/JSON/CSV 导出已包含同一份结构化数据，PCAP/RTP 还会显示 sequence 曲线与跳变点，MPEG-TS 会显示 PCR 曲线。
+- GUI 时间线页已叠加 PTS/DTS 曲线、码率曲线、GOP 分段、RTP sequence 曲线、PCR 曲线和异常标记，时间戳、RTP sequence 与带行号 PCR 异常会在表格中高亮并通过 `Issue` 列说明原因，同时提供“只看时间线异常”筛选；预览页会显示时间线曲线摘要和统一的时间线异常原因摘要；HTML 报告会汇总时间戳、RTP sequence 和 PCR 异常清单，并在帧列表/Packet 时间线中标注 `Issue` 原因，宽表在窄屏下可横向滚动；CSV 导出会写入可筛选的 `timeline_issue` section；HTML/JSON/CSV 导出已包含同一份结构化数据，PCAP/RTP 还会显示 sequence 曲线与跳变点，MPEG-TS 会显示 PCR 曲线。
 - 后续仍建议继续扩展 RTP sequence 多流对齐视图、后台索引、取消任务和 10GB 级自动化压力测试。

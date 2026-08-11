@@ -2485,6 +2485,9 @@ def format_timeline_summary_lines(timeline_summary: dict | None = None) -> list[
             f"range={_fmt_seconds(dts.get('first'))}..{_fmt_seconds(dts.get('last'))} "
             f"non_monotonic={dts.get('non_monotonic', 0)}"
         )
+    issue_line = format_timeline_issue_summary_line(summary)
+    if issue_line:
+        lines.append(f"  {issue_line}")
     anomalies = summary.get("timestamp_anomalies", [])
     if anomalies:
         first = anomalies[0]
@@ -2547,6 +2550,14 @@ def format_timeline_summary_lines(timeline_summary: dict | None = None) -> list[
             f"max_interval={_fmt_seconds(first_pid.get('max_interval'))}"
         )
     return lines
+
+
+def format_timeline_issue_summary_line(timeline_summary: dict | None = None) -> str:
+    labels = timeline_issue_labels(timeline_summary)
+    if not labels:
+        return ""
+    first_order = min(labels)
+    return f"时间线异常: {len(labels)} 处，first item #{first_order} {labels[first_order]}"
 
 
 def timeline_anomaly_item_orders(timeline_summary: dict | None = None) -> set[int]:

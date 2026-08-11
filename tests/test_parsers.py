@@ -27,6 +27,7 @@ from avscope.app import (
     format_sample_files_help,
     format_shortcuts_help,
     format_seconds_timecode,
+    format_timeline_issue_summary_line,
     timeline_anomaly_item_orders,
     timeline_issue_item_orders,
     timeline_issue_labels,
@@ -1111,6 +1112,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(timeline_issue_item_orders(summary), {2})
         self.assertEqual(timeline_issue_labels(summary), {2: "PTS 回退"})
         self.assertEqual(timeline_issue_label_map(summary), {2: "PTS 回退"})
+        self.assertEqual(format_timeline_issue_summary_line(summary), "时间线异常: 1 处，first item #2 PTS 回退")
         self.assertEqual(timeline_item_row_tag(1, {2}), "normal")
         self.assertEqual(timeline_item_row_tag(2, {2}), "warning")
         issue_rows = timeline_issue_rows(summary)
@@ -1182,6 +1184,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(pcr_summary["pcr"]["warnings"][0]["item_order"], 1)
         self.assertEqual(timeline_issue_item_orders(pcr_summary), {1})
         self.assertEqual(timeline_issue_labels(pcr_summary), {1: "PCR 回退"})
+        self.assertEqual(format_timeline_issue_summary_line(pcr_summary), "时间线异常: 1 处，first item #1 PCR 回退")
 
     def test_timeline_summary_from_packets_and_reports(self):
         packets = [
