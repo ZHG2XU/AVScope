@@ -1049,7 +1049,30 @@ class AVScopeApp(tk.Tk):
                 canvas.create_line(x, top, x, min(bottom, y0), fill=p["accent2"], dash=(2, 3))
         label = f"{len(items)} 项 | max size {max_size} bytes"
         canvas.create_text(left, bottom + 13, text=label, fill=p["muted"], anchor=tk.W, font=("Microsoft YaHei UI", 9))
+        self._render_bitrate_curve(canvas, left, right, top, bottom)
         canvas.create_line(left, mid, right, mid, fill=p["border"])
+
+    def _render_bitrate_curve(self, canvas: tk.Canvas, left: int, right: int, top: int, bottom: int) -> None:
+        if not self.result:
+            return
+        bitrate = self.result.media.summary.get("timeline_summary", {}).get("bitrate", {})
+        buckets = bitrate.get("buckets", [])
+        if not bitrate.get("available") or not buckets:
+            return
+        p = self._palette
+        max_kbps = max(float(bucket.get("kbps", 0) or 0) for bucket in buckets)
+        if max_kbps <= 0:
+            return
+        span = right - left
+        denom = max(1, len(buckets) - 1)
+        points = []
+        for index, bucket in enumerate(buckets):
+            x = left + span * index / denom
+            y = bottom - (float(bucket.get("kbps", 0) or 0) / max_kbps) * (bottom - top)
+            points.extend([x, y])
+        if len(points) >= 4:
+            canvas.create_line(*points, fill=p["warning"], width=2, smooth=True)
+        canvas.create_text(right, top - 2, text=f"peak {max_kbps:.1f} kbps", fill=p["warning"], anchor=tk.NE, font=("Microsoft YaHei UI", 8))
 
     def _render_frames(self) -> None:
         if not self.result:
@@ -1216,6 +1239,10 @@ class AVScopeApp(tk.Tk):
         frame_preview = format_frame_preview_lines(self.result.frames, self.result.media.summary.get("frame_stats", {}))
         if frame_preview:
             lines.extend(frame_preview)
+            lines.append("")
+        timeline_preview = format_timeline_summary_lines(self.result.media.summary.get("timeline_summary", {}))
+        if timeline_preview:
+            lines.extend(timeline_preview)
             lines.append("")
         video_preview = self.result.media.summary.get("video_preview", {})
         if video_preview.get("available") and video_preview.get("path"):
@@ -2033,6 +2060,57 @@ def format_frame_preview_lines(frames: list[FrameInfo], frame_stats: dict | None
     if average_keyframe_interval is not None and max_keyframe_interval is not None:
         lines.append(f"关键帧间隔: average={average_keyframe_interval} frames, max={max_keyframe_interval} frames")
     return lines
+
+
+def format_timeline_summary_lines(timeline_summary: dict | None = None) -> list[str]:
+    summary = timeline_summary or {}
+    if not summary.get("available"):
+        return []
+    lines = [f"时间线曲线摘要: {summary.get('items', 0)} 个点，来源={summary.get('source', '')}"]
+    pts = summary.get("pts", {})
+    dts = summary.get("dts", {})
+    if pts.get("available"):
+        lines.append(
+            "  "
+            f"PTS span={_fmt_seconds(pts.get('span'))} "
+            f"range={_fmt_seconds(pts.get('first'))}..{_fmt_seconds(pts.get('last'))} "
+            f"non_monotonic={pts.get('non_monotonic', 0)}"
+        )
+    if dts.get("available"):
+        lines.append(
+            "  "
+            f"DTS span={_fmt_seconds(dts.get('span'))} "
+            f"range={_fmt_seconds(dts.get('first'))}..{_fmt_seconds(dts.get('last'))} "
+            f"non_monotonic={dts.get('non_monotonic', 0)}"
+        )
+    bitrate = summary.get("bitrate", {})
+    if bitrate.get("available"):
+        lines.append(
+            "  "
+            f"码率曲线 bucket={_fmt_seconds(bitrate.get('bucket_seconds'))} "
+            f"avg={bitrate.get('average_kbps')} kbps peak={bitrate.get('peak_kbps')} kbps"
+        )
+    gop = summary.get("gop", {})
+    if gop.get("available"):
+        interval = ""
+        if "average_interval" in gop and "max_interval" in gop:
+            interval = f" avg_interval={gop.get('average_interval')} max_interval={gop.get('max_interval')}"
+        lines.append(
+            "  "
+            f"GOP/keyframes={gop.get('keyframes', 0)} "
+            f"ratio={gop.get('keyframe_ratio', 0)}{interval}"
+        )
+    return lines
+
+
+def _fmt_seconds(value) -> str:
+    if value in (None, ""):
+        return ""
+    try:
+        text = f"{float(value):.6f}".rstrip("0").rstrip(".")
+        return f"{text}s"
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def float_or_none(value) -> float | None:

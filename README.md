@@ -165,3 +165,9 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\make_release_manifes
 ```
 
 当前安装包默认安装到 `G:\AVScopeInstalled\AVScope`，不创建桌面或开始菜单快捷方式，避免向 `C:\` 写入文件。
+
+## 时间线曲线摘要
+
+- 分析结果会写入 `media.summary.timeline_summary`，包含 PTS/DTS 范围、非单调计数、码率 bucket 曲线、关键帧/GOP 间隔和抽样后的曲线点。
+- GUI “时间线”页会在帧/packet 大小柱状图上叠加码率曲线；“预览”页会显示 PTS/DTS、码率和 GOP 摘要。
+- HTML 报告会显示“时间线曲线摘要”表和码率曲线，JSON/CSV 报告会保留 `timeline_summary` 结构化数据。

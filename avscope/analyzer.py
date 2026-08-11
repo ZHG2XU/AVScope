@@ -8,6 +8,7 @@ from avscope.frame_stats import build_frame_stats
 from avscope.models import DiagnosticIssue, MediaInfo, ParseNode, ParseResult, Severity
 from avscope.packet_stats import build_packet_stats
 from avscope.plugins import load_plugin_parsers
+from avscope.timeline_viz import build_timeline_summary
 from avscope.waveform import build_waveform_summary
 from avscope.parsers import DEFAULT_PARSERS
 from avscope.parsers.base import FormatParser
@@ -26,6 +27,7 @@ class Analyzer:
                 result = parser.parse(source, options or {})
                 self._attach_frame_stats(result)
                 self._attach_ffprobe(result)
+                self._attach_timeline_summary(result)
                 return result
             except Exception as exc:
                 root = ParseNode(Path(path).name, "Parse Error", 0, source.size, severity=Severity.ERROR)
@@ -48,6 +50,7 @@ class Analyzer:
         issue = DiagnosticIssue(Severity.WARNING, "无法识别文件格式，可作为只读 Hex 文件查看", 0, "probe")
         result = ParseResult(MediaInfo(str(source.path), source.size, "Unknown"), root, diagnostics=[issue])
         self._attach_ffprobe(result)
+        self._attach_timeline_summary(result)
         return result
 
     def _attach_frame_stats(self, result: ParseResult) -> None:
@@ -70,6 +73,12 @@ class Analyzer:
                 result.media.format_name,
                 result.media.summary,
             )
+
+    def _attach_timeline_summary(self, result: ParseResult) -> None:
+        packets = result.media.summary.get("packet_timeline", {}).get("packets", [])
+        summary = build_timeline_summary(result.frames, packets)
+        if summary.get("available"):
+            result.media.summary["timeline_summary"] = summary
 
 
 def build_timeline_diagnostics(summary: dict, tolerance: float = 0.000001) -> list[DiagnosticIssue]:

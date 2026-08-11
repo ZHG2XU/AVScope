@@ -10,7 +10,7 @@ from typing import Any
 
 from avscope import __version__
 from avscope.models import ParseNode, ParseResult
-from avscope.timeline_viz import timeline_chart_items
+from avscope.timeline_viz import build_timeline_summary, timeline_chart_items
 
 
 def export_json(result: ParseResult, path: str | Path, notes: str | None = None) -> None:
@@ -91,6 +91,17 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                     "value": json.dumps(packet_stats, ensure_ascii=False),
                 }
             )
+        timeline_summary = result.media.summary.get("timeline_summary", {})
+        if timeline_summary.get("available"):
+            writer.writerow(
+                {
+                    "section": "timeline_summary",
+                    "name": "timeline",
+                    "type": "summary",
+                    "size": timeline_summary.get("items", ""),
+                    "value": json.dumps(timeline_summary, ensure_ascii=False),
+                }
+            )
         for frame in result.frames[:5000]:
             writer.writerow(
                 {
@@ -149,7 +160,11 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     packets = result.media.summary.get("packet_timeline", {}).get("packets", [])
     frame_stats = result.media.summary.get("frame_stats", {})
     packet_stats = result.media.summary.get("packet_stats", {})
+    timeline_summary = result.media.summary.get("timeline_summary", {})
+    if not timeline_summary.get("available"):
+        timeline_summary = build_timeline_summary(result.frames, packets)
     stats_summary_html = _stats_summary_html(frame_stats, packet_stats)
+    timeline_summary_html = _timeline_summary_html(timeline_summary)
     timeline_chart_html = _timeline_chart_html(doc["frames"], packets)
     timeline_html = _timeline_html(packets[:100])
     frame_html = _frame_html(doc["frames"][:200])
@@ -289,6 +304,8 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     .timeline-chart .axis {{ stroke: #a5b4c3; stroke-width: 1.2; }}
     .timeline-chart .bar {{ fill: var(--accent); }}
     .timeline-chart .key {{ fill: var(--ok); }}
+    .timeline-chart .bitrate {{ fill: none; stroke: var(--warn); stroke-width: 2.2; stroke-linecap: round; }}
+    .timeline-chart .bitrate-dot {{ fill: var(--warn); }}
     .chart-caption {{ color: var(--muted); font-size: 12px; margin: -4px 0 8px; }}
     .waveform {{ white-space: pre; line-height: 1.1; margin-top: 10px; }}
     @media (max-width: 720px) {{
@@ -349,6 +366,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     </section>
     <section>
       <h2>帧列表</h2>
+      {timeline_summary_html}
       {timeline_chart_html}
       {frame_html}
     </section>
@@ -593,6 +611,112 @@ def _timeline_chart_html(frames: list[dict], packets: list[dict]) -> str:
         "</svg>"
         f'<p class="chart-caption">{caption}</p>'
     )
+
+
+def _timeline_summary_html(timeline_summary: dict) -> str:
+    if not timeline_summary.get("available"):
+        return "<p class=\"empty\">暂无可展示的时间线曲线摘要。</p>"
+    pts = timeline_summary.get("pts", {})
+    dts = timeline_summary.get("dts", {})
+    bitrate = timeline_summary.get("bitrate", {})
+    gop = timeline_summary.get("gop", {})
+    rows = [
+        ("采样点", f"{timeline_summary.get('items', 0)} ({timeline_summary.get('source', '')})"),
+        ("PTS 范围", _timestamp_range(pts)),
+        ("DTS 范围", _timestamp_range(dts)),
+        ("码率曲线", _bitrate_range(bitrate)),
+        ("GOP / 关键帧", _gop_range(gop)),
+    ]
+    body = "".join(f"<tr><td>{html.escape(label)}</td><td>{html.escape(value)}</td></tr>" for label, value in rows)
+    return (
+        "<h3>时间线曲线摘要</h3>"
+        "<table><tr><th>指标</th><th>值</th></tr>"
+        + body
+        + "</table>"
+        + _bitrate_svg_html(bitrate)
+    )
+
+
+def _bitrate_svg_html(bitrate: dict) -> str:
+    buckets = bitrate.get("buckets", [])
+    if not bitrate.get("available") or not buckets:
+        return ""
+    width = 720
+    height = 120
+    left = 12
+    right = width - 12
+    top = 12
+    bottom = height - 20
+    max_kbps = max(float(bucket.get("kbps", 0) or 0) for bucket in buckets)
+    if max_kbps <= 0:
+        return ""
+    plot_width = max(1, right - left)
+    denom = max(1, len(buckets) - 1)
+    point_pairs = []
+    dots = []
+    for index, bucket in enumerate(buckets):
+        x = left + plot_width * index / denom
+        y = bottom - (float(bucket.get("kbps", 0) or 0) / max_kbps) * (bottom - top)
+        point_pairs.append(f"{x:.2f},{y:.2f}")
+        if len(buckets) <= 48:
+            dots.append(f'<circle class="bitrate-dot" cx="{x:.2f}" cy="{y:.2f}" r="2.2" />')
+    grid_lines = "\n".join(
+        [
+            f'<line class="grid" x1="{left}" y1="{top + (bottom - top) * 0.33:.2f}" x2="{right}" y2="{top + (bottom - top) * 0.33:.2f}" />',
+            f'<line class="grid" x1="{left}" y1="{top + (bottom - top) * 0.66:.2f}" x2="{right}" y2="{top + (bottom - top) * 0.66:.2f}" />',
+            f'<line class="axis" x1="{left}" y1="{bottom}" x2="{right}" y2="{bottom}" />',
+        ]
+    )
+    caption = (
+        f"bucket={_format_seconds(bitrate.get('bucket_seconds'))}, "
+        f"avg={bitrate.get('average_kbps')} kbps, peak={bitrate.get('peak_kbps')} kbps @ {_format_seconds(bitrate.get('peak_start'))}"
+    )
+    return (
+        f'<svg class="timeline-chart" viewBox="0 0 {width} {height}" role="img" aria-label="码率曲线">'
+        f'<rect class="bg" x="0" y="0" width="{width}" height="{height}" rx="8" />'
+        f"{grid_lines}"
+        f'<polyline class="bitrate" points="{" ".join(point_pairs)}" />'
+        f"{''.join(dots)}"
+        "</svg>"
+        f'<p class="chart-caption">{html.escape(caption)}</p>'
+    )
+
+
+def _timestamp_range(data: dict) -> str:
+    if not data.get("available"):
+        return "无"
+    return (
+        f"{_format_seconds(data.get('first'))} - {_format_seconds(data.get('last'))}; "
+        f"span={_format_seconds(data.get('span'))}; non_monotonic={data.get('non_monotonic', 0)}"
+    )
+
+
+def _bitrate_range(data: dict) -> str:
+    if not data.get("available"):
+        return "无"
+    return (
+        f"bucket={_format_seconds(data.get('bucket_seconds'))}; "
+        f"avg={data.get('average_kbps')} kbps; peak={data.get('peak_kbps')} kbps"
+    )
+
+
+def _gop_range(data: dict) -> str:
+    if not data.get("available"):
+        return "无关键帧"
+    interval = ""
+    if "average_interval" in data and "max_interval" in data:
+        interval = f"; avg_interval={data.get('average_interval')}; max_interval={data.get('max_interval')}"
+    return f"keyframes={data.get('keyframes', 0)}; ratio={data.get('keyframe_ratio', 0)}{interval}"
+
+
+def _format_seconds(value) -> str:
+    if value in (None, ""):
+        return ""
+    try:
+        text = f"{float(value):.6f}".rstrip("0").rstrip(".")
+        return f"{text}s"
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def _stats_summary_html(frame_stats: dict, packet_stats: dict) -> str:

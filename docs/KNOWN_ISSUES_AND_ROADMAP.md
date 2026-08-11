@@ -26,3 +26,9 @@
 - 一键验证：`PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1`
 - 手工清单：`G:\AVScope\docs\ACCEPTANCE.md`
 - 发布验证报告：`G:\AVScope\dist\AVScope-validation-report.md`
+
+## 本轮更新状态
+
+- 已补充基础时间线曲线摘要：PTS/DTS 范围、非单调计数、码率 bucket、关键帧/GOP 间隔和抽样曲线点会写入 `timeline_summary`。
+- GUI 时间线页已叠加码率曲线，预览页会显示时间线曲线摘要；HTML/JSON/CSV 导出已包含同一份结构化数据。
+- 后续仍建议继续扩展 PCR 曲线、RTP sequence 图、异常筛选标记、后台索引、取消任务和 10GB 级自动化压力测试。

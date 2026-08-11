@@ -21,6 +21,7 @@ from avscope.app import (
     format_plugin_template_summary,
     format_elapsed_seconds,
     format_frame_preview_lines,
+    format_timeline_summary_lines,
     format_hex_interpretation,
     format_sample_files_help,
     format_shortcuts_help,
@@ -49,7 +50,7 @@ from avscope.settings import AppSettings, MAX_RECENT_FILES
 from scripts.release_manifest import build_release_manifest, write_release_manifest
 from scripts.sample_reports import build_sample_reports
 from scripts.validation_report import build_validation_report, write_validation_report
-from avscope.timeline_viz import timeline_chart_items
+from avscope.timeline_viz import build_timeline_summary, timeline_chart_items
 from avscope.waveform import build_waveform_preview
 from avscope.yuv_preview import build_yuv_preview, yuv_frame_size, yuv_preview_output_path, yuv_to_rgb
 
@@ -1021,6 +1022,49 @@ class ParserTests(unittest.TestCase):
         sampled = timeline_chart_items([FrameInfo(index=i, offset=i, size=i + 1, keyframe=(i == 8)) for i in range(10)], [], limit=4)
         self.assertEqual(len(sampled), 4)
         self.assertTrue(any(item["keyframe"] for item in sampled))
+
+    def test_timeline_summary_from_frames(self):
+        frames = [
+            FrameInfo(index=0, offset=0x100, size=1000, pts=0.0, dts=0.0, duration=0.04, keyframe=True),
+            FrameInfo(index=1, offset=0x200, size=500, pts=0.04, dts=0.04, duration=0.04),
+            FrameInfo(index=2, offset=0x300, size=900, pts=0.08, dts=0.08, duration=0.04, keyframe=True),
+        ]
+        summary = build_timeline_summary(frames, [], bucket_seconds=0.04)
+        self.assertTrue(summary["available"])
+        self.assertEqual(summary["source"], "frame")
+        self.assertEqual(summary["pts"]["span"], 0.08)
+        self.assertEqual(summary["gop"]["keyframes"], 2)
+        self.assertEqual(summary["gop"]["average_interval"], 2.0)
+        self.assertTrue(summary["bitrate"]["available"])
+        lines = format_timeline_summary_lines(summary)
+        self.assertTrue(any("码率曲线" in line for line in lines))
+
+    def test_timeline_summary_from_packets_and_reports(self):
+        packets = [
+            {"index": 0, "stream_index": 0, "codec_type": "video", "pts": 0.0, "dts": 0.0, "duration": 0.04, "size": 1000, "keyframe": True},
+            {"index": 1, "stream_index": 0, "codec_type": "video", "pts": 0.04, "dts": 0.04, "duration": 0.04, "size": 500, "keyframe": False},
+            {"index": 2, "stream_index": 0, "codec_type": "video", "pts": 0.08, "dts": 0.08, "duration": 0.04, "size": 1200, "keyframe": True},
+        ]
+        summary = build_timeline_summary([], packets, bucket_seconds=0.04)
+        self.assertTrue(summary["available"])
+        self.assertEqual(summary["source"], "packet")
+        self.assertIn("0", summary["by_stream"])
+        self.assertEqual(summary["by_stream"]["0"]["gop"]["keyframes"], 2)
+
+        sample_dir = ROOT / "timeline_report_sample"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample.aac")
+        self.assertIn("timeline_summary", result.media.summary)
+        html_path = ROOT / "timeline_summary_report.html"
+        csv_path = ROOT / "timeline_summary_report.csv"
+        json_path = ROOT / "timeline_summary_report.json"
+        export_html(result, html_path)
+        export_csv(result, csv_path)
+        export_json(result, json_path)
+        self.assertIn("时间线曲线摘要", html_path.read_text(encoding="utf-8"))
+        self.assertIn("码率曲线", html_path.read_text(encoding="utf-8"))
+        self.assertIn("timeline_summary", csv_path.read_text(encoding="utf-8-sig"))
+        self.assertIn("timeline_summary", json_path.read_text(encoding="utf-8"))
 
     def test_video_preview_helpers(self):
         source = write(ROOT / "preview input.mp4", b"not a real video")

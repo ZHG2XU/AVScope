@@ -251,6 +251,54 @@ if result.get("added") or result.get("removed") or result.get("changed"):
 $frameCompareCheck | & $python -
 Write-Host "Frame compare smoke OK"
 
+Write-Host "== Timeline summary smoke =="
+$timelineSummaryCheck = @'
+from pathlib import Path
+from avscope.analyzer import Analyzer
+from avscope.models import FrameInfo, MediaInfo, ParseNode, ParseResult
+from avscope.report import export_csv, export_html, export_json
+from avscope.timeline_viz import build_timeline_summary
+source = Path("G:/AVScope/samples/sample.aac")
+analysis = Analyzer().analyze(source)
+summary = analysis.media.summary.get("timeline_summary", {})
+print(summary)
+if not summary.get("available"):
+    raise SystemExit("Timeline summary was not generated")
+if not summary.get("series") or not summary.get("gop", {}).get("available"):
+    raise SystemExit(f"Timeline series/GOP summary missing: {summary}")
+out_dir = Path("G:/AVScope/tmp/timeline-summary-validation")
+out_dir.mkdir(parents=True, exist_ok=True)
+html_path = out_dir / "timeline.html"
+json_path = out_dir / "timeline.json"
+csv_path = out_dir / "timeline.csv"
+frames = [
+    FrameInfo(index=0, offset=0, size=1000, pts=0.0, dts=0.0, duration=0.04, keyframe=True),
+    FrameInfo(index=1, offset=1000, size=500, pts=0.04, dts=0.04, duration=0.04, keyframe=False),
+    FrameInfo(index=2, offset=1500, size=1200, pts=0.08, dts=0.08, duration=0.04, keyframe=True),
+]
+synthetic = ParseResult(
+    MediaInfo("G:/AVScope/tmp/timeline-summary-validation/synthetic.aac", 2700, "Synthetic Timeline"),
+    ParseNode("synthetic.aac", "Synthetic", 0, 2700),
+    frames=frames,
+)
+synthetic.media.summary["timeline_summary"] = build_timeline_summary(frames, [], bucket_seconds=0.04)
+export_html(synthetic, html_path)
+export_json(synthetic, json_path)
+export_csv(synthetic, csv_path)
+html_text = html_path.read_text(encoding="utf-8")
+if 'class="bitrate"' not in html_text:
+    raise SystemExit("HTML bitrate curve missing")
+if "timeline_summary" not in json_path.read_text(encoding="utf-8"):
+    raise SystemExit("JSON timeline summary missing")
+if "timeline_summary" not in csv_path.read_text(encoding="utf-8-sig"):
+    raise SystemExit("CSV timeline summary missing")
+'@
+$timelineSummaryCheck | & $python -
+if ($LASTEXITCODE -ne 0) {
+    throw "Timeline summary smoke failed"
+}
+Write-Host "Timeline summary smoke OK"
+
 Write-Host "== Plugin template create smoke =="
 $pluginCreateCheck = @'
 from pathlib import Path

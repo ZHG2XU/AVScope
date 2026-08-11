@@ -82,3 +82,10 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 ## 当前已知边界
 
 详见 `G:\AVScope\docs\KNOWN_ISSUES_AND_ROADMAP.md`。
+
+## 本轮新增验收点：时间线曲线摘要
+
+- 打开 `G:\AVScope\samples\sample.aac` 或包含可探测 packet 的媒体文件后，预览页应显示“时间线曲线摘要”，包括 PTS/DTS 范围、码率曲线和 GOP/keyframe 摘要。
+- 切换到“时间线”页，顶部图表应保留帧/packet 大小柱状图，并叠加一条码率曲线。
+- 导出 HTML/JSON/CSV 报告后，HTML 应包含“时间线曲线摘要”和“码率曲线”，JSON/CSV 应包含 `timeline_summary`。
+- 一键验证脚本 `G:\AVScope\scripts\validate_release.ps1` 已包含该功能的冒烟测试。
