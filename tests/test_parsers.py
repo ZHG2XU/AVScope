@@ -21,6 +21,7 @@ from avscope.app import (
     issue_summary_state,
     node_has_issue,
     node_matches_query,
+    timeline_chart_items,
 )
 from avscope.analyzer import Analyzer, build_probe_diagnostics, build_timeline_diagnostics
 from avscope.byte_source import ByteSource
@@ -615,6 +616,20 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(lines[0], "解析器帧列表: 已提取 2 帧，关键帧 1 帧，详见“帧列表”页。")
         self.assertEqual(lines[1], "首帧: offset=0x20, size=12, PTS=1.25s")
         self.assertEqual(format_frame_preview_lines([]), [])
+
+    def test_timeline_chart_items(self):
+        frames = [
+            FrameInfo(index=0, offset=0x100, size=20, keyframe=True),
+            FrameInfo(index=1, offset=0x200, size=10, keyframe=False),
+        ]
+        items = timeline_chart_items(frames, [], limit=8)
+        self.assertEqual(items[0]["size"], 20)
+        self.assertTrue(items[0]["keyframe"])
+        packet_items = timeline_chart_items([], [{"index": 3, "size": "12", "keyframe": True}], limit=8)
+        self.assertEqual(packet_items[0]["kind"], "packet")
+        sampled = timeline_chart_items([FrameInfo(index=i, offset=i, size=i + 1, keyframe=(i == 8)) for i in range(10)], [], limit=4)
+        self.assertEqual(len(sampled), 4)
+        self.assertTrue(any(item["keyframe"] for item in sampled))
 
     def test_video_preview_helpers(self):
         source = write(ROOT / "preview input.mp4", b"not a real video")

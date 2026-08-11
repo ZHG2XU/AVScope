@@ -241,8 +241,12 @@ class AVScopeApp(tk.Tk):
         self.tabs.add(self.frames, text="帧列表")
         self.frames.bind("<<TreeviewSelect>>", self.on_frame_select)
 
+        self.timeline_page = ttk.Frame(self.tabs, style="Panel.TFrame")
+        self.timeline_canvas = tk.Canvas(self.timeline_page, height=118, highlightthickness=0, borderwidth=0)
+        self.timeline_canvas.pack(fill=tk.X, padx=8, pady=(8, 4))
+        self.timeline_canvas.bind("<Configure>", lambda _event: self._render_timeline_chart())
         self.timeline = ttk.Treeview(
-            self.tabs,
+            self.timeline_page,
             columns=("index", "stream", "pts", "dts", "pos", "size", "type", "duration", "key"),
             show="headings",
             style="Data.Treeview",
@@ -260,7 +264,8 @@ class AVScopeApp(tk.Tk):
         ]:
             self.timeline.heading(col, text=title)
             self.timeline.column(col, width=width, anchor=anchor)
-        self.tabs.add(self.timeline, text="时间线")
+        self.timeline.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
+        self.tabs.add(self.timeline_page, text="时间线")
 
         self.preview = tk.Text(self.tabs, wrap=tk.WORD, font=("Consolas", 10), padx=16, pady=14, borderwidth=0)
         self.tabs.add(self.preview, text="预览")
@@ -393,6 +398,7 @@ class AVScopeApp(tk.Tk):
         self.file_badge.configure(bg=p["bg"], fg=p["muted"])
         self.status_bar.configure(bg=p["panel2"], fg=p["muted"], padx=12, pady=5)
         self.summary_frame.configure(bg=p["bg"])
+        self.timeline_canvas.configure(bg=p["panel"])
         for key in self.summary_cards:
             self._paint_summary_card(key, "normal")
         self._draw_logo()
@@ -408,6 +414,7 @@ class AVScopeApp(tk.Tk):
             tree.tag_configure("error", foreground=p["error"], background=p["error_bg"])
             tree.tag_configure("normal", foreground=p["fg"])
         self._render_summary_cards()
+        self._render_timeline_chart()
 
     def open_file(self) -> None:
         path = filedialog.askopenfilename(title="打开媒体文件")
@@ -671,6 +678,49 @@ class AVScopeApp(tk.Tk):
                 ),
                 tags=("normal",),
             )
+        self._render_timeline_chart()
+
+    def _render_timeline_chart(self) -> None:
+        canvas = getattr(self, "timeline_canvas", None)
+        if canvas is None:
+            return
+        canvas.delete("all")
+        p = self._palette
+        width = max(1, canvas.winfo_width())
+        height = max(1, canvas.winfo_height())
+        canvas.create_rectangle(0, 0, width, height, fill=p["panel"], outline="")
+        if not self.result:
+            return
+        packets = self.result.media.summary.get("packet_timeline", {}).get("packets", [])
+        items = timeline_chart_items(self.result.frames, packets)
+        if not items:
+            canvas.create_text(width / 2, height / 2, text="暂无帧大小时间线", fill=p["muted"], font=("Microsoft YaHei UI", 10))
+            return
+
+        left = 18
+        right = max(left + 1, width - 18)
+        top = 16
+        bottom = max(top + 1, height - 26)
+        mid = (top + bottom) / 2
+        for frac in (0.25, 0.5, 0.75):
+            y = top + (bottom - top) * frac
+            color = p["border"] if frac != 0.5 else p["muted"]
+            canvas.create_line(left, y, right, y, fill=color)
+        max_size = max(item["size"] for item in items)
+        span = right - left
+        slot = span / max(1, len(items))
+        bar_width = max(2, min(9, slot * 0.72))
+        for index, item in enumerate(items):
+            x = left + index * slot + slot / 2
+            bar_height = max(2, (item["size"] / max_size) * (bottom - top))
+            y0 = bottom - bar_height
+            color = p["accent2"] if item.get("keyframe") else p["accent"]
+            canvas.create_rectangle(x - bar_width / 2, y0, x + bar_width / 2, bottom, fill=color, outline="")
+            if item.get("keyframe"):
+                canvas.create_line(x, top, x, min(bottom, y0), fill=p["accent2"], dash=(2, 3))
+        label = f"{len(items)} 项 | max size {max_size} bytes"
+        canvas.create_text(left, bottom + 13, text=label, fill=p["muted"], anchor=tk.W, font=("Microsoft YaHei UI", 9))
+        canvas.create_line(left, mid, right, mid, fill=p["border"])
 
     def _render_frames(self) -> None:
         if not self.result:
@@ -1357,6 +1407,48 @@ def field_highlight_size(field: FieldInfo) -> int:
     if field.bit_length is not None and field.bit_length > 0:
         return max(1, (field.bit_length + 7) // 8)
     return 1
+
+
+def timeline_chart_items(frames: list[FrameInfo], packets: list[dict], limit: int = 360) -> list[dict]:
+    limit = max(1, int(limit))
+    items = [
+        {"index": frame.index, "size": int(frame.size), "keyframe": bool(frame.keyframe), "kind": "frame"}
+        for frame in frames
+        if frame.size > 0
+    ]
+    if not items:
+        for packet in packets:
+            try:
+                size = int(packet.get("size", 0) or 0)
+            except (TypeError, ValueError):
+                size = 0
+            if size <= 0:
+                continue
+            items.append(
+                {
+                    "index": packet.get("index", len(items)),
+                    "size": size,
+                    "keyframe": bool(packet.get("keyframe")),
+                    "kind": str(packet.get("codec_type") or "packet"),
+                }
+            )
+    if len(items) <= limit:
+        return items
+    sampled = []
+    for index in range(limit):
+        start = index * len(items) // limit
+        end = max(start + 1, (index + 1) * len(items) // limit)
+        bucket = items[start:end]
+        largest = max(bucket, key=lambda item: item["size"])
+        sampled.append(
+            {
+                "index": largest["index"],
+                "size": largest["size"],
+                "keyframe": any(item.get("keyframe") for item in bucket),
+                "kind": largest["kind"],
+            }
+        )
+    return sampled
 
 
 def calculate_timestamp_seconds(timestamp: int | float, time_base_num: int | float, time_base_den: int | float) -> float:

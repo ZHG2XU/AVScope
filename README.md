@@ -26,7 +26,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - WAV 可解析 PCM 格式参数、data 字节数、帧数、时长，并校验 byte_rate/block_align。
 - Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、宽高、像素格式和帧率。
 - Raw YUV 可在预览页显示首帧画面，支持 `yuv420p`、`nv12`、`nv21`、`yuyv422`。
-- 显示协议树、字段表、Hex 分页视图、帧列表和基础时间线，协议树、字段表和帧列表均可联动跳转 Hex。
+- 显示协议树、字段表、Hex 分页视图、帧列表和带帧大小柱状图的基础时间线，协议树、字段表和帧列表均可联动跳转 Hex。
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
 - 对含视频流的文件使用现有 FFmpeg 生成首帧 PNG 预览，预览缓存写入 `G:\AVScope\tmp\previews`。
 - 为 WAV/PCM 生成抽样波形摘要，并在预览页显示波形图。
