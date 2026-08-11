@@ -64,6 +64,9 @@ def build_timeline_summary(frames: Iterable[Any], packets: Iterable[dict], max_p
         "gop": _gop_summary(key_indices, len(items)),
         "bitrate": _bitrate_summary(items, bucket_seconds),
     }
+    rtp_sequence = _rtp_sequence_summary(items)
+    if rtp_sequence.get("available"):
+        summary["rtp_sequence"] = rtp_sequence
     by_stream = _stream_summaries(items)
     if by_stream:
         summary["by_stream"] = by_stream
@@ -73,6 +76,7 @@ def build_timeline_summary(frames: Iterable[Any], packets: Iterable[dict], max_p
 def _timeline_items(frames: Iterable[Any], packets: Iterable[dict]) -> list[dict]:
     items = []
     for frame in frames:
+        metadata = _value(frame, "metadata", {}) or {}
         items.append(
             {
                 "index": _value(frame, "index", len(items)),
@@ -84,6 +88,11 @@ def _timeline_items(frames: Iterable[Any], packets: Iterable[dict]) -> list[dict
                 "keyframe": bool(_value(frame, "keyframe", False)),
                 "kind": str(_value(frame, "frame_type", "") or "frame"),
                 "source": "frame",
+                "rtp_sequence": _int_or_none(metadata.get("rtp_sequence")),
+                "rtp_timestamp": _int_or_none(metadata.get("rtp_timestamp")),
+                "rtp_ssrc": str(metadata.get("rtp_ssrc") or ""),
+                "rtp_payload_type": _int_or_none(metadata.get("rtp_payload_type")),
+                "rtp_marker": bool(metadata.get("rtp_marker")),
             }
         )
     for packet in packets:
@@ -248,6 +257,56 @@ def _stream_summaries(items: list[dict]) -> dict[str, dict]:
     return summaries
 
 
+def _rtp_sequence_summary(items: list[dict]) -> dict:
+    indexed = [(order, item) for order, item in enumerate(items) if item.get("rtp_sequence") is not None]
+    if not indexed:
+        return {"available": False, "packets": 0}
+    grouped: dict[str, list[tuple[int, dict]]] = {}
+    for order, item in indexed:
+        grouped.setdefault(str(item.get("rtp_ssrc") or ""), []).append((order, item))
+    streams = {}
+    warnings = []
+    for ssrc, stream_items in grouped.items():
+        sequences = [int(item.get("rtp_sequence", 0)) for _, item in stream_items]
+        marker_count = sum(1 for _, item in stream_items if item.get("rtp_marker"))
+        stream_warnings = []
+        previous = sequences[0]
+        for position, (order, item) in enumerate(stream_items[1:], start=1):
+            current = int(item.get("rtp_sequence", 0))
+            expected = (previous + 1) & 0xFFFF
+            if current != expected:
+                warning = {
+                    "ssrc": ssrc,
+                    "item_order": order,
+                    "index": item.get("index"),
+                    "position": position,
+                    "previous": previous,
+                    "expected": expected,
+                    "current": current,
+                    "delta": (current - expected) & 0xFFFF,
+                }
+                stream_warnings.append(warning)
+                warnings.append(warning)
+            previous = current
+        streams[ssrc or "unknown"] = {
+            "packets": len(stream_items),
+            "first_sequence": sequences[0],
+            "last_sequence": sequences[-1],
+            "min_sequence": min(sequences),
+            "max_sequence": max(sequences),
+            "marker_packets": marker_count,
+            "sequence_warnings": len(stream_warnings),
+        }
+    return {
+        "available": True,
+        "packets": len(indexed),
+        "streams": streams,
+        "sequence_warnings": len(warnings),
+        "warnings": warnings[:100],
+        "series": _sample_rtp_series(indexed, 160),
+    }
+
+
 def _sample_series(items: list[dict], max_points: int) -> list[dict]:
     max_points = max(1, int(max_points))
     if len(items) <= max_points:
@@ -265,7 +324,7 @@ def _sample_series(items: list[dict], max_points: int) -> list[dict]:
 
 
 def _series_point(item: dict) -> dict:
-    return {
+    point = {
         "index": item["index"],
         "stream": item["stream"],
         "pts": item["pts"],
@@ -275,6 +334,36 @@ def _series_point(item: dict) -> dict:
         "keyframe": item["keyframe"],
         "kind": item["kind"],
     }
+    if item.get("rtp_sequence") is not None:
+        point["rtp_sequence"] = item.get("rtp_sequence")
+        point["rtp_timestamp"] = item.get("rtp_timestamp")
+        point["rtp_ssrc"] = item.get("rtp_ssrc")
+        point["rtp_payload_type"] = item.get("rtp_payload_type")
+        point["rtp_marker"] = item.get("rtp_marker")
+    return point
+
+
+def _sample_rtp_series(indexed: list[tuple[int, dict]], max_points: int) -> list[dict]:
+    max_points = max(1, int(max_points))
+    if len(indexed) <= max_points:
+        selected = indexed
+    else:
+        selected = []
+        for index in range(max_points):
+            source_index = index * len(indexed) // max_points
+            selected.append(indexed[source_index])
+    return [
+        {
+            "item_order": order,
+            "index": item.get("index"),
+            "sequence": item.get("rtp_sequence"),
+            "timestamp": item.get("rtp_timestamp"),
+            "ssrc": item.get("rtp_ssrc"),
+            "payload_type": item.get("rtp_payload_type"),
+            "marker": bool(item.get("rtp_marker")),
+        }
+        for order, item in selected
+    ]
 
 
 def _choose_bucket_seconds(span: float, bucket_seconds: float | None) -> float:
@@ -288,6 +377,15 @@ def _int_or_zero(value: Any) -> int:
         return max(0, int(value or 0))
     except (TypeError, ValueError):
         return 0
+
+
+def _int_or_none(value: Any) -> int | None:
+    if value in (None, "", "N/A"):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _float_or_none(value: Any) -> float | None:

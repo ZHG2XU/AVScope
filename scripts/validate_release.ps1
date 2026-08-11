@@ -305,6 +305,18 @@ if "timeline_summary" not in json_path.read_text(encoding="utf-8"):
     raise SystemExit("JSON timeline summary missing")
 if "timeline_summary" not in csv_path.read_text(encoding="utf-8-sig"):
     raise SystemExit("CSV timeline summary missing")
+pcap = Analyzer().analyze(Path("G:/AVScope/samples/sample.pcap"))
+rtp = pcap.media.summary.get("timeline_summary", {}).get("rtp_sequence", {})
+if not rtp.get("available") or rtp.get("packets") != 2 or rtp.get("sequence_warnings") != 0:
+    raise SystemExit(f"RTP sequence summary missing: {rtp}")
+pcap_html = out_dir / "pcap_rtp.html"
+pcap_csv = out_dir / "pcap_rtp.csv"
+export_html(pcap, pcap_html)
+export_csv(pcap, pcap_csv)
+if "RTP Sequence" not in pcap_html.read_text(encoding="utf-8"):
+    raise SystemExit("HTML RTP sequence summary missing")
+if "RTP seq=100" not in pcap_csv.read_text(encoding="utf-8-sig"):
+    raise SystemExit("CSV RTP sequence metadata missing")
 '@
 $timelineSummaryCheck | & $python -
 if ($LASTEXITCODE -ne 0) {

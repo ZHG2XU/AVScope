@@ -448,11 +448,30 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(result.frames[0].frame_type, "RTP PT=96")
         self.assertFalse(result.frames[0].keyframe)
         self.assertTrue(result.frames[1].keyframe)
+        self.assertEqual(result.frames[0].metadata["rtp_sequence"], 100)
+        self.assertEqual(result.frames[0].metadata["rtp_ssrc"], "0x12345678")
+        rtp_sequence = result.media.summary["timeline_summary"]["rtp_sequence"]
+        self.assertTrue(rtp_sequence["available"])
+        self.assertEqual(rtp_sequence["packets"], 2)
+        self.assertEqual(rtp_sequence["sequence_warnings"], 0)
+        self.assertEqual(rtp_sequence["streams"]["0x12345678"]["first_sequence"], 100)
+        self.assertEqual(rtp_sequence["series"][0]["sequence"], 100)
+        self.assertTrue(rtp_sequence["series"][1]["marker"])
         fields = {field.name: field.value for field in result.root.children[0].fields}
         self.assertEqual(fields["src_ip"], "192.168.1.10")
         self.assertEqual(fields["dst_ip"], "239.1.1.1")
         self.assertEqual(fields["rtp_sequence"], 100)
         self.assertEqual(fields["rtp_ssrc"], "0x12345678")
+        html_path = ROOT / "pcap_rtp_report.html"
+        csv_path = ROOT / "pcap_rtp_report.csv"
+        json_path = ROOT / "pcap_rtp_report.json"
+        export_html(result, html_path)
+        export_csv(result, csv_path)
+        export_json(result, json_path)
+        self.assertIn("RTP Sequence", html_path.read_text(encoding="utf-8"))
+        self.assertIn("RTP sequence 曲线", html_path.read_text(encoding="utf-8"))
+        self.assertIn("RTP seq=100", csv_path.read_text(encoding="utf-8-sig"))
+        self.assertIn('"rtp_sequence": 100', json_path.read_text(encoding="utf-8"))
 
     def test_pcap_rtp_sequence_diagnostic(self):
         sample_dir = ROOT / "pcap_jump_sample"
@@ -465,6 +484,10 @@ class ParserTests(unittest.TestCase):
         result = self.analyzer.analyze(write(ROOT / "sequence_jump.pcap", bytes(changed)))
         self.assertEqual(result.media.format_name, "PCAP/RTP")
         self.assertEqual(result.media.summary["sequence_warnings"], 1)
+        rtp_sequence = result.media.summary["timeline_summary"]["rtp_sequence"]
+        self.assertEqual(rtp_sequence["sequence_warnings"], 1)
+        self.assertEqual(rtp_sequence["warnings"][0]["expected"], 101)
+        self.assertEqual(rtp_sequence["warnings"][0]["current"], 105)
         self.assertTrue(any("RTP sequence 跳变" in issue.message for issue in diagnostics_with(result, "warning")))
 
     def test_flv_parser(self):

@@ -111,7 +111,7 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                     "size": frame.size,
                     "type": frame.frame_type,
                     "key": "yes" if frame.keyframe else "",
-                    "value": f"pts={frame.pts or ''} dts={frame.dts or ''} duration={frame.duration or ''}",
+                    "value": f"pts={frame.pts or ''} dts={frame.dts or ''} duration={frame.duration or ''} {_frame_metadata_summary(_plain(frame.metadata))}",
                 }
             )
         packet_timeline = result.media.summary.get("packet_timeline", {})
@@ -623,12 +623,14 @@ def _timeline_summary_html(timeline_summary: dict) -> str:
     dts = timeline_summary.get("dts", {})
     bitrate = timeline_summary.get("bitrate", {})
     gop = timeline_summary.get("gop", {})
+    rtp = timeline_summary.get("rtp_sequence", {})
     rows = [
         ("采样点", f"{timeline_summary.get('items', 0)} ({timeline_summary.get('source', '')})"),
         ("PTS 范围", _timestamp_range(pts)),
         ("DTS 范围", _timestamp_range(dts)),
         ("码率曲线", _bitrate_range(bitrate)),
         ("GOP / 关键帧", _gop_range(gop)),
+        ("RTP Sequence", _rtp_sequence_range(rtp)),
     ]
     body = "".join(f"<tr><td>{html.escape(label)}</td><td>{html.escape(value)}</td></tr>" for label, value in rows)
     return (
@@ -638,6 +640,7 @@ def _timeline_summary_html(timeline_summary: dict) -> str:
         + "</table>"
         + _timestamp_svg_html(timeline_summary)
         + _bitrate_svg_html(bitrate)
+        + _rtp_sequence_svg_html(rtp)
     )
 
 
@@ -753,6 +756,59 @@ def _bitrate_svg_html(bitrate: dict) -> str:
     )
 
 
+def _rtp_sequence_svg_html(rtp: dict) -> str:
+    series = rtp.get("series", [])
+    if not rtp.get("available") or len(series) < 2:
+        return ""
+    values = [int(point.get("sequence", 0) or 0) for point in series]
+    value_min = min(values)
+    value_max = max(values)
+    if value_max <= value_min:
+        value_max = value_min + 1
+    width = 720
+    height = 120
+    left = 12
+    right = width - 12
+    top = 12
+    bottom = height - 20
+    plot_width = max(1, right - left)
+    y_span = max(1, bottom - top)
+    denom = max(1, len(series) - 1)
+    pairs = []
+    markers = []
+    for index, point in enumerate(series):
+        sequence = int(point.get("sequence", 0) or 0)
+        x = left + plot_width * index / denom
+        y = bottom - (sequence - value_min) / (value_max - value_min) * y_span
+        pairs.append(f"{x:.2f},{y:.2f}")
+        if point.get("marker"):
+            markers.append(f'<circle class="key" cx="{x:.2f}" cy="{y:.2f}" r="2.8" />')
+    warnings = []
+    warning_orders = [int(item.get("item_order", 0) or 0) for item in rtp.get("warnings", [])[:48]]
+    max_order = max(1, max((int(point.get("item_order", 0) or 0) for point in series), default=0))
+    for order in warning_orders:
+        x = left + plot_width * min(max(order, 0), max_order) / max_order
+        warnings.append(f'<circle class="timestamp-anomaly" cx="{x:.2f}" cy="{top + 7:.2f}" r="3.8" />')
+    grid_lines = "\n".join(
+        [
+            f'<line class="grid" x1="{left}" y1="{top + y_span * 0.33:.2f}" x2="{right}" y2="{top + y_span * 0.33:.2f}" />',
+            f'<line class="grid" x1="{left}" y1="{top + y_span * 0.66:.2f}" x2="{right}" y2="{top + y_span * 0.66:.2f}" />',
+            f'<line class="axis" x1="{left}" y1="{bottom}" x2="{right}" y2="{bottom}" />',
+        ]
+    )
+    caption = f"RTP packets={rtp.get('packets', 0)}, sequence warnings={rtp.get('sequence_warnings', 0)}"
+    return (
+        f'<svg class="timeline-chart" viewBox="0 0 {width} {height}" role="img" aria-label="RTP sequence 曲线">'
+        f'<rect class="bg" x="0" y="0" width="{width}" height="{height}" rx="8" />'
+        f"{grid_lines}"
+        f'<polyline class="pts" points="{" ".join(pairs)}" />'
+        f"{''.join(markers)}"
+        f"{''.join(warnings)}"
+        "</svg>"
+        f'<p class="chart-caption">{html.escape(caption)}</p>'
+    )
+
+
 def _timestamp_range(data: dict) -> str:
     if not data.get("available"):
         return "无"
@@ -778,6 +834,18 @@ def _gop_range(data: dict) -> str:
     if "average_interval" in data and "max_interval" in data:
         interval = f"; avg_interval={data.get('average_interval')}; max_interval={data.get('max_interval')}"
     return f"keyframes={data.get('keyframes', 0)}; ratio={data.get('keyframe_ratio', 0)}{interval}"
+
+
+def _rtp_sequence_range(data: dict) -> str:
+    if not data.get("available"):
+        return "无"
+    streams = data.get("streams", {})
+    first_stream = next(iter(streams.values()), {})
+    return (
+        f"packets={data.get('packets', 0)}; streams={len(streams)}; "
+        f"warnings={data.get('sequence_warnings', 0)}; "
+        f"range={first_stream.get('first_sequence', '')}->{first_stream.get('last_sequence', '')}"
+    )
 
 
 def _format_seconds(value) -> str:
@@ -923,9 +991,23 @@ def _frame_html(frames: list[dict]) -> str:
             f"<td>{frame.get('duration', '') or ''}</td>"
             f"<td>{html.escape(str(frame.get('frame_type', '')))}</td>"
             f"<td>{'yes' if frame.get('keyframe') else ''}</td>"
+            f"<td>{html.escape(_frame_metadata_summary(frame.get('metadata', {})))}</td>"
             "</tr>"
         )
-    return "<table><tr><th>#</th><th>offset</th><th>size</th><th>PTS</th><th>DTS</th><th>duration</th><th>type</th><th>key</th></tr>" + "".join(rows) + "</table>"
+    return "<table><tr><th>#</th><th>offset</th><th>size</th><th>PTS</th><th>DTS</th><th>duration</th><th>type</th><th>key</th><th>metadata</th></tr>" + "".join(rows) + "</table>"
+
+
+def _frame_metadata_summary(metadata: dict) -> str:
+    if not metadata:
+        return ""
+    if "rtp_sequence" in metadata:
+        return (
+            f"RTP seq={metadata.get('rtp_sequence')} "
+            f"ts={metadata.get('rtp_timestamp')} "
+            f"ssrc={metadata.get('rtp_ssrc')} "
+            f"pt={metadata.get('rtp_payload_type')}"
+        )
+    return json.dumps(metadata, ensure_ascii=False, default=str)
 
 
 def _node_html(node: ParseNode) -> str:

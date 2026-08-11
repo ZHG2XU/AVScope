@@ -30,7 +30,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 - 发布产物清单 SHA256/size 校验
 - UI/报告源码乱码扫描
 - C 盘写入目标扫描
-- 音频波形/能量与短片段、视频预览帧步进和 Raw YUV 逐帧预览冒烟测试
+- 音频波形/能量与短片段、视频预览帧步进、RTP sequence 摘要和 Raw YUV 逐帧预览冒烟测试
 - 绿色版 GUI 启动冒烟测试
 - 安装包静默安装到 G 盘、启动、卸载冒烟测试
 - 发布验证报告生成
@@ -59,7 +59,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 17. 打开 `G:\AVScope\samples\sample.mkv`，检查 Matroska/WebM 节点中是否显示 `DocType`、`TimecodeScale`、`Duration`、`TrackEntry`、`PixelWidth`、`PixelHeight` 和 `SimpleBlock` 帧。
 18. 打开 `G:\AVScope\samples\sample.ps`，检查 MPEG-PS 节点中是否显示 `pack_header`、`system_header`、`video_stream[0]`、`packet_length`、`pts_seconds` 和 `payload_offset`。
 19. 打开 `G:\AVScope\samples\sample.ts`，检查“时间线”页顶部是否显示帧/packet 大小柱状图，“预览”页是否显示 packet 统计摘要，并检查 MPEG-TS packet 节点中是否显示 `pid`、`payload_unit_start_indicator`、`adaptation_field_control` 和 `continuity_counter`，确认诊断规则可覆盖 continuity counter 跳变。
-20. 打开 `G:\AVScope\samples\sample.pcap`，检查 PCAP/RTP 节点中是否显示 `src_ip`、`dst_ip`、`udp_src_port`、`rtp_payload_type`、`rtp_sequence`、`rtp_timestamp` 和 `rtp_ssrc`。
+20. 打开 `G:\AVScope\samples\sample.pcap`，检查 PCAP/RTP 节点中是否显示 `src_ip`、`dst_ip`、`udp_src_port`、`rtp_payload_type`、`rtp_sequence`、`rtp_timestamp` 和 `rtp_ssrc`；在“预览”页和导出的 HTML/JSON/CSV 报告中确认可看到 RTP sequence 摘要、SSRC 分组、marker 包数量和 sequence 跳变异常点。
 21. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；`sample.pcm` 可设置采样率、声道、位深、大小端和有符号/无符号，也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
 22. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“预览”页是否显示 Raw YUV 预览帧；对多帧 Raw YUV 文件使用“分析 / 下一 YUV 帧”和“分析 / 上一 YUV 帧”确认可逐帧刷新画面。
 23. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
@@ -85,7 +85,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 
 ## 本轮新增验收点：时间线曲线摘要
 
-- 打开 `G:\AVScope\samples\sample.aac` 或包含可探测 packet 的媒体文件后，预览页应显示“时间线曲线摘要”，包括 PTS/DTS 范围、码率曲线、GOP/keyframe 摘要和时间戳异常数量。
-- 切换到“时间线”页，顶部图表应保留帧/packet 大小柱状图，并叠加 PTS/DTS 曲线、码率曲线和时间戳异常标记。
-- 导出 HTML/JSON/CSV 报告后，HTML 应包含“时间线曲线摘要”、PTS/DTS 曲线、码率曲线和异常点，JSON/CSV 应包含 `timeline_summary`。
+- 打开 `G:\AVScope\samples\sample.aac`、`sample.pcap` 或包含可探测 packet 的媒体文件后，预览页应显示“时间线曲线摘要”，包括 PTS/DTS 范围、码率曲线、GOP/keyframe 摘要、RTP sequence 摘要和时间戳异常数量。
+- 切换到“时间线”页，顶部图表应保留帧/packet 大小柱状图，并叠加 PTS/DTS 曲线、码率曲线、RTP sequence 曲线和时间戳异常标记。
+- 导出 HTML/JSON/CSV 报告后，HTML 应包含“时间线曲线摘要”、PTS/DTS 曲线、码率曲线、RTP sequence 曲线和异常点，JSON/CSV 应包含 `timeline_summary`。
 - 一键验证脚本 `G:\AVScope\scripts\validate_release.ps1` 已包含该功能的冒烟测试。

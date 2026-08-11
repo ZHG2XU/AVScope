@@ -1055,6 +1055,7 @@ class AVScopeApp(tk.Tk):
         canvas.create_text(left, bottom + 13, text=label, fill=p["muted"], anchor=tk.W, font=("Microsoft YaHei UI", 9))
         self._render_timestamp_curves(canvas, left, right, top, bottom)
         self._render_bitrate_curve(canvas, left, right, top, bottom)
+        self._render_rtp_sequence_curve(canvas, left, right, top, bottom)
         canvas.create_line(left, mid, right, mid, fill=p["border"])
 
     def _render_timestamp_curves(self, canvas: tk.Canvas, left: int, right: int, top: int, bottom: int) -> None:
@@ -1120,6 +1121,59 @@ class AVScopeApp(tk.Tk):
         if len(points) >= 4:
             canvas.create_line(*points, fill=p["warning"], width=2, smooth=True)
         canvas.create_text(right, top - 2, text=f"peak {max_kbps:.1f} kbps", fill=p["warning"], anchor=tk.NE, font=("Microsoft YaHei UI", 8))
+
+    def _render_rtp_sequence_curve(self, canvas: tk.Canvas, left: int, right: int, top: int, bottom: int) -> None:
+        if not self.result:
+            return
+        rtp = self.result.media.summary.get("timeline_summary", {}).get("rtp_sequence", {})
+        series = rtp.get("series", [])
+        if not rtp.get("available") or len(series) < 2:
+            return
+        p = self._palette
+        values = []
+        for point in series:
+            try:
+                values.append(int(point.get("sequence", 0) or 0))
+            except (TypeError, ValueError):
+                continue
+        if len(values) < 2:
+            return
+        value_min = min(values)
+        value_max = max(values)
+        if value_max <= value_min:
+            value_max = value_min + 1
+        span = right - left
+        denom = max(1, len(series) - 1)
+        y_span = bottom - top
+        points = []
+        marker_points = []
+        for index, point in enumerate(series):
+            try:
+                sequence = int(point.get("sequence", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            x = left + span * index / denom
+            y = bottom - (sequence - value_min) / (value_max - value_min) * y_span
+            points.extend([x, y])
+            if point.get("marker"):
+                marker_points.append((x, y))
+        if len(points) >= 4:
+            canvas.create_line(*points, fill=p["accent"], width=1.8, smooth=True)
+        for x, y in marker_points[:48]:
+            canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill=p["accent2"], outline="")
+        warning_orders = [int(item.get("item_order", 0) or 0) for item in rtp.get("warnings", [])[:24]]
+        max_order = max(1, max((int(point.get("item_order", 0) or 0) for point in series), default=0))
+        for order in warning_orders:
+            x = left + span * min(max(order, 0), max_order) / max_order
+            canvas.create_oval(x - 4, bottom - 11, x + 4, bottom - 3, fill=p["error"], outline="")
+        canvas.create_text(
+            left,
+            bottom + 2,
+            text=f"RTP seq warnings {rtp.get('sequence_warnings', 0)}",
+            fill=p["accent"],
+            anchor=tk.SW,
+            font=("Microsoft YaHei UI", 8),
+        )
 
     def _render_frames(self) -> None:
         if not self.result:
@@ -2301,6 +2355,24 @@ def format_timeline_summary_lines(timeline_summary: dict | None = None) -> list[
             f"GOP/keyframes={gop.get('keyframes', 0)} "
             f"ratio={gop.get('keyframe_ratio', 0)}{interval}"
         )
+    rtp = summary.get("rtp_sequence", {})
+    if rtp.get("available"):
+        streams = rtp.get("streams", {})
+        first_stream = next(iter(streams.values()), {})
+        lines.append(
+            "  "
+            f"RTP sequence: packets={rtp.get('packets', 0)} streams={len(streams)} "
+            f"warnings={rtp.get('sequence_warnings', 0)} "
+            f"range={first_stream.get('first_sequence', '')}->{first_stream.get('last_sequence', '')}"
+        )
+        warnings = rtp.get("warnings", [])
+        if warnings:
+            first = warnings[0]
+            lines.append(
+                "  "
+                f"RTP sequence 异常: first #{first.get('index')} "
+                f"expected={first.get('expected')} current={first.get('current')}"
+            )
     return lines
 
 

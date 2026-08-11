@@ -51,6 +51,7 @@ class FrameInfo:
     duration: float | None = None
     frame_type: str = ""
     keyframe: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

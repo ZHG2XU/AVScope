@@ -102,6 +102,13 @@ class PcapRtpParser(FormatParser):
                         pts=parsed_rtp["timestamp"] / 90000,
                         frame_type=f"RTP PT={parsed_rtp['payload_type']}",
                         keyframe=bool(parsed_rtp["marker"]),
+                        metadata={
+                            "rtp_sequence": sequence,
+                            "rtp_timestamp": parsed_rtp["timestamp"],
+                            "rtp_ssrc": f"0x{ssrc:08X}",
+                            "rtp_payload_type": parsed_rtp["payload_type"],
+                            "rtp_marker": bool(parsed_rtp["marker"]),
+                        },
                     )
                 )
             packet_count += 1
