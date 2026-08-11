@@ -39,6 +39,7 @@ from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
 from scripts.release_manifest import build_release_manifest, write_release_manifest
+from scripts.sample_reports import build_sample_reports
 from scripts.validation_report import build_validation_report, write_validation_report
 from avscope.timeline_viz import timeline_chart_items
 from avscope.waveform import build_waveform_preview
@@ -773,6 +774,20 @@ class ParserTests(unittest.TestCase):
         written = write_release_manifest(manifest_root, output, ["dist/AVScope-Setup.exe"])
         self.assertEqual(len(written["artifacts"]), 1)
         self.assertTrue(output.exists())
+
+    def test_sample_reports(self):
+        report_root = ROOT / "sample_report_root"
+        generate_samples(report_root / "samples")
+        outputs = build_sample_reports(report_root, report_root / "dist" / "sample-reports")
+        names = {path.name for path in outputs}
+        self.assertIn("sample_wav_report.html", names)
+        self.assertIn("sample_wav_report.json", names)
+        self.assertIn("sample_wav_report.csv", names)
+        self.assertIn("sample_mp4_report.html", names)
+        self.assertIn("sample_protocol_compare.json", names)
+        for path in outputs:
+            self.assertTrue(path.exists(), str(path))
+            self.assertGreater(path.stat().st_size, 0)
 
     def test_validation_report(self):
         report_root = ROOT / "validation_report_root"

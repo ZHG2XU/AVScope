@@ -28,6 +28,7 @@ $items = @(
 
 Compress-Archive -Path $items -DestinationPath $sourceZip -CompressionLevel Optimal
 Compress-Archive -Path "G:\AVScope\dist\AVScope" -DestinationPath $appZip -CompressionLevel Optimal
+PowerShell -ExecutionPolicy Bypass -File "G:\AVScope\scripts\make_sample_reports.ps1"
 PowerShell -ExecutionPolicy Bypass -File "G:\AVScope\scripts\make_release_manifest.ps1"
 Write-Host $sourceZip
 Write-Host $appZip

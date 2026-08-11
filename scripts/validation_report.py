@@ -14,6 +14,13 @@ DEFAULT_ARTIFACTS = [
     "dist/AVScope-portable-win-x64.zip",
     "dist/AVScope-portable-source.zip",
     "dist/AVScope-release-manifest.json",
+    "dist/sample-reports/sample_wav_report.html",
+    "dist/sample-reports/sample_wav_report.json",
+    "dist/sample-reports/sample_wav_report.csv",
+    "dist/sample-reports/sample_mp4_report.html",
+    "dist/sample-reports/sample_mp4_report.json",
+    "dist/sample-reports/sample_protocol_compare.json",
+    "dist/sample-reports/sample_frame_compare.json",
 ]
 
 VALIDATED_CHECKS = [
@@ -28,6 +35,7 @@ VALIDATED_CHECKS = [
     "帧级对比冒烟测试",
     "绿色版 GUI 启动冒烟测试",
     "安装包静默安装、启动、卸载冒烟测试",
+    "HTML/JSON/CSV 示例报告生成",
 ]
 
 

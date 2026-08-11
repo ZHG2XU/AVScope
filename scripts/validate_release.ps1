@@ -11,6 +11,14 @@ $portableZip = "G:\AVScope\dist\AVScope-portable-win-x64.zip"
 $sourceZip = "G:\AVScope\dist\AVScope-portable-source.zip"
 $manifestPath = "G:\AVScope\dist\AVScope-release-manifest.json"
 $validationReportPath = "G:\AVScope\dist\AVScope-validation-report.md"
+$sampleReportDir = "G:\AVScope\dist\sample-reports"
+$sampleWavHtml = "$sampleReportDir\sample_wav_report.html"
+$sampleWavJson = "$sampleReportDir\sample_wav_report.json"
+$sampleWavCsv = "$sampleReportDir\sample_wav_report.csv"
+$sampleMp4Html = "$sampleReportDir\sample_mp4_report.html"
+$sampleMp4Json = "$sampleReportDir\sample_mp4_report.json"
+$sampleProtocolCompare = "$sampleReportDir\sample_protocol_compare.json"
+$sampleFrameCompare = "$sampleReportDir\sample_frame_compare.json"
 $installDir = "G:\AVScopeInstalled\ValidationSmoke-$([DateTime]::Now.ToString('yyyyMMddHHmmss'))"
 
 $env:PYTHONPATH = $root
@@ -23,8 +31,29 @@ Write-Host "Root: $root"
 Write-Host "== Unit tests =="
 & $python -m unittest discover -s "$root\tests" -v
 
+Write-Host "== Sample reports =="
+PowerShell -ExecutionPolicy Bypass -File "$root\scripts\make_sample_reports.ps1"
+PowerShell -ExecutionPolicy Bypass -File "$root\scripts\make_release_manifest.ps1"
+Write-Host "Sample reports OK"
+
 Write-Host "== Required artifacts =="
-$artifacts = @($appExe, $ffprobe, $ffmpeg, $pluginTemplate, $setup, $portableZip, $sourceZip, $manifestPath)
+$artifacts = @(
+    $appExe,
+    $ffprobe,
+    $ffmpeg,
+    $pluginTemplate,
+    $setup,
+    $portableZip,
+    $sourceZip,
+    $manifestPath,
+    $sampleWavHtml,
+    $sampleWavJson,
+    $sampleWavCsv,
+    $sampleMp4Html,
+    $sampleMp4Json,
+    $sampleProtocolCompare,
+    $sampleFrameCompare
+)
 foreach ($artifact in $artifacts) {
     if (-not (Test-Path $artifact)) {
         throw "Missing artifact: $artifact"
@@ -48,7 +77,14 @@ $expectedManifestEntries = @(
     "dist\AVScope\_internal\plugins\demo_magic.json",
     "dist\AVScope-Setup.exe",
     "dist\AVScope-portable-win-x64.zip",
-    "dist\AVScope-portable-source.zip"
+    "dist\AVScope-portable-source.zip",
+    "dist\sample-reports\sample_wav_report.html",
+    "dist\sample-reports\sample_wav_report.json",
+    "dist\sample-reports\sample_wav_report.csv",
+    "dist\sample-reports\sample_mp4_report.html",
+    "dist\sample-reports\sample_mp4_report.json",
+    "dist\sample-reports\sample_protocol_compare.json",
+    "dist\sample-reports\sample_frame_compare.json"
 )
 $manifestEntries = @($manifest.artifacts | ForEach-Object { [string]$_.relative_path })
 foreach ($entry in $expectedManifestEntries) {

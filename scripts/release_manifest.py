@@ -15,6 +15,13 @@ DEFAULT_ARTIFACTS = [
     "dist/AVScope-Setup.exe",
     "dist/AVScope-portable-win-x64.zip",
     "dist/AVScope-portable-source.zip",
+    "dist/sample-reports/sample_wav_report.html",
+    "dist/sample-reports/sample_wav_report.json",
+    "dist/sample-reports/sample_wav_report.csv",
+    "dist/sample-reports/sample_mp4_report.html",
+    "dist/sample-reports/sample_mp4_report.json",
+    "dist/sample-reports/sample_protocol_compare.json",
+    "dist/sample-reports/sample_frame_compare.json",
 ]
 
 
