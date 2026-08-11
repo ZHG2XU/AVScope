@@ -82,6 +82,11 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(first_frame_bits["frame_length"], (30, 13))
         second_frame_bits = {field.name: (field.bit_offset, field.bit_length) for field in result.root.children[1].fields}
         self.assertEqual(second_frame_bits["syncword"], (96, 12))
+        html_path = ROOT / "aac_bit_report.html"
+        export_html(result, html_path)
+        html = html_path.read_text(encoding="utf-8")
+        self.assertIn("Bit / Size", html)
+        self.assertIn("<td>0/12</td>", html)
 
     def test_h264_parser(self):
         data = b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(640, 480) + b"\x00\x00\x01\x68" + make_h264_pps() + b"\x00\x00\x01\x65\x88"

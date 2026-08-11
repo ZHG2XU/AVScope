@@ -330,13 +330,13 @@ def _node_html(node: ParseNode) -> str:
         f"<td>{html.escape(str(field.value))}</td>"
         f"<td>{html.escape(field.hex_value)}</td>"
         f"<td>0x{field.offset:X}</td>"
-        f"<td>{field.size}</td>"
+        f"<td>{_field_bit_info(field)}</td>"
         f"<td>{html.escape(field.description)}</td>"
         "</tr>"
         for field in node.fields
     )
     table = (
-        "<table><tr><th>字段</th><th>值</th><th>Hex</th><th>Offset</th><th>Size</th><th>说明</th></tr>"
+        "<table><tr><th>字段</th><th>值</th><th>Hex</th><th>Offset</th><th>Bit / Size</th><th>说明</th></tr>"
         + field_rows
         + "</table>"
         if field_rows
@@ -352,6 +352,12 @@ def _count_nodes(node: ParseNode) -> int:
 
 def _count_fields(node: ParseNode) -> int:
     return len(node.fields) + sum(_count_fields(child) for child in node.children)
+
+
+def _field_bit_info(field) -> str:
+    if field.bit_offset is not None or field.bit_length is not None:
+        return f"{field.bit_offset or 0}/{field.bit_length or 0}"
+    return str(field.size)
 
 
 def _format_size(size: int) -> str:
