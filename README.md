@@ -11,6 +11,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - H.265 VPS/SPS 可解析 profile、level、VPS/SPS id、位深和推导宽高。
 - MP4 `mvhd` 可解析 timescale、duration 和秒级时长。
 - MP4 `tkhd/mdhd/hdlr` 可解析 track id、宽高、媒体 timescale、duration、语言和 handler 类型。
+- MP4 `stsd/stts/stsc/stsz/stco/co64` 可解析样本描述、时间映射、chunk 映射、sample size 和 chunk offset。
 - AVI 可解析 RIFF/LIST 结构、`avih` 主头、基础 stream header、宽高、帧数和帧率。
 - AAC ADTS 可解析 profile、采样率、声道布局、帧时长和平均码率。
 - WAV 可解析 PCM 格式参数、data 字节数、帧数、时长，并校验 byte_rate/block_align。

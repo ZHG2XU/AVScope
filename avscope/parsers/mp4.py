@@ -3,7 +3,7 @@ from __future__ import annotations
 from avscope.byte_source import ByteSource
 from avscope.models import DiagnosticIssue, FieldInfo, ParseNode, ParseResult, Severity
 from avscope.parsers.base import FormatParser
-from avscope.parsers.common import error, media_info, root_node, u32be, u64be, warn
+from avscope.parsers.common import error, media_info, root_node, u16be, u32be, u64be, warn
 
 
 CONTAINER_BOXES = {
@@ -110,6 +110,18 @@ class Mp4Parser(FormatParser):
                 self._parse_mdhd(source, node)
             elif box_type == "hdlr":
                 self._parse_hdlr(source, node)
+            elif box_type == "stsd":
+                self._parse_stsd(source, node, diagnostics)
+            elif box_type == "stts":
+                self._parse_table_entries(source, node, ("sample_count", "sample_delta"))
+            elif box_type == "stsc":
+                self._parse_table_entries(source, node, ("first_chunk", "samples_per_chunk", "sample_description_index"))
+            elif box_type == "stsz":
+                self._parse_stsz(source, node)
+            elif box_type == "stco":
+                self._parse_chunk_offsets(source, node, offset_size=4)
+            elif box_type == "co64":
+                self._parse_chunk_offsets(source, node, offset_size=8)
             elif box_type in CONTAINER_BOXES:
                 child_start = offset + header_size
                 if box_type == "meta":
@@ -276,6 +288,163 @@ class Mp4Parser(FormatParser):
                 FieldInfo("name", name, node.offset + 32, len(name)),
             ]
         )
+
+    def _parse_stsd(self, source: ByteSource, node: ParseNode, diagnostics: list[DiagnosticIssue]) -> None:
+        payload = source.read_at(node.offset + 8, min(node.size - 8, 4096))
+        if len(payload) < 8:
+            node.severity = Severity.WARNING
+            return
+        version = payload[0]
+        flags = int.from_bytes(payload[1:4], "big")
+        entry_count = u32be(payload, 4)
+        node.fields.extend(
+            [
+                FieldInfo("version", version, node.offset + 8, 1, hex(version)),
+                FieldInfo("flags", flags, node.offset + 9, 3, hex(flags)),
+                FieldInfo("entry_count", entry_count, node.offset + 12, 4, hex(entry_count)),
+            ]
+        )
+        offset = node.offset + 16
+        end = node.offset + node.size
+        for index in range(min(entry_count, 16)):
+            if offset + 8 > end:
+                diagnostics.append(warn(f"stsd entry[{index}] header is incomplete", offset, self.name))
+                break
+            header = source.read_at(offset, 16)
+            entry_size = u32be(header, 0)
+            entry_type = header[4:8].decode("ascii", errors="replace")
+            if entry_size < 8 or offset + entry_size > end:
+                diagnostics.append(warn(f"stsd entry[{index}] size is invalid", offset, self.name))
+                break
+            child = node.add_child(ParseNode(f"entry[{index}] {entry_type}", "sample_entry", offset, entry_size))
+            child.fields.extend(
+                [
+                    FieldInfo("size", entry_size, offset, 4, hex(entry_size)),
+                    FieldInfo("type", entry_type, offset + 4, 4, header[4:8].hex(" ").upper()),
+                ]
+            )
+            if entry_type in {"avc1", "hvc1", "hev1", "mp4v"}:
+                self._parse_video_sample_entry(source, child)
+            elif entry_type in {"mp4a", "enca"}:
+                self._parse_audio_sample_entry(source, child)
+            offset += entry_size
+
+    def _parse_video_sample_entry(self, source: ByteSource, node: ParseNode) -> None:
+        payload = source.read_at(node.offset + 8, min(node.size - 8, 86))
+        if len(payload) < 78:
+            node.severity = Severity.WARNING
+            return
+        width = u16be(payload, 24)
+        height = u16be(payload, 26)
+        frame_count = u16be(payload, 40)
+        depth = u16be(payload, 74)
+        compressor_name_length = min(payload[42], 31)
+        compressor_name = payload[43 : 43 + compressor_name_length].decode("utf-8", errors="replace")
+        node.fields.extend(
+            [
+                FieldInfo("data_reference_index", u16be(payload, 6), node.offset + 14, 2),
+                FieldInfo("width", width, node.offset + 32, 2, hex(width)),
+                FieldInfo("height", height, node.offset + 34, 2, hex(height)),
+                FieldInfo("horizresolution", u32be(payload, 28) / 65536, node.offset + 36, 4),
+                FieldInfo("vertresolution", u32be(payload, 32) / 65536, node.offset + 40, 4),
+                FieldInfo("frame_count", frame_count, node.offset + 48, 2, hex(frame_count)),
+                FieldInfo("compressor_name", compressor_name, node.offset + 51, compressor_name_length),
+                FieldInfo("depth", depth, node.offset + 82, 2, hex(depth)),
+            ]
+        )
+
+    def _parse_audio_sample_entry(self, source: ByteSource, node: ParseNode) -> None:
+        payload = source.read_at(node.offset + 8, min(node.size - 8, 28))
+        if len(payload) < 28:
+            node.severity = Severity.WARNING
+            return
+        channel_count = u16be(payload, 16)
+        sample_size = u16be(payload, 18)
+        sample_rate_raw = u32be(payload, 24)
+        node.fields.extend(
+            [
+                FieldInfo("data_reference_index", u16be(payload, 6), node.offset + 14, 2),
+                FieldInfo("channel_count", channel_count, node.offset + 24, 2, hex(channel_count)),
+                FieldInfo("sample_size", sample_size, node.offset + 26, 2, hex(sample_size)),
+                FieldInfo("sample_rate", sample_rate_raw / 65536, node.offset + 32, 4, hex(sample_rate_raw)),
+            ]
+        )
+
+    def _parse_table_entries(self, source: ByteSource, node: ParseNode, names: tuple[str, ...]) -> None:
+        payload = source.read_at(node.offset + 8, min(node.size - 8, 4096))
+        if len(payload) < 8:
+            node.severity = Severity.WARNING
+            return
+        version = payload[0]
+        flags = int.from_bytes(payload[1:4], "big")
+        entry_count = u32be(payload, 4)
+        node.fields.extend(
+            [
+                FieldInfo("version", version, node.offset + 8, 1, hex(version)),
+                FieldInfo("flags", flags, node.offset + 9, 3, hex(flags)),
+                FieldInfo("entry_count", entry_count, node.offset + 12, 4, hex(entry_count)),
+            ]
+        )
+        entry_size = len(names) * 4
+        for index in range(min(entry_count, 32)):
+            entry_offset = 8 + index * entry_size
+            if entry_offset + entry_size > len(payload):
+                break
+            child = node.add_child(ParseNode(f"entry[{index}]", "table_entry", node.offset + 8 + entry_offset, entry_size))
+            for field_index, name in enumerate(names):
+                value_offset = entry_offset + field_index * 4
+                value = u32be(payload, value_offset)
+                child.fields.append(FieldInfo(name, value, node.offset + 8 + value_offset, 4, hex(value)))
+
+    def _parse_stsz(self, source: ByteSource, node: ParseNode) -> None:
+        payload = source.read_at(node.offset + 8, min(node.size - 8, 4096))
+        if len(payload) < 12:
+            node.severity = Severity.WARNING
+            return
+        version = payload[0]
+        flags = int.from_bytes(payload[1:4], "big")
+        sample_size = u32be(payload, 4)
+        sample_count = u32be(payload, 8)
+        node.fields.extend(
+            [
+                FieldInfo("version", version, node.offset + 8, 1, hex(version)),
+                FieldInfo("flags", flags, node.offset + 9, 3, hex(flags)),
+                FieldInfo("sample_size", sample_size, node.offset + 12, 4, hex(sample_size)),
+                FieldInfo("sample_count", sample_count, node.offset + 16, 4, hex(sample_count)),
+            ]
+        )
+        if sample_size:
+            return
+        for index in range(min(sample_count, 64)):
+            value_offset = 12 + index * 4
+            if value_offset + 4 > len(payload):
+                break
+            value = u32be(payload, value_offset)
+            child = node.add_child(ParseNode(f"sample_size[{index}]", "table_entry", node.offset + 8 + value_offset, 4))
+            child.fields.append(FieldInfo("entry_size", value, node.offset + 8 + value_offset, 4, hex(value)))
+
+    def _parse_chunk_offsets(self, source: ByteSource, node: ParseNode, offset_size: int) -> None:
+        payload = source.read_at(node.offset + 8, min(node.size - 8, 4096))
+        if len(payload) < 8:
+            node.severity = Severity.WARNING
+            return
+        version = payload[0]
+        flags = int.from_bytes(payload[1:4], "big")
+        entry_count = u32be(payload, 4)
+        node.fields.extend(
+            [
+                FieldInfo("version", version, node.offset + 8, 1, hex(version)),
+                FieldInfo("flags", flags, node.offset + 9, 3, hex(flags)),
+                FieldInfo("entry_count", entry_count, node.offset + 12, 4, hex(entry_count)),
+            ]
+        )
+        for index in range(min(entry_count, 64)):
+            value_offset = 8 + index * offset_size
+            if value_offset + offset_size > len(payload):
+                break
+            value = u64be(payload, value_offset) if offset_size == 8 else u32be(payload, value_offset)
+            child = node.add_child(ParseNode(f"chunk_offset[{index}]", "table_entry", node.offset + 8 + value_offset, offset_size))
+            child.fields.append(FieldInfo("chunk_offset", value, node.offset + 8 + value_offset, offset_size, hex(value)))
 
 
 def _decode_mp4_language(value: int) -> str:

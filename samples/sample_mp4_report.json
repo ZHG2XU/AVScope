@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-11T23:53:20",
+  "generated_at": "2026-08-12T00:00:05",
   "tool_version": "0.1.0",
   "media": {
     "path": "G:\\AVScope\\samples\\sample.mp4",
-    "size": 341,
+    "size": 555,
     "format_name": "MP4/MOV",
     "summary": {
       "boxes": 3,
@@ -11,35 +11,11 @@
       "has_mdat": true,
       "ffprobe": {
         "available": true,
-        "format": {
-          "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
-          "duration": "5.000000",
-          "bit_rate": "545",
-          "probe_score": 100
-        },
-        "streams": [
-          {
-            "index": 0,
-            "codec_type": "video",
-            "codec_name": "",
-            "profile": "",
-            "width": 0,
-            "height": 0,
-            "sample_rate": null,
-            "channels": null,
-            "pix_fmt": "",
-            "sample_fmt": "",
-            "duration": "5.000000",
-            "bit_rate": "",
-            "nb_frames": "",
-            "r_frame_rate": "30000/1",
-            "avg_frame_rate": "0/0",
-            "time_base": "1/30000"
-          }
-        ]
+        "error": "[h264 @ 0000015e1c2908c0] missing picture in access unit with size 8\n[extract_extradata @ 0000015e1c297900] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input"
       },
       "packet_timeline": {
         "available": true,
+        "error": "[h264 @ 000001ee670f2f00] missing picture in access unit with size 8\n[extract_extradata @ 000001ee670f6200] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input",
         "packets": []
       }
     }
@@ -50,7 +26,7 @@
     "name": "sample.mp4",
     "node_type": "MP4/MOV",
     "offset": 0,
-    "size": 341,
+    "size": 555,
     "fields": [],
     "children": [
       {
@@ -123,14 +99,14 @@
         "name": "moov",
         "node_type": "box",
         "offset": 24,
-        "size": 301,
+        "size": 515,
         "fields": [
           {
             "name": "size",
-            "value": 301,
+            "value": 515,
             "offset": 24,
             "size": 8,
-            "hex_value": "0x12d",
+            "hex_value": "0x203",
             "bit_offset": null,
             "bit_length": null,
             "description": "box 总长度",
@@ -263,14 +239,14 @@
             "name": "trak",
             "node_type": "box",
             "offset": 140,
-            "size": 185,
+            "size": 399,
             "fields": [
               {
                 "name": "size",
-                "value": 185,
+                "value": 399,
                 "offset": 140,
                 "size": 8,
-                "hex_value": "0xb9",
+                "hex_value": "0x18f",
                 "bit_offset": null,
                 "bit_length": null,
                 "description": "box 总长度",
@@ -414,14 +390,14 @@
                 "name": "mdia",
                 "node_type": "box",
                 "offset": 240,
-                "size": 85,
+                "size": 299,
                 "fields": [
                   {
                     "name": "size",
-                    "value": 85,
+                    "value": 299,
                     "offset": 240,
                     "size": 8,
-                    "hex_value": "0x55",
+                    "hex_value": "0x12b",
                     "bit_offset": null,
                     "bit_length": null,
                     "description": "box 总长度",
@@ -637,6 +613,662 @@
                     "children": [],
                     "severity": "normal",
                     "description": ""
+                  },
+                  {
+                    "name": "minf",
+                    "node_type": "box",
+                    "offset": 325,
+                    "size": 214,
+                    "fields": [
+                      {
+                        "name": "size",
+                        "value": 214,
+                        "offset": 325,
+                        "size": 8,
+                        "hex_value": "0xd6",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "box 总长度",
+                        "severity": "normal"
+                      },
+                      {
+                        "name": "type",
+                        "value": "minf",
+                        "offset": 329,
+                        "size": 4,
+                        "hex_value": "6D 69 6E 66",
+                        "bit_offset": null,
+                        "bit_length": null,
+                        "description": "box 类型",
+                        "severity": "normal"
+                      }
+                    ],
+                    "children": [
+                      {
+                        "name": "stbl",
+                        "node_type": "box",
+                        "offset": 333,
+                        "size": 206,
+                        "fields": [
+                          {
+                            "name": "size",
+                            "value": 206,
+                            "offset": 333,
+                            "size": 8,
+                            "hex_value": "0xce",
+                            "bit_offset": null,
+                            "bit_length": null,
+                            "description": "box 总长度",
+                            "severity": "normal"
+                          },
+                          {
+                            "name": "type",
+                            "value": "stbl",
+                            "offset": 337,
+                            "size": 4,
+                            "hex_value": "73 74 62 6C",
+                            "bit_offset": null,
+                            "bit_length": null,
+                            "description": "box 类型",
+                            "severity": "normal"
+                          }
+                        ],
+                        "children": [
+                          {
+                            "name": "stsd",
+                            "node_type": "box",
+                            "offset": 341,
+                            "size": 102,
+                            "fields": [
+                              {
+                                "name": "size",
+                                "value": 102,
+                                "offset": 341,
+                                "size": 8,
+                                "hex_value": "0x66",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "box 总长度",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "type",
+                                "value": "stsd",
+                                "offset": 345,
+                                "size": 4,
+                                "hex_value": "73 74 73 64",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "box 类型",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "version",
+                                "value": 0,
+                                "offset": 349,
+                                "size": 1,
+                                "hex_value": "0x0",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "flags",
+                                "value": 0,
+                                "offset": 350,
+                                "size": 3,
+                                "hex_value": "0x0",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "entry_count",
+                                "value": 1,
+                                "offset": 353,
+                                "size": 4,
+                                "hex_value": "0x1",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              }
+                            ],
+                            "children": [
+                              {
+                                "name": "entry[0] avc1",
+                                "node_type": "sample_entry",
+                                "offset": 357,
+                                "size": 86,
+                                "fields": [
+                                  {
+                                    "name": "size",
+                                    "value": 86,
+                                    "offset": 357,
+                                    "size": 4,
+                                    "hex_value": "0x56",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  },
+                                  {
+                                    "name": "type",
+                                    "value": "avc1",
+                                    "offset": 361,
+                                    "size": 4,
+                                    "hex_value": "61 76 63 31",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  },
+                                  {
+                                    "name": "data_reference_index",
+                                    "value": 1,
+                                    "offset": 371,
+                                    "size": 2,
+                                    "hex_value": "",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  },
+                                  {
+                                    "name": "width",
+                                    "value": 640,
+                                    "offset": 389,
+                                    "size": 2,
+                                    "hex_value": "0x280",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  },
+                                  {
+                                    "name": "height",
+                                    "value": 360,
+                                    "offset": 391,
+                                    "size": 2,
+                                    "hex_value": "0x168",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  },
+                                  {
+                                    "name": "horizresolution",
+                                    "value": 72.0,
+                                    "offset": 393,
+                                    "size": 4,
+                                    "hex_value": "",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  },
+                                  {
+                                    "name": "vertresolution",
+                                    "value": 72.0,
+                                    "offset": 397,
+                                    "size": 4,
+                                    "hex_value": "",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  },
+                                  {
+                                    "name": "frame_count",
+                                    "value": 1,
+                                    "offset": 405,
+                                    "size": 2,
+                                    "hex_value": "0x1",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  },
+                                  {
+                                    "name": "compressor_name",
+                                    "value": "AVScope AVC",
+                                    "offset": 408,
+                                    "size": 11,
+                                    "hex_value": "",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  },
+                                  {
+                                    "name": "depth",
+                                    "value": 24,
+                                    "offset": 439,
+                                    "size": 2,
+                                    "hex_value": "0x18",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  }
+                                ],
+                                "children": [],
+                                "severity": "normal",
+                                "description": ""
+                              }
+                            ],
+                            "severity": "normal",
+                            "description": ""
+                          },
+                          {
+                            "name": "stts",
+                            "node_type": "box",
+                            "offset": 443,
+                            "size": 24,
+                            "fields": [
+                              {
+                                "name": "size",
+                                "value": 24,
+                                "offset": 443,
+                                "size": 8,
+                                "hex_value": "0x18",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "box 总长度",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "type",
+                                "value": "stts",
+                                "offset": 447,
+                                "size": 4,
+                                "hex_value": "73 74 74 73",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "box 类型",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "version",
+                                "value": 0,
+                                "offset": 451,
+                                "size": 1,
+                                "hex_value": "0x0",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "flags",
+                                "value": 0,
+                                "offset": 452,
+                                "size": 3,
+                                "hex_value": "0x0",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "entry_count",
+                                "value": 1,
+                                "offset": 455,
+                                "size": 4,
+                                "hex_value": "0x1",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              }
+                            ],
+                            "children": [
+                              {
+                                "name": "entry[0]",
+                                "node_type": "table_entry",
+                                "offset": 459,
+                                "size": 8,
+                                "fields": [
+                                  {
+                                    "name": "sample_count",
+                                    "value": 1,
+                                    "offset": 459,
+                                    "size": 4,
+                                    "hex_value": "0x1",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  },
+                                  {
+                                    "name": "sample_delta",
+                                    "value": 150,
+                                    "offset": 463,
+                                    "size": 4,
+                                    "hex_value": "0x96",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  }
+                                ],
+                                "children": [],
+                                "severity": "normal",
+                                "description": ""
+                              }
+                            ],
+                            "severity": "normal",
+                            "description": ""
+                          },
+                          {
+                            "name": "stsc",
+                            "node_type": "box",
+                            "offset": 467,
+                            "size": 28,
+                            "fields": [
+                              {
+                                "name": "size",
+                                "value": 28,
+                                "offset": 467,
+                                "size": 8,
+                                "hex_value": "0x1c",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "box 总长度",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "type",
+                                "value": "stsc",
+                                "offset": 471,
+                                "size": 4,
+                                "hex_value": "73 74 73 63",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "box 类型",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "version",
+                                "value": 0,
+                                "offset": 475,
+                                "size": 1,
+                                "hex_value": "0x0",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "flags",
+                                "value": 0,
+                                "offset": 476,
+                                "size": 3,
+                                "hex_value": "0x0",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "entry_count",
+                                "value": 1,
+                                "offset": 479,
+                                "size": 4,
+                                "hex_value": "0x1",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              }
+                            ],
+                            "children": [
+                              {
+                                "name": "entry[0]",
+                                "node_type": "table_entry",
+                                "offset": 483,
+                                "size": 12,
+                                "fields": [
+                                  {
+                                    "name": "first_chunk",
+                                    "value": 1,
+                                    "offset": 483,
+                                    "size": 4,
+                                    "hex_value": "0x1",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  },
+                                  {
+                                    "name": "samples_per_chunk",
+                                    "value": 1,
+                                    "offset": 487,
+                                    "size": 4,
+                                    "hex_value": "0x1",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  },
+                                  {
+                                    "name": "sample_description_index",
+                                    "value": 1,
+                                    "offset": 491,
+                                    "size": 4,
+                                    "hex_value": "0x1",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  }
+                                ],
+                                "children": [],
+                                "severity": "normal",
+                                "description": ""
+                              }
+                            ],
+                            "severity": "normal",
+                            "description": ""
+                          },
+                          {
+                            "name": "stsz",
+                            "node_type": "box",
+                            "offset": 495,
+                            "size": 24,
+                            "fields": [
+                              {
+                                "name": "size",
+                                "value": 24,
+                                "offset": 495,
+                                "size": 8,
+                                "hex_value": "0x18",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "box 总长度",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "type",
+                                "value": "stsz",
+                                "offset": 499,
+                                "size": 4,
+                                "hex_value": "73 74 73 7A",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "box 类型",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "version",
+                                "value": 0,
+                                "offset": 503,
+                                "size": 1,
+                                "hex_value": "0x0",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "flags",
+                                "value": 0,
+                                "offset": 504,
+                                "size": 3,
+                                "hex_value": "0x0",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "sample_size",
+                                "value": 0,
+                                "offset": 507,
+                                "size": 4,
+                                "hex_value": "0x0",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "sample_count",
+                                "value": 1,
+                                "offset": 511,
+                                "size": 4,
+                                "hex_value": "0x1",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              }
+                            ],
+                            "children": [
+                              {
+                                "name": "sample_size[0]",
+                                "node_type": "table_entry",
+                                "offset": 515,
+                                "size": 4,
+                                "fields": [
+                                  {
+                                    "name": "entry_size",
+                                    "value": 8,
+                                    "offset": 515,
+                                    "size": 4,
+                                    "hex_value": "0x8",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  }
+                                ],
+                                "children": [],
+                                "severity": "normal",
+                                "description": ""
+                              }
+                            ],
+                            "severity": "normal",
+                            "description": ""
+                          },
+                          {
+                            "name": "stco",
+                            "node_type": "box",
+                            "offset": 519,
+                            "size": 20,
+                            "fields": [
+                              {
+                                "name": "size",
+                                "value": 20,
+                                "offset": 519,
+                                "size": 8,
+                                "hex_value": "0x14",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "box 总长度",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "type",
+                                "value": "stco",
+                                "offset": 523,
+                                "size": 4,
+                                "hex_value": "73 74 63 6F",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "box 类型",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "version",
+                                "value": 0,
+                                "offset": 527,
+                                "size": 1,
+                                "hex_value": "0x0",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "flags",
+                                "value": 0,
+                                "offset": 528,
+                                "size": 3,
+                                "hex_value": "0x0",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              },
+                              {
+                                "name": "entry_count",
+                                "value": 1,
+                                "offset": 531,
+                                "size": 4,
+                                "hex_value": "0x1",
+                                "bit_offset": null,
+                                "bit_length": null,
+                                "description": "",
+                                "severity": "normal"
+                              }
+                            ],
+                            "children": [
+                              {
+                                "name": "chunk_offset[0]",
+                                "node_type": "table_entry",
+                                "offset": 535,
+                                "size": 4,
+                                "fields": [
+                                  {
+                                    "name": "chunk_offset",
+                                    "value": 547,
+                                    "offset": 535,
+                                    "size": 4,
+                                    "hex_value": "0x223",
+                                    "bit_offset": null,
+                                    "bit_length": null,
+                                    "description": "",
+                                    "severity": "normal"
+                                  }
+                                ],
+                                "children": [],
+                                "severity": "normal",
+                                "description": ""
+                              }
+                            ],
+                            "severity": "normal",
+                            "description": ""
+                          }
+                        ],
+                        "severity": "normal",
+                        "description": ""
+                      }
+                    ],
+                    "severity": "normal",
+                    "description": ""
                   }
                 ],
                 "severity": "normal",
@@ -653,13 +1285,13 @@
       {
         "name": "mdat",
         "node_type": "box",
-        "offset": 325,
+        "offset": 539,
         "size": 16,
         "fields": [
           {
             "name": "size",
             "value": 16,
-            "offset": 325,
+            "offset": 539,
             "size": 8,
             "hex_value": "0x10",
             "bit_offset": null,
@@ -670,7 +1302,7 @@
           {
             "name": "type",
             "value": "mdat",
-            "offset": 329,
+            "offset": 543,
             "size": 4,
             "hex_value": "6D 64 61 74",
             "bit_offset": null,

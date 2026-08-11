@@ -129,6 +129,28 @@ class ParserTests(unittest.TestCase):
         hdlr = next(node for node in mdia.children if node.name == "hdlr")
         hdlr_fields = {field.name: field.value for field in hdlr.fields}
         self.assertEqual(hdlr_fields["handler_type"], "vide")
+        minf = next(node for node in mdia.children if node.name == "minf")
+        stbl = next(node for node in minf.children if node.name == "stbl")
+        stsd = next(node for node in stbl.children if node.name == "stsd")
+        stsd_fields = {field.name: field.value for field in stsd.fields}
+        self.assertEqual(stsd_fields["entry_count"], 1)
+        sample_entry_fields = {field.name: field.value for field in stsd.children[0].fields}
+        self.assertEqual(sample_entry_fields["type"], "avc1")
+        self.assertEqual(sample_entry_fields["width"], 640)
+        self.assertEqual(sample_entry_fields["height"], 360)
+        stts = next(node for node in stbl.children if node.name == "stts")
+        stts_fields = {field.name: field.value for field in stts.children[0].fields}
+        self.assertEqual(stts_fields["sample_count"], 1)
+        self.assertEqual(stts_fields["sample_delta"], 150)
+        stsc = next(node for node in stbl.children if node.name == "stsc")
+        stsc_fields = {field.name: field.value for field in stsc.children[0].fields}
+        self.assertEqual(stsc_fields["samples_per_chunk"], 1)
+        stsz = next(node for node in stbl.children if node.name == "stsz")
+        stsz_fields = {field.name: field.value for field in stsz.fields}
+        self.assertEqual(stsz_fields["sample_count"], 1)
+        stco = next(node for node in stbl.children if node.name == "stco")
+        stco_fields = {field.name: field.value for field in stco.children[0].fields}
+        self.assertGreater(stco_fields["chunk_offset"], 0)
 
     def test_avi_parser(self):
         sample_dir = ROOT / "avi_sample"

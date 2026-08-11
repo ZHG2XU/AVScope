@@ -172,11 +172,16 @@ def _mp4_sample(extra_free: bool = False) -> bytes:
     ftyp = _mp4_box(b"ftyp", ftyp_payload)
     mvhd_payload = _mvhd_payload(timescale=1000, duration=5000)
     mvhd = _mp4_box(b"mvhd", mvhd_payload)
-    moov_payload = mvhd + _mp4_track_sample()
+    mdat_payload = b"\x00\x01\x02\x03\x04\x05\x06\x07"
+    moov_payload = mvhd + _mp4_track_sample(chunk_offset=0)
     if extra_free:
         moov_payload += _mp4_box(b"free", b"")
     moov = _mp4_box(b"moov", moov_payload)
-    mdat_payload = b"\x00\x01\x02\x03\x04\x05\x06\x07"
+    mdat_payload_offset = len(ftyp) + len(moov) + 8
+    moov_payload = mvhd + _mp4_track_sample(chunk_offset=mdat_payload_offset)
+    if extra_free:
+        moov_payload += _mp4_box(b"free", b"")
+    moov = _mp4_box(b"moov", moov_payload)
     mdat = _mp4_box(b"mdat", mdat_payload)
     return ftyp + moov + mdat
 
@@ -195,11 +200,20 @@ def _mvhd_payload(timescale: int, duration: int) -> bytes:
     )
 
 
-def _mp4_track_sample() -> bytes:
+def _mp4_track_sample(chunk_offset: int) -> bytes:
     tkhd = _mp4_box(b"tkhd", _tkhd_payload(track_id=1, duration=5000, width=640, height=360))
     mdhd = _mp4_box(b"mdhd", _mdhd_payload(timescale=30000, duration=150000, language="und"))
     hdlr = _mp4_box(b"hdlr", _hdlr_payload(handler_type=b"vide", name="VideoHandler"))
-    mdia = _mp4_box(b"mdia", mdhd + hdlr)
+    stbl = _mp4_box(
+        b"stbl",
+        _mp4_stsd_payload()
+        + _mp4_full_box(b"stts", 0, struct.pack(">III", 1, 1, 150))
+        + _mp4_full_box(b"stsc", 0, struct.pack(">IIII", 1, 1, 1, 1))
+        + _mp4_full_box(b"stsz", 0, struct.pack(">III", 0, 1, 8))
+        + _mp4_full_box(b"stco", 0, struct.pack(">II", 1, chunk_offset)),
+    )
+    minf = _mp4_box(b"minf", stbl)
+    mdia = _mp4_box(b"mdia", mdhd + hdlr + minf)
     return _mp4_box(b"trak", tkhd + mdia)
 
 
@@ -226,6 +240,31 @@ def _mdhd_payload(timescale: int, duration: int, language: str) -> bytes:
 
 def _hdlr_payload(handler_type: bytes, name: str) -> bytes:
     return b"\x00\x00\x00\x00" + b"\x00" * 4 + handler_type + b"\x00" * 12 + name.encode("utf-8") + b"\x00"
+
+
+def _mp4_stsd_payload() -> bytes:
+    avc1_entry = _mp4_box(b"avc1", _video_sample_entry_payload(width=640, height=360, compressor_name="AVScope AVC"))
+    return _mp4_full_box(b"stsd", 0, struct.pack(">I", 1) + avc1_entry)
+
+
+def _video_sample_entry_payload(width: int, height: int, compressor_name: str) -> bytes:
+    name = compressor_name.encode("utf-8")[:31]
+    compressor = bytes([len(name)]) + name + b"\x00" * (31 - len(name))
+    return (
+        b"\x00" * 6
+        + struct.pack(">H", 1)
+        + b"\x00" * 16
+        + struct.pack(">HH", width, height)
+        + struct.pack(">II", 0x00480000, 0x00480000)
+        + b"\x00" * 4
+        + struct.pack(">H", 1)
+        + compressor
+        + struct.pack(">HH", 0x0018, 0xFFFF)
+    )
+
+
+def _mp4_full_box(box_type: bytes, flags: int, payload: bytes, version: int = 0) -> bytes:
+    return _mp4_box(box_type, bytes([version]) + flags.to_bytes(3, "big") + payload)
 
 
 def _mp4_box(box_type: bytes, payload: bytes) -> bytes:
