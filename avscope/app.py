@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
@@ -13,6 +14,9 @@ from avscope.models import ParseNode, ParseResult, Severity
 from avscope.report import export_html, export_json
 from avscope.search import SearchPatternError, find_pattern, parse_search_pattern
 from avscope.settings import AppSettings
+
+
+HEX_BYTE_RE = re.compile(r"\b[0-9A-Fa-f]{2}\b")
 
 
 PALETTES = {
@@ -78,6 +82,7 @@ class AVScopeApp(tk.Tk):
         self._theme_name = "dark"
         self._palette = PALETTES["dark"]
         self._build_ui()
+        self._bind_shortcuts()
         self._apply_theme("dark")
         self._set_empty_state()
 
@@ -156,6 +161,7 @@ class AVScopeApp(tk.Tk):
 
         self.hex_text = tk.Text(self.tabs, wrap=tk.NONE, font=("Consolas", 10), undo=False, padx=14, pady=12, borderwidth=0)
         self.tabs.add(self.hex_text, text="Hex")
+        self._build_hex_context_menu()
 
         self.fields = ttk.Treeview(
             self.tabs,
@@ -238,9 +244,45 @@ class AVScopeApp(tk.Tk):
         menu.add_cascade(label="分析", menu=analysis_menu)
         tools_menu = tk.Menu(menu, tearoff=False)
         tools_menu.add_command(label="设置当前 Raw 参数", command=self.configure_current_raw_options)
+        tools_menu.add_command(label="复制当前 Offset", command=self.copy_current_offset, accelerator="Ctrl+Shift+O")
+        tools_menu.add_command(label="复制选中 Hex 字节", command=self.copy_selected_hex_bytes, accelerator="Ctrl+Shift+C")
+        tools_menu.add_command(label="复制选中 ASCII", command=self.copy_selected_ascii)
         menu.add_cascade(label="工具", menu=tools_menu)
         self.config(menu=menu)
         self._refresh_recent_menu()
+
+    def _build_hex_context_menu(self) -> None:
+        self.hex_context_menu = tk.Menu(self.hex_text, tearoff=False)
+        self.hex_context_menu.add_command(label="复制当前 Offset", command=self.copy_current_offset)
+        self.hex_context_menu.add_command(label="复制选中 Hex 字节", command=self.copy_selected_hex_bytes)
+        self.hex_context_menu.add_command(label="复制选中 ASCII", command=self.copy_selected_ascii)
+        self.hex_text.bind("<Button-3>", self._show_hex_context_menu)
+
+    def _bind_shortcuts(self) -> None:
+        self.bind_all("<Control-o>", self._shortcut(self.open_file))
+        self.bind_all("<Control-O>", self._shortcut(self.open_file))
+        self.bind_all("<Control-r>", self._shortcut(self.reload_file))
+        self.bind_all("<Control-R>", self._shortcut(self.reload_file))
+        self.bind_all("<Control-f>", self._shortcut(self.focus_search))
+        self.bind_all("<Control-F>", self._shortcut(self.focus_search))
+        self.bind_all("<F3>", self._shortcut(self.find_next))
+        self.bind_all("<Control-Shift-H>", self._shortcut(self.export_html_report))
+        self.bind_all("<Control-Shift-J>", self._shortcut(self.export_json_report))
+        self.bind_all("<Control-Shift-O>", self._shortcut(self.copy_current_offset))
+        self.bind_all("<Control-Shift-C>", self._shortcut(self.copy_selected_hex_bytes))
+
+    def _shortcut(self, command):
+        def handler(_event=None):
+            command()
+            return "break"
+
+        return handler
+
+    def _show_hex_context_menu(self, event) -> None:
+        try:
+            self.hex_context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.hex_context_menu.grab_release()
 
     def _apply_theme(self, name: str) -> None:
         self._theme_name = name
@@ -605,6 +647,41 @@ class AVScopeApp(tk.Tk):
             self.hex_text.tag_add("search_hit", f"{line + 1}.{start_col}", f"{line + 1}.{end_col}")
             current += count
 
+    def focus_search(self) -> None:
+        self.search_entry.focus_set()
+        self.search_entry.select_range(0, tk.END)
+
+    def copy_current_offset(self) -> None:
+        self._copy_to_clipboard(f"0x{self.current_hex_offset:X}")
+        self.status.set(f"已复制当前 Offset: 0x{self.current_hex_offset:X}")
+
+    def copy_selected_hex_bytes(self) -> None:
+        data = self._selected_hex_bytes()
+        if not data:
+            self.status.set("未选择可复制的 Hex 字节")
+            return
+        self._copy_to_clipboard(data.hex(" ").upper())
+        self.status.set(f"已复制 {len(data)} 个 Hex 字节")
+
+    def copy_selected_ascii(self) -> None:
+        data = self._selected_hex_bytes()
+        if not data:
+            self.status.set("未选择可复制的 ASCII 内容")
+            return
+        self._copy_to_clipboard(hex_bytes_to_ascii(data))
+        self.status.set(f"已复制 {len(data)} 个 ASCII 字符")
+
+    def _selected_hex_bytes(self) -> bytes:
+        try:
+            text = self.hex_text.get(tk.SEL_FIRST, tk.SEL_LAST)
+        except tk.TclError:
+            return b""
+        return extract_hex_bytes_from_dump_text(text)
+
+    def _copy_to_clipboard(self, text: str) -> None:
+        self.clipboard_clear()
+        self.clipboard_append(text)
+
     def jump_hex(self) -> None:
         try:
             self._load_hex(parse_offset(self.offset_entry.get()))
@@ -705,6 +782,19 @@ class AVScopeApp(tk.Tk):
 
     def _count_nodes(self, node: ParseNode) -> int:
         return 1 + sum(self._count_nodes(child) for child in node.children)
+
+
+def extract_hex_bytes_from_dump_text(text: str) -> bytes:
+    values: list[int] = []
+    for line in text.splitlines():
+        before_ascii = line.split("|", 1)[0]
+        for token in HEX_BYTE_RE.findall(before_ascii):
+            values.append(int(token, 16))
+    return bytes(values)
+
+
+def hex_bytes_to_ascii(data: bytes) -> str:
+    return "".join(chr(byte) if 32 <= byte <= 126 else "." for byte in data)
 
 
 def main() -> None:

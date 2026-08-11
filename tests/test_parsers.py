@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from avscope.app import extract_hex_bytes_from_dump_text, hex_bytes_to_ascii
 from avscope.analyzer import Analyzer
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_protocol_compare
@@ -317,6 +318,13 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(find_pattern(target, b"hello", 0, chunk_size=4), 2)
         self.assertEqual(find_pattern(target, b"\xFF\xF1", 0, chunk_size=8), 7)
         self.assertIsNone(find_pattern(target, b"missing", 0, chunk_size=4))
+
+    def test_hex_selection_copy_helpers(self):
+        dump = "00000000  00 01 68 65 6C 6C 6F FF  |..hello.|\n00000008  F1 20 41                 |. A|"
+        data = extract_hex_bytes_from_dump_text(dump)
+        self.assertEqual(data, b"\x00\x01hello\xFF\xF1 A")
+        self.assertEqual(hex_bytes_to_ascii(data), "..hello.. A")
+        self.assertEqual(extract_hex_bytes_from_dump_text("FF F1"), b"\xFF\xF1")
 
     def test_recent_file_settings(self):
         settings_path = ROOT / "settings.json"
