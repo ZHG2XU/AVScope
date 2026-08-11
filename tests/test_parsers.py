@@ -775,6 +775,25 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(lines[2], "帧大小: average=11.0 bytes, max=12 bytes (frame #0)")
         self.assertEqual(format_frame_preview_lines([]), [])
 
+    def test_frame_stats_keyframe_intervals(self):
+        frames = [
+            FrameInfo(index=0, offset=0, size=20, keyframe=True),
+            FrameInfo(index=1, offset=20, size=10, keyframe=False),
+            FrameInfo(index=2, offset=30, size=12, keyframe=False),
+            FrameInfo(index=3, offset=42, size=18, keyframe=True),
+            FrameInfo(index=4, offset=60, size=14, keyframe=False),
+            FrameInfo(index=6, offset=74, size=22, keyframe=True),
+        ]
+        stats = build_frame_stats(frames)
+        self.assertEqual(stats["keyframe_indices"], [0, 3, 6])
+        self.assertEqual(stats["keyframe_intervals"], [3, 3])
+        self.assertEqual(stats["first_keyframe_index"], 0)
+        self.assertEqual(stats["last_keyframe_index"], 6)
+        self.assertEqual(stats["average_keyframe_interval"], 3.0)
+        self.assertEqual(stats["max_keyframe_interval"], 3)
+        lines = format_frame_preview_lines(frames, stats)
+        self.assertTrue(any("关键帧间隔" in line and "max=3" in line for line in lines))
+
     def test_timeline_chart_items(self):
         frames = [
             FrameInfo(index=0, offset=0x100, size=20, keyframe=True),

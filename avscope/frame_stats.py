@@ -26,6 +26,11 @@ def build_frame_stats(frames: Iterable[Any]) -> dict:
 
     sizes = [frame["size"] for frame in normalized]
     keyframes = sum(1 for frame in normalized if frame["keyframe"])
+    keyframe_indices = [int(frame["index"]) for frame in normalized if frame["keyframe"]]
+    keyframe_intervals = [
+        keyframe_indices[index] - keyframe_indices[index - 1]
+        for index in range(1, len(keyframe_indices))
+    ]
     pts_values = [frame["pts"] for frame in normalized if frame["pts"] is not None]
     duration_values = [frame["duration"] for frame in normalized if frame["duration"] is not None]
     type_counts = Counter(frame["frame_type"] or "unknown" for frame in normalized)
@@ -36,6 +41,8 @@ def build_frame_stats(frames: Iterable[Any]) -> dict:
         "frames": len(normalized),
         "keyframes": keyframes,
         "keyframe_ratio": round(keyframes / len(normalized), 6),
+        "keyframe_indices": keyframe_indices[:100],
+        "keyframe_intervals": keyframe_intervals[:100],
         "total_bytes": sum(sizes),
         "min_size": min(sizes),
         "max_size": max(sizes),
@@ -48,6 +55,13 @@ def build_frame_stats(frames: Iterable[Any]) -> dict:
         "largest_size": largest["size"],
         "frame_types": dict(type_counts.most_common(12)),
     }
+    if keyframe_indices:
+        stats["first_keyframe_index"] = keyframe_indices[0]
+        stats["last_keyframe_index"] = keyframe_indices[-1]
+        stats["leading_frames_before_first_keyframe"] = keyframe_indices[0]
+    if keyframe_intervals:
+        stats["average_keyframe_interval"] = round(sum(keyframe_intervals) / len(keyframe_intervals), 2)
+        stats["max_keyframe_interval"] = max(keyframe_intervals)
     if pts_values:
         stats["first_pts"] = pts_values[0]
         stats["last_pts"] = pts_values[-1]

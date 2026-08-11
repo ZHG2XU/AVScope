@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-12T03:19:44",
+  "generated_at": "2026-08-12T03:37:17",
   "tool_version": "0.1.0",
   "media": {
     "path": "G:\\AVScope\\samples\\sample.h264",
@@ -19,6 +19,10 @@
         "frames": 4,
         "keyframes": 1,
         "keyframe_ratio": 0.25,
+        "keyframe_indices": [
+          2
+        ],
+        "keyframe_intervals": [],
         "total_bytes": 33,
         "min_size": 5,
         "max_size": 13,
@@ -34,7 +38,10 @@
           "PPS": 1,
           "IDR Slice": 1,
           "Non-IDR Slice": 1
-        }
+        },
+        "first_keyframe_index": 2,
+        "last_keyframe_index": 2,
+        "leading_frames_before_first_keyframe": 2
       },
       "ffprobe": {
         "available": true,

@@ -1505,6 +1505,10 @@ def format_frame_preview_lines(frames: list[FrameInfo], frame_stats: dict | None
     ]
     if average_size is not None and largest_size is not None:
         lines.append(f"帧大小: average={average_size} bytes, max={largest_size} bytes (frame #{largest_index})")
+    average_keyframe_interval = frame_stats.get("average_keyframe_interval")
+    max_keyframe_interval = frame_stats.get("max_keyframe_interval")
+    if average_keyframe_interval is not None and max_keyframe_interval is not None:
+        lines.append(f"关键帧间隔: average={average_keyframe_interval} frames, max={max_keyframe_interval} frames")
     return lines
 
 

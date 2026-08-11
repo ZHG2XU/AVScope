@@ -553,6 +553,9 @@ def _frame_stats_table(frame_stats: dict) -> str:
     overview = [
         ("帧数", frame_stats.get("frames", 0)),
         ("关键帧", frame_stats.get("keyframes", 0)),
+        ("首个关键帧", _optional_frame_index(frame_stats.get("first_keyframe_index"))),
+        ("平均关键帧间隔", _optional_bytes(frame_stats.get("average_keyframe_interval"), "")),
+        ("最大关键帧间隔", _optional_bytes(frame_stats.get("max_keyframe_interval"), "")),
         ("平均大小", f"{frame_stats.get('average_size', 0)} bytes"),
         ("最大大小", f"{frame_stats.get('max_size', 0)} bytes"),
         ("最大帧", f"#{frame_stats.get('largest_index', '')} @ 0x{int(frame_stats.get('largest_offset', 0)):X}"),
@@ -603,6 +606,14 @@ def _packet_stats_table(packet_stats: dict) -> str:
         + "".join(rows)
         + "</table>"
     )
+
+
+def _optional_frame_index(value) -> str:
+    return "" if value in (None, "") else f"#{value}"
+
+
+def _optional_bytes(value, suffix: str = " bytes") -> str:
+    return "" if value in (None, "") else f"{value}{suffix}"
 
 
 def _stream_html(streams: list[dict]) -> str:
