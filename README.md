@@ -28,7 +28,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - Raw YUV 可在预览页逐帧查看画面，支持 `yuv420p`、`nv12`、`nv21`、`yuyv422`。
 - 显示协议树、字段表、Hex 分页视图、帧列表和带帧大小柱状图的基础时间线，协议树、字段表和帧列表均可联动跳转 Hex。
 - 顶部摘要条显示格式、大小、节点数、诊断数量和解析耗时，底部状态栏同步记录本次分析耗时。
-- 对解析器帧列表生成帧统计摘要，包含关键帧数、关键帧间隔、平均帧大小、最大帧大小和帧类型分布。
+- 对解析器帧列表生成帧统计摘要，包含关键帧数、关键帧间隔、GOP 分组结构、平均帧大小、最大帧大小和帧类型分布。
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
 - 对 ffprobe packet 时间线生成 packet 统计摘要，包含 stream 数、packet 数、关键包数、平均/最大 packet 大小和 PTS 跨度。
 - PCAP/RTP 会在时间线摘要、预览页和 HTML/JSON/CSV 报告中显示 RTP sequence 曲线、SSRC 分组、marker 包数量和 sequence 跳变异常点。
@@ -41,7 +41,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 输出基础诊断 warning/error，ffprobe 媒体流或 packet 时间线探测失败会转为可读 warning，并基于解析结构/packet 时间线提示 MP4 chunk offset 异常、PTS/DTS 非单调、音视频时长差异和帧/packet 大小尖峰。
 - 单元测试覆盖 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 典型损坏文件，验证解析失败不会导致程序崩溃并会输出诊断。
 - 支持保存 `.avscope.json` 工程快照，记录当前分析结果、源文件路径和 Raw 参数。
-- 导出独立 HTML、JSON、CSV 报告，支持写入用户备注；HTML 报告包含音频波形图、结构化统计摘要、帧/packet 大小图、RTP sequence 曲线、帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、备注、诊断、帧统计、packet 统计、帧、packet、节点和字段。
+- 导出独立 HTML、JSON、CSV 报告，支持写入用户备注；HTML 报告包含音频波形图、结构化统计摘要、帧/packet 大小图、GOP 结构图、RTP sequence 曲线、帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、备注、诊断、帧统计、packet 统计、帧、packet、节点和字段。
 - 支持两个文件的二进制差异扫描，并输出 offset 对齐的左右 Hex/ASCII 并排差异表；GUI 可用 F4 跳转下一个差异窗口。
 - 支持两个文件的帧级对比，按 frame index 汇总新增、删除和 size/PTS/DTS/duration/type/keyframe 差异，并可从 GUI 或 CLI 导出 JSON。
 - 预留声明式插件模板机制，可在 `plugins\*.json` 中按魔数扩展私有格式识别和字段展示。
@@ -170,6 +170,6 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\make_release_manifes
 
 ## 时间线曲线摘要
 
-- 分析结果会写入 `media.summary.timeline_summary`，包含 PTS/DTS 范围、非单调计数、码率 bucket 曲线、关键帧/GOP 间隔和抽样后的曲线点。
-- GUI “时间线”页会在帧/packet 大小柱状图上叠加 PTS/DTS 曲线、码率曲线和时间戳异常标记；“预览”页会显示 PTS/DTS、码率、GOP 和异常摘要。
-- HTML 报告会显示“时间线曲线摘要”表、PTS/DTS 曲线、码率曲线、RTP sequence 曲线和异常点，JSON/CSV 报告会保留 `timeline_summary` 结构化数据。
+- 分析结果会写入 `media.summary.timeline_summary`，包含 PTS/DTS 范围、非单调计数、码率 bucket 曲线、关键帧/GOP 间隔、GOP 分组结构和抽样后的曲线点。
+- GUI “时间线”页会在帧/packet 大小柱状图上叠加 PTS/DTS 曲线、码率曲线、GOP 分段和时间戳异常标记；“预览”页会显示 PTS/DTS、码率、GOP 结构和异常摘要。
+- HTML 报告会显示“时间线曲线摘要”表、PTS/DTS 曲线、码率曲线、GOP 结构图、RTP sequence 曲线和异常点，JSON/CSV 报告会保留 `timeline_summary` 结构化数据。

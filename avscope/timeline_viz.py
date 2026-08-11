@@ -53,6 +53,10 @@ def build_timeline_summary(frames: Iterable[Any], packets: Iterable[dict], max_p
     pts_values = [item["pts"] for item in items if item["pts"] is not None]
     dts_values = [item["dts"] for item in items if item["dts"] is not None]
     key_indices = [item["index"] for item in items if item["keyframe"]]
+    gop_summary = _gop_summary(key_indices, len(items))
+    gop_groups = _gop_groups(items)
+    if gop_groups.get("groups_available"):
+        gop_summary.update(gop_groups)
     summary = {
         "available": True,
         "items": len(items),
@@ -61,7 +65,7 @@ def build_timeline_summary(frames: Iterable[Any], packets: Iterable[dict], max_p
         "pts": _timestamp_summary(pts_values),
         "dts": _timestamp_summary(dts_values),
         "timestamp_anomalies": _timestamp_anomalies(items),
-        "gop": _gop_summary(key_indices, len(items)),
+        "gop": gop_summary,
         "bitrate": _bitrate_summary(items, bucket_seconds),
     }
     rtp_sequence = _rtp_sequence_summary(items)
@@ -188,6 +192,61 @@ def _gop_summary(key_indices: list[Any], item_count: int) -> dict:
         summary["min_interval"] = min(intervals)
         summary["max_interval"] = max(intervals)
     return summary
+
+
+def _gop_groups(items: list[dict]) -> dict:
+    key_positions = [position for position, item in enumerate(items) if item.get("keyframe")]
+    if not key_positions:
+        return {"available": False, "groups": []}
+    groups = []
+    for group_index, start_position in enumerate(key_positions):
+        end_position = key_positions[group_index + 1] if group_index + 1 < len(key_positions) else len(items)
+        group_items = items[start_position:end_position]
+        if not group_items:
+            continue
+        pts_values = [item["pts"] for item in group_items if item.get("pts") is not None]
+        bytes_total = sum(_int_or_zero(item.get("size")) for item in group_items)
+        type_counts: dict[str, int] = {}
+        for item in group_items:
+            kind = str(item.get("kind") or "frame")
+            type_counts[kind] = type_counts.get(kind, 0) + 1
+        duration = None
+        if len(pts_values) >= 2:
+            duration = round(max(pts_values) - min(pts_values), 6)
+        groups.append(
+            {
+                "index": group_index,
+                "start_item_order": start_position,
+                "end_item_order": end_position - 1,
+                "start_index": group_items[0].get("index"),
+                "end_index": group_items[-1].get("index"),
+                "frames": len(group_items),
+                "bytes": bytes_total,
+                "duration": duration,
+                "type_counts": type_counts,
+                "start_pts": None if not pts_values else round(min(pts_values), 6),
+                "end_pts": None if not pts_values else round(max(pts_values), 6),
+            }
+        )
+    if not groups:
+        return {"available": False, "groups": []}
+    largest_frames = max(groups, key=lambda group: int(group.get("frames", 0) or 0))
+    largest_bytes = max(groups, key=lambda group: int(group.get("bytes", 0) or 0))
+    durations = [float(group["duration"]) for group in groups if group.get("duration") is not None]
+    result = {
+        "groups_available": True,
+        "groups": groups[:120],
+        "group_count": len(groups),
+        "average_group_frames": round(sum(group["frames"] for group in groups) / len(groups), 2),
+        "max_group_frames": largest_frames.get("frames", 0),
+        "max_group_index": largest_frames.get("index", 0),
+        "max_group_bytes": largest_bytes.get("bytes", 0),
+        "max_group_bytes_index": largest_bytes.get("index", 0),
+    }
+    if durations:
+        result["average_group_duration"] = round(sum(durations) / len(durations), 6)
+        result["max_group_duration"] = round(max(durations), 6)
+    return result
 
 
 def _bitrate_summary(items: list[dict], bucket_seconds: float | None) -> dict:

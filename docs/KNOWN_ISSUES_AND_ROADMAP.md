@@ -16,7 +16,7 @@
 
 - 视频预览：增加播放/暂停、精确逐帧控制和更完整的 GOP 图。
 - 音频预览：增加声道选择和波形差异对比。
-- 时间线：增加 GOP 结构图、PCR 曲线、RTP sequence 多流对齐视图和异常标记筛选。
+- 时间线：增加 PCR 曲线、RTP sequence 多流对齐视图和异常标记筛选。
 - 对比：扩展视频画面差分、PSNR/SSIM/VMAF、音频波形差分和按时间戳对齐的帧级对比。
 - 解析器：补充更完整的 SPS/PPS/VPS 语法、MP4 sample table 深度导航和私有安防封装样例。
 - 插件：增加可视化模板编辑器、插件校验器、沙箱策略和示例插件包。
@@ -30,6 +30,6 @@
 
 ## 本轮更新状态
 
-- 已补充基础时间线曲线摘要：PTS/DTS 范围、非单调计数、时间戳异常点、码率 bucket、关键帧/GOP 间隔、RTP sequence 摘要和抽样曲线点会写入 `timeline_summary`。
-- GUI 时间线页已叠加 PTS/DTS 曲线、码率曲线和异常标记，预览页会显示时间线曲线摘要；HTML/JSON/CSV 导出已包含同一份结构化数据，PCAP/RTP 还会显示 sequence 曲线与跳变点。
+- 已补充基础时间线曲线摘要：PTS/DTS 范围、非单调计数、时间戳异常点、码率 bucket、关键帧/GOP 间隔、GOP 分组结构、RTP sequence 摘要和抽样曲线点会写入 `timeline_summary`。
+- GUI 时间线页已叠加 PTS/DTS 曲线、码率曲线、GOP 分段和异常标记，预览页会显示时间线曲线摘要；HTML/JSON/CSV 导出已包含同一份结构化数据，PCAP/RTP 还会显示 sequence 曲线与跳变点。
 - 后续仍建议继续扩展 PCR 曲线、RTP sequence 多流对齐视图、异常筛选标记、后台索引、取消任务和 10GB 级自动化压力测试。

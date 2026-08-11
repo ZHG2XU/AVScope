@@ -1053,10 +1053,38 @@ class AVScopeApp(tk.Tk):
                 canvas.create_line(x, top, x, min(bottom, y0), fill=p["accent2"], dash=(2, 3))
         label = f"{len(items)} 项 | max size {max_size} bytes"
         canvas.create_text(left, bottom + 13, text=label, fill=p["muted"], anchor=tk.W, font=("Microsoft YaHei UI", 9))
+        self._render_gop_structure(canvas, left, right, top, bottom)
         self._render_timestamp_curves(canvas, left, right, top, bottom)
         self._render_bitrate_curve(canvas, left, right, top, bottom)
         self._render_rtp_sequence_curve(canvas, left, right, top, bottom)
         canvas.create_line(left, mid, right, mid, fill=p["border"])
+
+    def _render_gop_structure(self, canvas: tk.Canvas, left: int, right: int, top: int, bottom: int) -> None:
+        if not self.result:
+            return
+        groups = self.result.media.summary.get("timeline_summary", {}).get("gop", {}).get("groups", [])
+        if not groups:
+            return
+        p = self._palette
+        span = right - left
+        max_order = max(1, max(int(group.get("end_item_order", 0) or 0) for group in groups))
+        y = bottom - 7
+        for group in groups[:80]:
+            start = int(group.get("start_item_order", 0) or 0)
+            end = int(group.get("end_item_order", start) or start)
+            x0 = left + span * max(0, start) / max_order
+            x1 = left + span * min(max_order, max(start + 1, end)) / max_order
+            fill = p["accent2"] if int(group.get("index", 0) or 0) % 2 == 0 else p["accent"]
+            canvas.create_rectangle(x0, y, max(x0 + 2, x1), y + 4, fill=fill, outline="")
+        gop = self.result.media.summary.get("timeline_summary", {}).get("gop", {})
+        canvas.create_text(
+            right,
+            bottom + 13,
+            text=f"GOP {gop.get('group_count', len(groups))} max {gop.get('max_group_frames', '')}f",
+            fill=p["accent2"],
+            anchor=tk.E,
+            font=("Microsoft YaHei UI", 8),
+        )
 
     def _render_timestamp_curves(self, canvas: tk.Canvas, left: int, right: int, top: int, bottom: int) -> None:
         if not self.result:
@@ -2355,6 +2383,14 @@ def format_timeline_summary_lines(timeline_summary: dict | None = None) -> list[
             f"GOP/keyframes={gop.get('keyframes', 0)} "
             f"ratio={gop.get('keyframe_ratio', 0)}{interval}"
         )
+        if gop.get("groups_available"):
+            lines.append(
+                "  "
+                f"GOP 结构: groups={gop.get('group_count', 0)} "
+                f"avg={gop.get('average_group_frames', 0)} frames "
+                f"max={gop.get('max_group_frames', 0)} frames "
+                f"bytes_peak={gop.get('max_group_bytes', 0)}"
+            )
     rtp = summary.get("rtp_sequence", {})
     if rtp.get("available"):
         streams = rtp.get("streams", {})

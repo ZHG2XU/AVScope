@@ -1059,9 +1059,15 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(summary["pts"]["span"], 0.08)
         self.assertEqual(summary["gop"]["keyframes"], 2)
         self.assertEqual(summary["gop"]["average_interval"], 2.0)
+        self.assertTrue(summary["gop"]["groups_available"])
+        self.assertEqual(summary["gop"]["group_count"], 2)
+        self.assertEqual(summary["gop"]["groups"][0]["frames"], 2)
+        self.assertEqual(summary["gop"]["groups"][0]["bytes"], 1500)
+        self.assertEqual(summary["gop"]["max_group_frames"], 2)
         self.assertTrue(summary["bitrate"]["available"])
         lines = format_timeline_summary_lines(summary)
         self.assertTrue(any("码率曲线" in line for line in lines))
+        self.assertTrue(any("GOP 结构" in line and "groups=2" in line for line in lines))
 
     def test_timeline_summary_marks_timestamp_anomalies(self):
         frames = [
@@ -1120,6 +1126,7 @@ class ParserTests(unittest.TestCase):
         self.assertIn('class="pts"', synthetic_text)
         self.assertIn('class="dts"', synthetic_text)
         self.assertIn('class="timestamp-anomaly"', synthetic_text)
+        self.assertIn("GOP 结构图", synthetic_text)
 
     def test_video_preview_helpers(self):
         source = write(ROOT / "preview input.mp4", b"not a real video")

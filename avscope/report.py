@@ -640,6 +640,7 @@ def _timeline_summary_html(timeline_summary: dict) -> str:
         + "</table>"
         + _timestamp_svg_html(timeline_summary)
         + _bitrate_svg_html(bitrate)
+        + _gop_svg_html(gop)
         + _rtp_sequence_svg_html(rtp)
     )
 
@@ -809,6 +810,53 @@ def _rtp_sequence_svg_html(rtp: dict) -> str:
     )
 
 
+def _gop_svg_html(gop: dict) -> str:
+    groups = gop.get("groups", [])
+    if not gop.get("groups_available") or not groups:
+        return ""
+    width = 720
+    height = 95
+    left = 12
+    right = width - 12
+    top = 18
+    bottom = height - 26
+    plot_width = max(1, right - left)
+    max_frames = max(1, max(int(group.get("frames", 0) or 0) for group in groups))
+    max_bytes = max(1, max(int(group.get("bytes", 0) or 0) for group in groups))
+    slot = plot_width / max(1, len(groups))
+    bars = []
+    for index, group in enumerate(groups[:120]):
+        x = left + index * slot
+        width_px = max(2.0, slot * 0.75)
+        frame_height = max(3.0, int(group.get("frames", 0) or 0) / max_frames * (bottom - top))
+        byte_height = max(2.0, int(group.get("bytes", 0) or 0) / max_bytes * (bottom - top))
+        bars.append(
+            f'<rect class="key" x="{x:.2f}" y="{bottom - frame_height:.2f}" width="{width_px:.2f}" height="{frame_height:.2f}" rx="1.2" />'
+        )
+        bars.append(
+            f'<rect class="bar" x="{x + width_px * 0.28:.2f}" y="{bottom - byte_height:.2f}" width="{max(1.4, width_px * 0.44):.2f}" height="{byte_height:.2f}" rx="1.2" />'
+        )
+    grid_lines = "\n".join(
+        [
+            f'<line class="grid" x1="{left}" y1="{top + (bottom - top) * 0.5:.2f}" x2="{right}" y2="{top + (bottom - top) * 0.5:.2f}" />',
+            f'<line class="axis" x1="{left}" y1="{bottom}" x2="{right}" y2="{bottom}" />',
+        ]
+    )
+    caption = (
+        f"GOP groups={gop.get('group_count', len(groups))}, "
+        f"avg={gop.get('average_group_frames')} frames, max={gop.get('max_group_frames')} frames, "
+        f"max bytes={gop.get('max_group_bytes')}"
+    )
+    return (
+        f'<svg class="timeline-chart" viewBox="0 0 {width} {height}" role="img" aria-label="GOP 结构图">'
+        f'<rect class="bg" x="0" y="0" width="{width}" height="{height}" rx="8" />'
+        f"{grid_lines}"
+        f"{''.join(bars)}"
+        "</svg>"
+        f'<p class="chart-caption">{html.escape(caption)}</p>'
+    )
+
+
 def _timestamp_range(data: dict) -> str:
     if not data.get("available"):
         return "无"
@@ -833,7 +881,10 @@ def _gop_range(data: dict) -> str:
     interval = ""
     if "average_interval" in data and "max_interval" in data:
         interval = f"; avg_interval={data.get('average_interval')}; max_interval={data.get('max_interval')}"
-    return f"keyframes={data.get('keyframes', 0)}; ratio={data.get('keyframe_ratio', 0)}{interval}"
+    groups = ""
+    if data.get("groups_available"):
+        groups = f"; groups={data.get('group_count', 0)}; max_group={data.get('max_group_frames', 0)} frames"
+    return f"keyframes={data.get('keyframes', 0)}; ratio={data.get('keyframe_ratio', 0)}{interval}{groups}"
 
 
 def _rtp_sequence_range(data: dict) -> str:

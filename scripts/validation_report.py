@@ -41,7 +41,7 @@ VALIDATED_CHECKS = [
     "已知边界与后续规划文档检查",
     "绿色版 GUI 启动冒烟测试",
     "安装包静默安装、启动、卸载冒烟测试",
-    "时间线 PTS/DTS/码率曲线、RTP sequence 曲线、异常标记与 HTML/JSON/CSV 导出冒烟测试",
+    "时间线 PTS/DTS/码率曲线、GOP 结构图、RTP sequence 曲线、异常标记与 HTML/JSON/CSV 导出冒烟测试",
     "HTML/JSON/CSV 示例报告生成",
 ]
 
