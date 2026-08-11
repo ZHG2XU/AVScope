@@ -24,6 +24,10 @@ def write(path: Path, data: bytes) -> Path:
     return path
 
 
+def diagnostics_with(result, severity: str) -> list:
+    return [issue for issue in result.diagnostics if issue.severity.value == severity]
+
+
 class ParserTests(unittest.TestCase):
     def setUp(self):
         ROOT.mkdir(parents=True, exist_ok=True)
@@ -173,6 +177,38 @@ class ParserTests(unittest.TestCase):
         fields = {field.name: field.value for field in avih.fields}
         self.assertEqual(fields["dwWidth"], 640)
         self.assertEqual(fields["dwHeight"], 480)
+
+    def test_malformed_files_emit_diagnostics(self):
+        broken_mp4 = write(ROOT / "broken_box.mp4", struct.pack(">I4s", 4, b"ftyp") + b"isom")
+        result = self.analyzer.analyze(broken_mp4)
+        self.assertEqual(result.media.format_name, "MP4/MOV")
+        self.assertTrue(diagnostics_with(result, "error"))
+
+        wav_without_data = (
+            b"RIFF"
+            + struct.pack("<I", 4 + 8 + 16)
+            + b"WAVE"
+            + b"fmt "
+            + struct.pack("<IHHIIHH", 16, 1, 1, 8000, 16000, 2, 16)
+        )
+        result = self.analyzer.analyze(write(ROOT / "missing_data.wav", wav_without_data))
+        self.assertEqual(result.media.format_name, "WAV")
+        self.assertTrue(diagnostics_with(result, "error"))
+
+        bad_aac = bytes([0xFF, 0xF1, 0x50, 0x80, 0x00, 0x00, 0xFC])
+        result = self.analyzer.analyze(write(ROOT / "bad_length.aac", bad_aac))
+        self.assertEqual(result.media.format_name, "AAC ADTS")
+        self.assertTrue(diagnostics_with(result, "error"))
+
+        missing_pps_h264 = b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(640, 480) + b"\x00\x00\x01\x65\x88"
+        result = self.analyzer.analyze(write(ROOT / "missing_pps.h264", missing_pps_h264))
+        self.assertEqual(result.media.format_name, "H.264 Annex-B")
+        self.assertTrue(diagnostics_with(result, "warning"))
+
+        truncated_avi = b"RIFF" + struct.pack("<I", 1024) + b"AVI "
+        result = self.analyzer.analyze(write(ROOT / "truncated.avi", truncated_avi))
+        self.assertEqual(result.media.format_name, "AVI")
+        self.assertTrue(diagnostics_with(result, "warning"))
 
     def test_binary_compare(self):
         left = write(ROOT / "left.bin", b"abc123")
