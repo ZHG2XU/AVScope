@@ -9,6 +9,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from avscope.app import (
+    binary_compare_offsets,
+    binary_compare_preview_indices,
     calculate_bitrate_kbps,
     calculate_timestamp_seconds,
     extract_hex_bytes_from_dump_text,
@@ -586,6 +588,7 @@ class ParserTests(unittest.TestCase):
         self.assertIn("Ctrl+O", shortcuts)
         self.assertIn("Ctrl+1", shortcuts)
         self.assertIn("Ctrl+L", shortcuts)
+        self.assertIn("F4", shortcuts)
         self.assertIn("Ctrl+Shift+I", shortcuts)
         samples = format_sample_files_help()
         self.assertIn("G:\\AVScope\\samples", samples)
@@ -617,6 +620,10 @@ class ParserTests(unittest.TestCase):
         self.assertIn("0x00000033", text)
         self.assertIn("^^", text)
         self.assertIn("|123", text)
+        self.assertEqual(binary_compare_offsets(result), [3, 51])
+        indices = binary_compare_preview_indices(text, binary_compare_offsets(result))
+        self.assertEqual(len(indices), 2)
+        self.assertTrue(all(index.endswith(".0") for index in indices))
 
     def test_protocol_compare(self):
         left = write(ROOT / "left_proto.mp4", b"\x00\x00\x00\x0Cftypisom")

@@ -7,7 +7,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 只读打开本地媒体文件，支持菜单选择、打开文件夹、拖拽到窗口，以及将文件拖到 exe 图标上启动打开。
 - 支持打开文件夹、最近文件列表，以及 Hex/text 流式搜索。
 - 支持协议树节点搜索，以及只显示 warning/error 异常节点的过滤视图。
-- 支持 Ctrl+O、Ctrl+R、Ctrl+F、F3、Ctrl+1~5、Ctrl+L 等快捷键，以及 Hex 右键菜单复制当前 offset、选中字节、ASCII 并按大小端解释整数/浮点。
+- 支持 Ctrl+O、Ctrl+R、Ctrl+F、F3、F4、Ctrl+1~5、Ctrl+L 等快捷键，以及 Hex 右键菜单复制当前 offset、选中字节、ASCII 并按大小端解释整数/浮点。
 - 工具菜单提供时间戳计算器和码率计算器，便于换算 PTS/time_base、帧序号/FPS 和文件码率。
 - 自动识别 MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、PCAP/RTP、WAV、AAC ADTS、H.264 Annex-B、H.265 Annex-B、raw PCM、raw YUV。
 - 大文件路径使用 `ByteSource` 只读随机访问，测试覆盖 128MB+ 文件头部、中部、尾部窗口读取。
@@ -38,7 +38,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 单元测试覆盖 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 典型损坏文件，验证解析失败不会导致程序崩溃并会输出诊断。
 - 支持保存 `.avscope.json` 工程快照，记录当前分析结果、源文件路径和 Raw 参数。
 - 导出独立 HTML、JSON、CSV 报告，支持写入用户备注；HTML 报告包含音频波形图、结构化统计摘要、帧/packet 大小图、帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、备注、诊断、帧统计、packet 统计、帧、packet、节点和字段。
-- 支持两个文件的二进制差异扫描，并输出 offset 对齐的左右 Hex/ASCII 并排差异表。
+- 支持两个文件的二进制差异扫描，并输出 offset 对齐的左右 Hex/ASCII 并排差异表；GUI 可用 F4 跳转下一个差异窗口。
 - 支持两个文件的帧级对比，按 frame index 汇总新增、删除和 size/PTS/DTS/duration/type/keyframe 差异，并可从 GUI 或 CLI 导出 JSON。
 - 预留声明式插件模板机制，可在 `plugins\*.json` 中按魔数扩展私有格式识别和字段展示。
 - GUI 提供“插件”菜单查看/重新加载声明式模板，并在“帮助”菜单提供快捷键、示例文件和关于信息。

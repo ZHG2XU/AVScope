@@ -14,7 +14,7 @@ from avscope.byte_source import ByteSource
 from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare, format_protocol_compare
 from avscope.ffmpeg_preview import build_video_preview
 from avscope.hexview import format_hex, parse_offset
-from avscope.models import FieldInfo, FrameInfo, ParseNode, ParseResult, Severity
+from avscope.models import CompareResult, FieldInfo, FrameInfo, ParseNode, ParseResult, Severity
 from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.search import SearchPatternError, find_pattern, parse_search_pattern
 from avscope.settings import AppSettings
@@ -103,6 +103,7 @@ def format_shortcuts_help() -> str:
             "Ctrl+4：切换到时间线",
             "Ctrl+5：切换到预览",
             "Ctrl+L：显示或隐藏底部日志",
+            "F4：跳转到下一个二进制差异",
             "Ctrl+Shift+H：导出 HTML 报告",
             "Ctrl+Shift+J：导出 JSON 报告",
             "Ctrl+Shift+O：复制当前 Offset",
@@ -155,6 +156,19 @@ def format_plugin_template_summary(parsers: list[object]) -> str:
     return "\n".join(lines)
 
 
+def binary_compare_offsets(result: CompareResult) -> list[int]:
+    return [chunk.offset for chunk in result.chunks]
+
+
+def binary_compare_preview_indices(text: str, offsets: list[int]) -> list[str]:
+    wanted = {f"0x{offset:08X}" for offset in offsets}
+    indices = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if line[:10] in wanted:
+            indices.append(f"{line_number}.0")
+    return indices
+
+
 ABOUT_TEXT = "\n".join(
     [
         "AVScope",
@@ -192,6 +206,8 @@ class AVScopeApp(tk.Tk):
         self._drop_wndproc = None
         self._old_wndproc = None
         self._last_logged_status = ""
+        self._binary_diff_indices: list[str] = []
+        self._binary_diff_cursor = -1
         self.log_panel_visible = tk.BooleanVar(value=True)
         self.hex_endian = tk.StringVar(value="little")
         self.issue_filter = tk.BooleanVar(value=False)
@@ -412,6 +428,7 @@ class AVScopeApp(tk.Tk):
         analysis_menu = tk.Menu(menu, tearoff=False)
         analysis_menu.add_command(label="自动识别", command=self.reload_file)
         analysis_menu.add_command(label="二进制对比", command=self.compare_files)
+        analysis_menu.add_command(label="下一个二进制差异", command=self.jump_next_binary_diff, accelerator="F4")
         analysis_menu.add_command(label="协议结构对比", command=self.compare_protocol_files)
         analysis_menu.add_command(label="帧级对比", command=self.compare_frame_files)
         menu.add_cascade(label="分析", menu=analysis_menu)
@@ -513,6 +530,7 @@ class AVScopeApp(tk.Tk):
         self.bind_all("<Control-s>", self._shortcut(self.save_project_snapshot))
         self.bind_all("<Control-S>", self._shortcut(self.save_project_snapshot))
         self.bind_all("<F3>", self._shortcut(self.find_next))
+        self.bind_all("<F4>", self._shortcut(self.jump_next_binary_diff))
         self.bind_all("<Control-Key-1>", self._shortcut(lambda: self.select_workspace_tab(self.hex_text, "Hex")))
         self.bind_all("<Control-Key-2>", self._shortcut(lambda: self.select_workspace_tab(self.fields, "字段")))
         self.bind_all("<Control-Key-3>", self._shortcut(lambda: self.select_workspace_tab(self.frames, "帧列表")))
@@ -591,6 +609,8 @@ class AVScopeApp(tk.Tk):
         for widget in (self.hex_text, self.preview, self.diagnostics):
             widget.configure(bg=p["text_bg"], fg=p["fg"], insertbackground=p["fg"], selectbackground=p["select"])
         self.hex_text.tag_configure("search_hit", background=p["accent"], foreground="#FFFFFF")
+        self.preview.tag_configure("binary_diff_line", background=p["warning_bg"], foreground=p["fg"])
+        self.preview.tag_configure("binary_diff_active", background=p["warning"], foreground=p["bg"])
         self.diagnostics.tag_configure("info", foreground=p["accent2"])
         self.diagnostics.tag_configure("warning", foreground=p["warning"])
         self.diagnostics.tag_configure("error", foreground=p["error"])
@@ -821,6 +841,7 @@ class AVScopeApp(tk.Tk):
         self._render_timeline()
         self._render_diagnostics()
         self._preview_images.clear()
+        self._clear_binary_diff_navigation()
         self.preview.delete("1.0", tk.END)
         self.preview.insert(tk.END, self._preview_text())
         self._render_waveform_preview()
@@ -1440,7 +1461,9 @@ class AVScopeApp(tk.Tk):
             return
         result = compare_binary(left, right)
         self.preview.delete("1.0", tk.END)
-        self.preview.insert(tk.END, format_binary_compare(result))
+        text = format_binary_compare(result)
+        self.preview.insert(tk.END, text)
+        self._mark_binary_compare_diffs(text, result)
         self.tabs.select(self.preview)
         self.status.set(f"二进制对比完成: 差异窗口 {len(result.chunks)}")
 
@@ -1454,6 +1477,7 @@ class AVScopeApp(tk.Tk):
         self.status.set("正在执行协议结构对比...")
         self.update_idletasks()
         result = compare_protocol(left, right)
+        self._clear_binary_diff_navigation()
         self.preview.delete("1.0", tk.END)
         self.preview.insert(tk.END, format_protocol_compare(result))
         self.tabs.select(self.preview)
@@ -1478,6 +1502,7 @@ class AVScopeApp(tk.Tk):
         self.status.set("正在执行帧级对比...")
         self.update_idletasks()
         result = compare_frames(left, right)
+        self._clear_binary_diff_navigation()
         self.preview.delete("1.0", tk.END)
         self.preview.insert(tk.END, format_frame_compare(result))
         self.tabs.select(self.preview)
@@ -1491,6 +1516,31 @@ class AVScopeApp(tk.Tk):
         )
         if save_path:
             Path(save_path).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def _mark_binary_compare_diffs(self, text: str, result: CompareResult) -> None:
+        self._clear_binary_diff_navigation()
+        self._binary_diff_indices = binary_compare_preview_indices(text, binary_compare_offsets(result))
+        for index in self._binary_diff_indices:
+            self.preview.tag_add("binary_diff_line", index, f"{index} lineend")
+
+    def _clear_binary_diff_navigation(self) -> None:
+        self._binary_diff_indices = []
+        self._binary_diff_cursor = -1
+        if hasattr(self, "preview"):
+            self.preview.tag_remove("binary_diff_line", "1.0", tk.END)
+            self.preview.tag_remove("binary_diff_active", "1.0", tk.END)
+
+    def jump_next_binary_diff(self) -> None:
+        if not self._binary_diff_indices:
+            self.status.set("没有可跳转的二进制差异")
+            return
+        self._binary_diff_cursor = (self._binary_diff_cursor + 1) % len(self._binary_diff_indices)
+        index = self._binary_diff_indices[self._binary_diff_cursor]
+        self.preview.tag_remove("binary_diff_active", "1.0", tk.END)
+        self.preview.tag_add("binary_diff_active", index, f"{index} lineend")
+        self.preview.see(index)
+        self.tabs.select(self.preview)
+        self.status.set(f"二进制差异 {self._binary_diff_cursor + 1}/{len(self._binary_diff_indices)}")
 
     @staticmethod
     def _fmt(value) -> str:
@@ -1508,6 +1558,7 @@ class AVScopeApp(tk.Tk):
         self.logo.create_text(17, 26, text="AV", fill=p["fg"], font=("Segoe UI Semibold", 8))
 
     def _set_empty_state(self) -> None:
+        self._clear_binary_diff_navigation()
         self.preview.delete("1.0", tk.END)
         self.preview.insert(
             tk.END,
