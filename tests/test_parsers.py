@@ -582,6 +582,8 @@ class ParserTests(unittest.TestCase):
     def test_ui_help_text(self):
         shortcuts = format_shortcuts_help()
         self.assertIn("Ctrl+O", shortcuts)
+        self.assertIn("Ctrl+1", shortcuts)
+        self.assertIn("Ctrl+L", shortcuts)
         self.assertIn("Ctrl+Shift+I", shortcuts)
         samples = format_sample_files_help()
         self.assertIn("G:\\AVScope\\samples", samples)

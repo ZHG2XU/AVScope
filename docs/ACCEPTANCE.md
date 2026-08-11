@@ -36,35 +36,36 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 2. 使用“打开”加载 `G:\AVScope\samples\sample.wav`。
 3. 将 `G:\AVScope\samples\sample.aac` 拖入主窗口，确认可自动打开；也可把样例文件拖到 `AVScope.exe` 图标上验证启动打开。
 4. 查看协议树、Hex、字段、帧列表、时间线、预览、诊断面板。
-5. 打开 `G:\AVScope\samples\sample.wav`，检查“预览”页是否显示音频波形图。
-6. 对真实含视频流文件打开后，在“预览”页检查是否出现“视频首帧画面”；若文件不可解码，预览区应给出 ffmpeg 错误文本而不是崩溃。
-7. 在搜索框输入 `fmt`，模式选择 `node`，点击“查找下一个”，确认协议树可定位匹配节点；勾选“只看异常”确认协议树可过滤 warning/error 节点。
-8. 在 WAV `fmt ` 和 `data` 节点里检查 `sample_rate`、`byte_rate`、`block_align`、`data_bytes`、`duration_seconds`。
-9. 打开 `G:\AVScope\samples\sample.h264`，检查 SPS/PPS 节点里是否显示 `profile_idc`、`level_idc`、`derived_width`、`derived_height`、`pic_parameter_set_id`、`seq_parameter_set_id`，并在“预览”页确认帧统计摘要包含关键帧数量和关键帧间隔。
-10. 打开 `G:\AVScope\samples\sample.h265`，检查 VPS/SPS/PPS 节点里是否显示 `general_profile_idc`、`general_level_idc`、`derived_width`、`derived_height`、`bit_depth_luma`、`pps_pic_parameter_set_id`，并在“预览”页确认帧统计摘要包含关键帧数量和关键帧间隔。
-11. 打开 `G:\AVScope\samples\sample.aac`，检查 ADTS frame 字段里是否显示 `profile`、`sample_rate`、`channel_configuration`、`duration_seconds`，并确认 `syncword`、`profile`、`sampling_frequency_index`、`frame_length` 显示 bit offset/bit length；在字段表选中 `syncword` 时 Hex 应跳转并高亮对应字节；切换到“帧列表”页，确认 AAC frame 可按 offset、size、duration 列表查看，选中行后 Hex 跳转到对应位置；在“预览”页确认可看到帧统计摘要。
-12. 在工具栏搜索框输入 `RIFF`，模式选择 `text`，点击“查找下一个”；同时检查 `Ctrl+F` 聚焦搜索框、`F3` 查找下一个、Hex 右键菜单可复制当前 offset、选中字节和 ASCII，并可通过 `Endian` 选择后解释选中字节为整数/浮点。
-13. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`，并检查 `trak/tkhd/mdia/mdhd/hdlr/stbl` 相关节点里的 `track_id`、`width`、`height`、`handler_type`、`sample_count`、`chunk_offset`；构造异常 MP4 时应能提示 chunk offset 越界或未落入 `mdat` 数据区。
-14. 打开 `G:\AVScope\samples\sample.avi`，检查 `hdrl/avih` 节点里是否显示 `dwWidth`、`dwHeight`、`dwTotalFrames`、`fps`。
-15. 打开 `G:\AVScope\samples\sample.flv`，检查 FLV tag 节点中是否显示 `tag_type`、`data_size`、`timestamp`、`stream_id` 和 `previous_tag_size`。
-16. 打开 `G:\AVScope\samples\sample.mkv`，检查 Matroska/WebM 节点中是否显示 `DocType`、`TimecodeScale`、`Duration`、`TrackEntry`、`PixelWidth`、`PixelHeight` 和 `SimpleBlock` 帧。
-17. 打开 `G:\AVScope\samples\sample.ps`，检查 MPEG-PS 节点中是否显示 `pack_header`、`system_header`、`video_stream[0]`、`packet_length`、`pts_seconds` 和 `payload_offset`。
-18. 打开 `G:\AVScope\samples\sample.ts`，检查“时间线”页顶部是否显示帧/packet 大小柱状图，“预览”页是否显示 packet 统计摘要，并检查 MPEG-TS packet 节点中是否显示 `pid`、`payload_unit_start_indicator`、`adaptation_field_control` 和 `continuity_counter`，确认诊断规则可覆盖 continuity counter 跳变。
-19. 打开 `G:\AVScope\samples\sample.pcap`，检查 PCAP/RTP 节点中是否显示 `src_ip`、`dst_ip`、`udp_src_port`、`rtp_payload_type`、`rtp_sequence`、`rtp_timestamp` 和 `rtp_ssrc`。
-20. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；`sample.pcm` 可设置采样率、声道、位深、大小端和有符号/无符号，也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
-21. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“预览”页是否显示 Raw YUV 首帧画面。
-22. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
-23. 打开“插件 / 查看已加载模板”，确认可看到 `Demo Magic Container`；打开“帮助 / 快捷键”和“帮助 / 示例文件”，确认可看到验收操作提示。
-24. 查看诊断面板，确认工具可在 MP4 chunk offset 异常、ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调、音视频时长差异或帧/packet 大小尖峰时输出 warning/error。
-25. 使用“分析 / 协议结构对比”对比：
+5. 使用“视图”菜单切换 Hex、字段表、帧列表、时间线、预览和诊断面板，并按 `Ctrl+L` 显示/隐藏底部日志。
+6. 打开 `G:\AVScope\samples\sample.wav`，检查“预览”页是否显示音频波形图。
+7. 对真实含视频流文件打开后，在“预览”页检查是否出现“视频首帧画面”；若文件不可解码，预览区应给出 ffmpeg 错误文本而不是崩溃。
+8. 在搜索框输入 `fmt`，模式选择 `node`，点击“查找下一个”，确认协议树可定位匹配节点；勾选“只看异常”确认协议树可过滤 warning/error 节点。
+9. 在 WAV `fmt ` 和 `data` 节点里检查 `sample_rate`、`byte_rate`、`block_align`、`data_bytes`、`duration_seconds`。
+10. 打开 `G:\AVScope\samples\sample.h264`，检查 SPS/PPS 节点里是否显示 `profile_idc`、`level_idc`、`derived_width`、`derived_height`、`pic_parameter_set_id`、`seq_parameter_set_id`，并在“预览”页确认帧统计摘要包含关键帧数量和关键帧间隔。
+11. 打开 `G:\AVScope\samples\sample.h265`，检查 VPS/SPS/PPS 节点里是否显示 `general_profile_idc`、`general_level_idc`、`derived_width`、`derived_height`、`bit_depth_luma`、`pps_pic_parameter_set_id`，并在“预览”页确认帧统计摘要包含关键帧数量和关键帧间隔。
+12. 打开 `G:\AVScope\samples\sample.aac`，检查 ADTS frame 字段里是否显示 `profile`、`sample_rate`、`channel_configuration`、`duration_seconds`，并确认 `syncword`、`profile`、`sampling_frequency_index`、`frame_length` 显示 bit offset/bit length；在字段表选中 `syncword` 时 Hex 应跳转并高亮对应字节；切换到“帧列表”页，确认 AAC frame 可按 offset、size、duration 列表查看，选中行后 Hex 跳转到对应位置；在“预览”页确认可看到帧统计摘要。
+13. 在工具栏搜索框输入 `RIFF`，模式选择 `text`，点击“查找下一个”；同时检查 `Ctrl+F` 聚焦搜索框、`F3` 查找下一个、Hex 右键菜单可复制当前 offset、选中字节和 ASCII，并可通过 `Endian` 选择后解释选中字节为整数/浮点。
+14. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`，并检查 `trak/tkhd/mdia/mdhd/hdlr/stbl` 相关节点里的 `track_id`、`width`、`height`、`handler_type`、`sample_count`、`chunk_offset`；构造异常 MP4 时应能提示 chunk offset 越界或未落入 `mdat` 数据区。
+15. 打开 `G:\AVScope\samples\sample.avi`，检查 `hdrl/avih` 节点里是否显示 `dwWidth`、`dwHeight`、`dwTotalFrames`、`fps`。
+16. 打开 `G:\AVScope\samples\sample.flv`，检查 FLV tag 节点中是否显示 `tag_type`、`data_size`、`timestamp`、`stream_id` 和 `previous_tag_size`。
+17. 打开 `G:\AVScope\samples\sample.mkv`，检查 Matroska/WebM 节点中是否显示 `DocType`、`TimecodeScale`、`Duration`、`TrackEntry`、`PixelWidth`、`PixelHeight` 和 `SimpleBlock` 帧。
+18. 打开 `G:\AVScope\samples\sample.ps`，检查 MPEG-PS 节点中是否显示 `pack_header`、`system_header`、`video_stream[0]`、`packet_length`、`pts_seconds` 和 `payload_offset`。
+19. 打开 `G:\AVScope\samples\sample.ts`，检查“时间线”页顶部是否显示帧/packet 大小柱状图，“预览”页是否显示 packet 统计摘要，并检查 MPEG-TS packet 节点中是否显示 `pid`、`payload_unit_start_indicator`、`adaptation_field_control` 和 `continuity_counter`，确认诊断规则可覆盖 continuity counter 跳变。
+20. 打开 `G:\AVScope\samples\sample.pcap`，检查 PCAP/RTP 节点中是否显示 `src_ip`、`dst_ip`、`udp_src_port`、`rtp_payload_type`、`rtp_sequence`、`rtp_timestamp` 和 `rtp_ssrc`。
+21. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；`sample.pcm` 可设置采样率、声道、位深、大小端和有符号/无符号，也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
+22. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“预览”页是否显示 Raw YUV 首帧画面。
+23. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
+24. 打开“插件 / 查看已加载模板”，确认可看到 `Demo Magic Container`；打开“帮助 / 快捷键”和“帮助 / 示例文件”，确认可看到验收操作提示。
+25. 查看诊断面板，确认工具可在 MP4 chunk offset 异常、ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调、音视频时长差异或帧/packet 大小尖峰时输出 warning/error。
+26. 使用“分析 / 协议结构对比”对比：
     - `G:\AVScope\samples\sample.mp4`
     - `G:\AVScope\samples\sample_changed.mp4`
-26. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记。
-27. 使用“分析 / 帧级对比”对比两个 AAC/H.264/H.265 等可提取帧列表的样例文件，确认预览区显示新增帧、删除帧和 size/PTS/DTS/duration/type/keyframe 差异，并可保存 JSON。
-28. 使用“文件 / 保存工程”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径、Raw 参数和可选用户备注。
-29. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，并打开 `G:\AVScope\dist\AVScope-release-manifest.json` 确认安装包、绿色版、源码包和内置 FFmpeg/插件文件均记录 size 与 SHA256。
-30. 导出 HTML/JSON/CSV 报告并打开检查，确认可选用户备注会写入报告；HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含音频波形图、结构化统计摘要表、帧/packet 大小图和“帧列表”章节；CSV 应包含 `media`、`notes`、`frame_stats`、`packet_stats`、`frame`、`node`、`field` 等 section。
-31. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
+27. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记。
+28. 使用“分析 / 帧级对比”对比两个 AAC/H.264/H.265 等可提取帧列表的样例文件，确认预览区显示新增帧、删除帧和 size/PTS/DTS/duration/type/keyframe 差异，并可保存 JSON。
+29. 使用“文件 / 保存工程”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径、Raw 参数和可选用户备注。
+30. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，并打开 `G:\AVScope\dist\AVScope-release-manifest.json` 确认安装包、绿色版、源码包和内置 FFmpeg/插件文件均记录 size 与 SHA256。
+31. 导出 HTML/JSON/CSV 报告并打开检查，确认可选用户备注会写入报告；HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含音频波形图、结构化统计摘要表、帧/packet 大小图和“帧列表”章节；CSV 应包含 `media`、`notes`、`frame_stats`、`packet_stats`、`frame`、`node`、`field` 等 section。
+32. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
 
 ## 当前已知边界
 

@@ -5,6 +5,7 @@ import re
 import struct
 import sys
 import tkinter as tk
+from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
@@ -96,6 +97,12 @@ def format_shortcuts_help() -> str:
             "Ctrl+S：保存工程快照",
             "Ctrl+F：聚焦搜索框",
             "F3：查找下一个",
+            "Ctrl+1：切换到 Hex 视图",
+            "Ctrl+2：切换到字段表",
+            "Ctrl+3：切换到帧列表",
+            "Ctrl+4：切换到时间线",
+            "Ctrl+5：切换到预览",
+            "Ctrl+L：显示或隐藏底部日志",
             "Ctrl+Shift+H：导出 HTML 报告",
             "Ctrl+Shift+J：导出 JSON 报告",
             "Ctrl+Shift+O：复制当前 Offset",
@@ -184,6 +191,8 @@ class AVScopeApp(tk.Tk):
         self._palette = PALETTES["dark"]
         self._drop_wndproc = None
         self._old_wndproc = None
+        self._last_logged_status = ""
+        self.log_panel_visible = tk.BooleanVar(value=True)
         self.hex_endian = tk.StringVar(value="little")
         self.issue_filter = tk.BooleanVar(value=False)
         self._build_ui()
@@ -354,6 +363,16 @@ class AVScopeApp(tk.Tk):
         self.diagnostics.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
 
         self.status = tk.StringVar(value="就绪")
+        self.log_frame = tk.Frame(self, height=92)
+        self.log_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=12, pady=(0, 6))
+        self.log_frame.pack_propagate(False)
+        self.log_header = tk.Label(self.log_frame, text="日志", font=("Microsoft YaHei UI", 9, "bold"), anchor=tk.W)
+        self.log_header.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(6, 0))
+        self.log_text = tk.Text(self.log_frame, height=3, wrap=tk.WORD, font=("Consolas", 9), padx=10, pady=6, borderwidth=0)
+        self.log_text.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=(4, 8))
+        self.log_text.configure(state=tk.DISABLED)
+        self.status.trace_add("write", self._on_status_change)
+        self._append_log(self.status.get())
         self.status_bar = tk.Label(self, textvariable=self.status, anchor=tk.W, font=("Microsoft YaHei UI", 9))
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
@@ -377,6 +396,15 @@ class AVScopeApp(tk.Tk):
         menu.add_cascade(label="文件", menu=file_menu)
 
         view_menu = tk.Menu(menu, tearoff=False)
+        view_menu.add_command(label="Hex 视图", command=lambda: self.select_workspace_tab(self.hex_text, "Hex"))
+        view_menu.add_command(label="字段表", command=lambda: self.select_workspace_tab(self.fields, "字段"))
+        view_menu.add_command(label="帧列表", command=lambda: self.select_workspace_tab(self.frames, "帧列表"))
+        view_menu.add_command(label="时间线", command=lambda: self.select_workspace_tab(self.timeline_page, "时间线"))
+        view_menu.add_command(label="预览", command=lambda: self.select_workspace_tab(self.preview, "预览"))
+        view_menu.add_command(label="诊断面板", command=self.focus_diagnostics)
+        view_menu.add_separator()
+        view_menu.add_checkbutton(label="显示底部日志", variable=self.log_panel_visible, command=self.toggle_log_panel)
+        view_menu.add_separator()
         view_menu.add_command(label="深色主题", command=lambda: self._apply_theme("dark"))
         view_menu.add_command(label="浅色主题", command=lambda: self._apply_theme("light"))
         menu.add_cascade(label="视图", menu=view_menu)
@@ -433,6 +461,39 @@ class AVScopeApp(tk.Tk):
     def show_about(self) -> None:
         messagebox.showinfo("关于 AVScope", ABOUT_TEXT)
 
+    def select_workspace_tab(self, widget: tk.Widget, label: str) -> None:
+        self.tabs.select(widget)
+        widget.focus_set()
+        self.status.set(f"已切换到{label}")
+
+    def focus_diagnostics(self) -> None:
+        self.diagnostics.focus_set()
+        self.status.set("已聚焦诊断面板")
+
+    def toggle_log_panel(self) -> None:
+        if self.log_panel_visible.get():
+            self.log_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=12, pady=(0, 6), before=self.status_bar)
+            self.status.set("已显示底部日志")
+        else:
+            self.log_frame.pack_forget()
+            self.status.set("已隐藏底部日志")
+
+    def _on_status_change(self, *_args) -> None:
+        self._append_log(self.status.get())
+
+    def _append_log(self, message: str) -> None:
+        if not message or message == self._last_logged_status or not hasattr(self, "log_text"):
+            return
+        self._last_logged_status = message
+        line = f"{datetime.now().strftime('%H:%M:%S')}  {message}\n"
+        self.log_text.configure(state=tk.NORMAL)
+        self.log_text.insert(tk.END, line)
+        line_count = int(float(self.log_text.index("end-1c").split(".")[0]))
+        if line_count > 80:
+            self.log_text.delete("1.0", f"{line_count - 80}.0")
+        self.log_text.see(tk.END)
+        self.log_text.configure(state=tk.DISABLED)
+
     def _build_hex_context_menu(self) -> None:
         self.hex_context_menu = tk.Menu(self.hex_text, tearoff=False)
         self.hex_context_menu.add_command(label="复制当前 Offset", command=self.copy_current_offset)
@@ -452,11 +513,22 @@ class AVScopeApp(tk.Tk):
         self.bind_all("<Control-s>", self._shortcut(self.save_project_snapshot))
         self.bind_all("<Control-S>", self._shortcut(self.save_project_snapshot))
         self.bind_all("<F3>", self._shortcut(self.find_next))
+        self.bind_all("<Control-Key-1>", self._shortcut(lambda: self.select_workspace_tab(self.hex_text, "Hex")))
+        self.bind_all("<Control-Key-2>", self._shortcut(lambda: self.select_workspace_tab(self.fields, "字段")))
+        self.bind_all("<Control-Key-3>", self._shortcut(lambda: self.select_workspace_tab(self.frames, "帧列表")))
+        self.bind_all("<Control-Key-4>", self._shortcut(lambda: self.select_workspace_tab(self.timeline_page, "时间线")))
+        self.bind_all("<Control-Key-5>", self._shortcut(lambda: self.select_workspace_tab(self.preview, "预览")))
+        self.bind_all("<Control-l>", self._shortcut(self.toggle_log_panel_from_shortcut))
+        self.bind_all("<Control-L>", self._shortcut(self.toggle_log_panel_from_shortcut))
         self.bind_all("<Control-Shift-H>", self._shortcut(self.export_html_report))
         self.bind_all("<Control-Shift-J>", self._shortcut(self.export_json_report))
         self.bind_all("<Control-Shift-O>", self._shortcut(self.copy_current_offset))
         self.bind_all("<Control-Shift-C>", self._shortcut(self.copy_selected_hex_bytes))
         self.bind_all("<Control-Shift-I>", self._shortcut(self.show_selected_hex_interpretation))
+
+    def toggle_log_panel_from_shortcut(self) -> None:
+        self.log_panel_visible.set(not self.log_panel_visible.get())
+        self.toggle_log_panel()
 
     def _shortcut(self, command):
         def handler(_event=None):
@@ -507,6 +579,9 @@ class AVScopeApp(tk.Tk):
         self.logo.configure(bg=p["bg"])
         self.brand.configure(bg=p["bg"], fg=p["fg"])
         self.file_badge.configure(bg=p["bg"], fg=p["muted"])
+        self.log_frame.configure(bg=p["panel"])
+        self.log_header.configure(bg=p["panel"], fg=p["muted"])
+        self.log_text.configure(bg=p["text_bg"], fg=p["fg"], insertbackground=p["fg"], selectbackground=p["select"])
         self.status_bar.configure(bg=p["panel2"], fg=p["muted"], padx=12, pady=5)
         self.summary_frame.configure(bg=p["bg"])
         self.timeline_canvas.configure(bg=p["panel"])

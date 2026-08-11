@@ -7,7 +7,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 只读打开本地媒体文件，支持菜单选择、打开文件夹、拖拽到窗口，以及将文件拖到 exe 图标上启动打开。
 - 支持打开文件夹、最近文件列表，以及 Hex/text 流式搜索。
 - 支持协议树节点搜索，以及只显示 warning/error 异常节点的过滤视图。
-- 支持 Ctrl+O、Ctrl+R、Ctrl+F、F3 等快捷键，以及 Hex 右键菜单复制当前 offset、选中字节、ASCII 并按大小端解释整数/浮点。
+- 支持 Ctrl+O、Ctrl+R、Ctrl+F、F3、Ctrl+1~5、Ctrl+L 等快捷键，以及 Hex 右键菜单复制当前 offset、选中字节、ASCII 并按大小端解释整数/浮点。
 - 工具菜单提供时间戳计算器和码率计算器，便于换算 PTS/time_base、帧序号/FPS 和文件码率。
 - 自动识别 MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、PCAP/RTP、WAV、AAC ADTS、H.264 Annex-B、H.265 Annex-B、raw PCM、raw YUV。
 - 大文件路径使用 `ByteSource` 只读随机访问，测试覆盖 128MB+ 文件头部、中部、尾部窗口读取。
@@ -33,6 +33,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 对含视频流的文件使用现有 FFmpeg 生成首帧 PNG 预览，预览缓存写入 `G:\AVScope\tmp\previews`。
 - 为 WAV/PCM 生成抽样波形摘要，并在预览页显示波形图。
 - 桌面端提供深色/浅色专业工作台主题、品牌图标、关键指标摘要条和空状态，导出 HTML 报告带结构化视觉样式。
+- 视图菜单可快速切换 Hex、字段、帧列表、时间线、预览和诊断面板，底部日志会记录打开、搜索、对比、导出等操作状态。
 - 输出基础诊断 warning/error，ffprobe 媒体流或 packet 时间线探测失败会转为可读 warning，并基于解析结构/packet 时间线提示 MP4 chunk offset 异常、PTS/DTS 非单调、音视频时长差异和帧/packet 大小尖峰。
 - 单元测试覆盖 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 典型损坏文件，验证解析失败不会导致程序崩溃并会输出诊断。
 - 支持保存 `.avscope.json` 工程快照，记录当前分析结果、源文件路径和 Raw 参数。
