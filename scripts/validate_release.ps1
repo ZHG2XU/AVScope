@@ -166,6 +166,7 @@ pcm_analysis = analyzer.analyze(
 outputs = [
     build_audio_preview_clip(wav_source, wav_analysis.media.format_name, wav_analysis.media.summary, output_dir=Path("G:/AVScope/tmp/audio-preview-validation")),
     build_audio_preview_clip(pcm_source, pcm_analysis.media.format_name, pcm_analysis.media.summary, output_dir=Path("G:/AVScope/tmp/audio-preview-validation")),
+    build_audio_preview_clip(pcm_source, pcm_analysis.media.format_name, pcm_analysis.media.summary, output_dir=Path("G:/AVScope/tmp/audio-preview-validation"), start_seconds=0.01, duration_seconds=0.01),
 ]
 print(outputs)
 for result in outputs:
@@ -173,6 +174,8 @@ for result in outputs:
         raise SystemExit(f"Audio preview clip was not generated: {result}")
     if result.get("frames", 0) <= 0 or result.get("size", 0) <= 44:
         raise SystemExit(f"Unexpected audio preview clip: {result}")
+if outputs[2].get("start_seconds") != 0.01:
+    raise SystemExit(f"Audio preview range start was not preserved: {outputs[2]}")
 '@
 $audioClipCheck | & $python -
 Write-Host "Audio preview clip smoke OK"

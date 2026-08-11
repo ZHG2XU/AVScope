@@ -482,6 +482,7 @@ class AVScopeApp(tk.Tk):
         analysis_menu.add_command(label="提取首个关键帧", command=lambda: self.extract_current_media("keyframe"))
         analysis_menu.add_separator()
         analysis_menu.add_command(label="播放音频片段", command=self.play_audio_preview)
+        analysis_menu.add_command(label="播放指定音频片段", command=self.play_audio_preview_range)
         analysis_menu.add_command(label="停止音频播放", command=self.stop_audio_preview)
         analysis_menu.add_separator()
         analysis_menu.add_command(label="上一预览帧", command=lambda: self.step_video_preview(-VIDEO_PREVIEW_STEP_SECONDS))
@@ -1199,7 +1200,7 @@ class AVScopeApp(tk.Tk):
             lines.append(
                 f"音频波形预览: 已生成 {waveform_preview.get('width')}x{waveform_preview.get('height')}，见下方画面。"
             )
-            lines.append("音频播放: 可使用“分析 / 播放音频片段”试听前 3 秒。")
+            lines.append("音频播放: 可使用“分析 / 播放音频片段”试听默认片段，或用“播放指定音频片段”选择起始时间和时长。")
             lines.append("")
         elif waveform_preview.get("error"):
             lines.append(f"音频波形预览: {waveform_preview.get('error')}")
@@ -1354,15 +1355,33 @@ class AVScopeApp(tk.Tk):
         self.preview.insert(tk.END, "\n")
 
     def play_audio_preview(self) -> None:
+        self._play_audio_preview_range(0.0, 3.0)
+
+    def play_audio_preview_range(self) -> None:
+        start = simpledialog.askfloat("播放指定音频片段", "起始时间（秒）", initialvalue=0.0, minvalue=0.0, parent=self)
+        if start is None:
+            return
+        duration = simpledialog.askfloat("播放指定音频片段", "播放时长（秒）", initialvalue=3.0, minvalue=0.1, parent=self)
+        if duration is None:
+            return
+        self._play_audio_preview_range(float(start), float(duration))
+
+    def _play_audio_preview_range(self, start_seconds: float, duration_seconds: float) -> None:
         if not self.current_file or not self.result:
             messagebox.showinfo("音频预览", "请先打开包含音频的文件。")
             return
         if not self._current_file_can_preview_audio():
             messagebox.showinfo("音频预览", "当前文件未发现可播放的音频片段。")
             return
-        self.status.set("正在生成音频预览片段...")
+        self.status.set(f"正在生成音频预览片段 {format_seconds_timecode(start_seconds)}...")
         self.update_idletasks()
-        clip = build_audio_preview_clip(self.current_file, self.result.media.format_name, self.result.media.summary)
+        clip = build_audio_preview_clip(
+            self.current_file,
+            self.result.media.format_name,
+            self.result.media.summary,
+            start_seconds=start_seconds,
+            duration_seconds=duration_seconds,
+        )
         if not clip.get("available") or not clip.get("path"):
             self.status.set(f"音频预览片段生成失败: {clip.get('error', 'unknown error')}")
             return
@@ -1371,7 +1390,8 @@ class AVScopeApp(tk.Tk):
             self.status.set(f"音频播放失败: {playback.get('error')}")
             return
         duration = format_seconds_timecode(float(clip.get("duration_seconds") or 0.0))
-        self.status.set(f"正在播放音频片段 {duration}: {clip.get('path')}")
+        start = format_seconds_timecode(float(clip.get("start_seconds") or 0.0))
+        self.status.set(f"正在播放音频片段 {start} + {duration}: {clip.get('path')}")
 
     def stop_audio_preview(self) -> None:
         result = stop_audio_preview()
