@@ -206,6 +206,47 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertTrue(html_path.exists())
         self.assertTrue(json_path.exists())
+        pcm_json = ROOT / "cli_pcm_report.json"
+        exit_code = cli_main(
+            [
+                "analyze",
+                str(sample_dir / "sample.pcm"),
+                "--sample-rate",
+                "8000",
+                "--channels",
+                "1",
+                "--bits-per-sample",
+                "16",
+                "--json",
+                str(pcm_json),
+            ]
+        )
+        self.assertEqual(exit_code, 0)
+        pcm_summary = json.loads(pcm_json.read_text(encoding="utf-8"))["media"]["summary"]
+        self.assertEqual(pcm_summary["sample_rate"], 8000)
+        self.assertEqual(pcm_summary["channels"], 1)
+        yuv_json = ROOT / "cli_yuv_report.json"
+        exit_code = cli_main(
+            [
+                "analyze",
+                str(sample_dir / "sample.yuv"),
+                "--width",
+                "64",
+                "--height",
+                "48",
+                "--pixel-format",
+                "yuv420p",
+                "--fps",
+                "30",
+                "--json",
+                str(yuv_json),
+            ]
+        )
+        self.assertEqual(exit_code, 0)
+        yuv_summary = json.loads(yuv_json.read_text(encoding="utf-8"))["media"]["summary"]
+        self.assertEqual(yuv_summary["width"], 64)
+        self.assertEqual(yuv_summary["height"], 48)
+        self.assertEqual(yuv_summary["frames"], 1)
         protocol_path = ROOT / "protocol_compare.json"
         exit_code = cli_main(
             [

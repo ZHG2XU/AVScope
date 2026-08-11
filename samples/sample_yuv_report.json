@@ -1,0 +1,97 @@
+{
+  "generated_at": "2026-08-12T00:05:46",
+  "tool_version": "0.1.0",
+  "media": {
+    "path": "G:\\AVScope\\samples\\sample.yuv",
+    "size": 4608,
+    "format_name": "Raw YUV",
+    "summary": {
+      "width": 64,
+      "height": 48,
+      "pixel_format": "yuv420p",
+      "fps": 30.0,
+      "bytes_per_frame": 4608,
+      "frames": 1,
+      "duration": 0.03333333333333333
+    }
+  },
+  "diagnostics": [],
+  "frames": [],
+  "root": {
+    "name": "sample.yuv",
+    "node_type": "Raw YUV",
+    "offset": 0,
+    "size": 4608,
+    "fields": [
+      {
+        "name": "width",
+        "value": 64,
+        "offset": 0,
+        "size": 0,
+        "hex_value": "",
+        "bit_offset": null,
+        "bit_length": null,
+        "description": "",
+        "severity": "normal"
+      },
+      {
+        "name": "height",
+        "value": 48,
+        "offset": 0,
+        "size": 0,
+        "hex_value": "",
+        "bit_offset": null,
+        "bit_length": null,
+        "description": "",
+        "severity": "normal"
+      },
+      {
+        "name": "pixel_format",
+        "value": "yuv420p",
+        "offset": 0,
+        "size": 0,
+        "hex_value": "",
+        "bit_offset": null,
+        "bit_length": null,
+        "description": "",
+        "severity": "normal"
+      },
+      {
+        "name": "fps",
+        "value": 30.0,
+        "offset": 0,
+        "size": 0,
+        "hex_value": "",
+        "bit_offset": null,
+        "bit_length": null,
+        "description": "",
+        "severity": "normal"
+      },
+      {
+        "name": "bytes_per_frame",
+        "value": 4608,
+        "offset": 0,
+        "size": 0,
+        "hex_value": "",
+        "bit_offset": null,
+        "bit_length": null,
+        "description": "",
+        "severity": "normal"
+      },
+      {
+        "name": "frame_count",
+        "value": 1,
+        "offset": 0,
+        "size": 0,
+        "hex_value": "",
+        "bit_offset": null,
+        "bit_length": null,
+        "description": "",
+        "severity": "normal"
+      }
+    ],
+    "children": [],
+    "severity": "normal",
+    "description": ""
+  }
+}

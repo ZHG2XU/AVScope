@@ -15,6 +15,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - AVI 可解析 RIFF/LIST 结构、`avih` 主头、基础 stream header、宽高、帧数和帧率。
 - AAC ADTS 可解析 profile、采样率、声道布局、帧时长和平均码率。
 - WAV 可解析 PCM 格式参数、data 字节数、帧数、时长，并校验 byte_rate/block_align。
+- Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、宽高、像素格式和帧率。
 - 显示协议树、字段表、Hex 分页视图、基础时间线。
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
 - 为 WAV/PCM 生成抽样波形摘要。
@@ -51,6 +52,8 @@ E:\DevelopmentEnvironment\python\python.exe -m avscope make-samples --out G:\AVS
 
 ```powershell
 E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.wav --html G:\AVScope\samples\sample_report.html --json G:\AVScope\samples\sample_report.json
+E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.pcm --sample-rate 8000 --channels 1 --bits-per-sample 16 --json G:\AVScope\samples\sample_pcm_report.json
+E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.yuv --width 64 --height 48 --pixel-format yuv420p --fps 30 --json G:\AVScope\samples\sample_yuv_report.json
 ```
 
 协议结构对比：

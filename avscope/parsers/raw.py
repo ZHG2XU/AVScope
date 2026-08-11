@@ -31,7 +31,18 @@ class RawPcmParser(FormatParser):
                 FieldInfo("duration_seconds", duration),
             ]
         )
-        return ParseResult(media_info(source, self.name, sample_rate=sample_rate, channels=channels, duration=duration), root)
+        return ParseResult(
+            media_info(
+                source,
+                self.name,
+                sample_rate=sample_rate,
+                channels=channels,
+                bits_per_sample=bits_per_sample,
+                samples_per_channel=samples,
+                duration=duration,
+            ),
+            root,
+        )
 
 
 class RawYuvParser(FormatParser):
@@ -60,4 +71,18 @@ class RawYuvParser(FormatParser):
                 FieldInfo("frame_count", frame_count),
             ]
         )
-        return ParseResult(media_info(source, self.name, width=width, height=height, frames=frame_count), root)
+        duration = frame_count / fps if fps else None
+        return ParseResult(
+            media_info(
+                source,
+                self.name,
+                width=width,
+                height=height,
+                pixel_format=pixel_format,
+                fps=fps,
+                bytes_per_frame=bytes_per_frame,
+                frames=frame_count,
+                duration=duration,
+            ),
+            root,
+        )

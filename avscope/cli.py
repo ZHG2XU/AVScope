@@ -18,6 +18,13 @@ def main(argv: list[str] | None = None) -> int:
     analyze.add_argument("file")
     analyze.add_argument("--html")
     analyze.add_argument("--json")
+    analyze.add_argument("--sample-rate", type=int, help="Raw PCM sample rate")
+    analyze.add_argument("--channels", type=int, help="Raw PCM channel count")
+    analyze.add_argument("--bits-per-sample", type=int, help="Raw PCM bits per sample")
+    analyze.add_argument("--width", type=int, help="Raw YUV frame width")
+    analyze.add_argument("--height", type=int, help="Raw YUV frame height")
+    analyze.add_argument("--pixel-format", help="Raw YUV pixel format, such as yuv420p/nv12/yuyv422")
+    analyze.add_argument("--fps", type=float, help="Raw YUV frame rate")
 
     binary = sub.add_parser("compare-binary", help="Compare two files byte by byte")
     binary.add_argument("left")
@@ -34,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     if args.command == "analyze":
-        result = Analyzer().analyze(args.file)
+        result = Analyzer().analyze(args.file, _analyze_options(args))
         if args.html:
             export_html(result, args.html)
         if args.json:
@@ -70,6 +77,19 @@ def _emit(document: dict, path: str | None) -> None:
     if path:
         Path(path).write_text(text, encoding="utf-8")
     print(text)
+
+
+def _analyze_options(args: argparse.Namespace) -> dict:
+    mapping = {
+        "sample_rate": args.sample_rate,
+        "channels": args.channels,
+        "bits_per_sample": args.bits_per_sample,
+        "width": args.width,
+        "height": args.height,
+        "pixel_format": args.pixel_format,
+        "fps": args.fps,
+    }
+    return {key: value for key, value in mapping.items() if value is not None}
 
 
 if __name__ == "__main__":

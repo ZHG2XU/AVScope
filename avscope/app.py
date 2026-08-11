@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from avscope.analyzer import Analyzer
 from avscope.byte_source import ByteSource
@@ -73,6 +73,7 @@ class AVScopeApp(tk.Tk):
         self.current_hex_offset = 0
         self._node_by_iid: dict[str, ParseNode] = {}
         self._last_search: tuple[str, str, int] | None = None
+        self.raw_options_by_path: dict[str, dict] = {}
         self.settings = AppSettings()
         self._theme_name = "dark"
         self._palette = PALETTES["dark"]
@@ -235,6 +236,9 @@ class AVScopeApp(tk.Tk):
         analysis_menu.add_command(label="二进制对比", command=self.compare_files)
         analysis_menu.add_command(label="协议结构对比", command=self.compare_protocol_files)
         menu.add_cascade(label="分析", menu=analysis_menu)
+        tools_menu = tk.Menu(menu, tearoff=False)
+        tools_menu.add_command(label="设置当前 Raw 参数", command=self.configure_current_raw_options)
+        menu.add_cascade(label="工具", menu=tools_menu)
         self.config(menu=menu)
         self._refresh_recent_menu()
 
@@ -344,7 +348,7 @@ class AVScopeApp(tk.Tk):
         self.update_idletasks()
         self.current_file = path
         self._last_search = None
-        self.result = self.analyzer.analyze(path)
+        self.result = self.analyzer.analyze(path, self._raw_options_for_path(path))
         self._render_result()
         self._load_hex(0)
         self.file_badge.configure(text=f"{path.name}  |  {self.result.media.format_name}")
@@ -352,6 +356,52 @@ class AVScopeApp(tk.Tk):
         self._render_summary_cards()
         self.settings.add_recent_file(path)
         self._refresh_recent_menu()
+
+    def configure_current_raw_options(self) -> None:
+        if not self.current_file or self.current_file.suffix.lower() not in {".pcm", ".yuv"}:
+            messagebox.showinfo("Raw 参数", "请先打开 .pcm 或 .yuv 文件。")
+            return
+        self.raw_options_by_path.pop(str(self.current_file), None)
+        self.result = self.analyzer.analyze(self.current_file, self._raw_options_for_path(self.current_file, force=True))
+        self._render_result()
+        self._load_hex(self.current_hex_offset)
+        self._render_summary_cards()
+
+    def _raw_options_for_path(self, path: Path, force: bool = False) -> dict:
+        suffix = path.suffix.lower()
+        if suffix not in {".pcm", ".yuv"}:
+            return {}
+        key = str(path)
+        if not force and key in self.raw_options_by_path:
+            return self.raw_options_by_path[key]
+        if suffix == ".pcm":
+            options = self._ask_pcm_options(self.raw_options_by_path.get(key, {}))
+        else:
+            options = self._ask_yuv_options(self.raw_options_by_path.get(key, {}))
+        self.raw_options_by_path[key] = options
+        return options
+
+    def _ask_pcm_options(self, defaults: dict) -> dict:
+        sample_rate = simpledialog.askinteger("Raw PCM 参数", "采样率", initialvalue=int(defaults.get("sample_rate", 48000)), minvalue=1, parent=self)
+        channels = simpledialog.askinteger("Raw PCM 参数", "声道数", initialvalue=int(defaults.get("channels", 2)), minvalue=1, parent=self)
+        bits = simpledialog.askinteger("Raw PCM 参数", "位深", initialvalue=int(defaults.get("bits_per_sample", 16)), minvalue=1, parent=self)
+        return {
+            "sample_rate": sample_rate or int(defaults.get("sample_rate", 48000)),
+            "channels": channels or int(defaults.get("channels", 2)),
+            "bits_per_sample": bits or int(defaults.get("bits_per_sample", 16)),
+        }
+
+    def _ask_yuv_options(self, defaults: dict) -> dict:
+        width = simpledialog.askinteger("Raw YUV 参数", "宽度", initialvalue=int(defaults.get("width", 1920)), minvalue=1, parent=self)
+        height = simpledialog.askinteger("Raw YUV 参数", "高度", initialvalue=int(defaults.get("height", 1080)), minvalue=1, parent=self)
+        pixel_format = simpledialog.askstring("Raw YUV 参数", "像素格式", initialvalue=str(defaults.get("pixel_format", "yuv420p")), parent=self)
+        fps = simpledialog.askfloat("Raw YUV 参数", "帧率", initialvalue=float(defaults.get("fps", 25)), minvalue=0.001, parent=self)
+        return {
+            "width": width or int(defaults.get("width", 1920)),
+            "height": height or int(defaults.get("height", 1080)),
+            "pixel_format": pixel_format or str(defaults.get("pixel_format", "yuv420p")),
+            "fps": fps or float(defaults.get("fps", 25)),
+        }
 
     def _render_result(self) -> None:
         if not self.result:
