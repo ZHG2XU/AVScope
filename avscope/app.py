@@ -34,6 +34,9 @@ PALETTES = {
         "select": "#25445F",
         "warning": "#D7A84A",
         "error": "#F06A6A",
+        "ok_bg": "#14231F",
+        "warning_bg": "#2A2417",
+        "error_bg": "#2A171B",
         "text_bg": "#101820",
     },
     "light": {
@@ -48,6 +51,9 @@ PALETTES = {
         "select": "#CDE4F5",
         "warning": "#9A6700",
         "error": "#B42318",
+        "ok_bg": "#EDF8F1",
+        "warning_bg": "#FFF8E5",
+        "error_bg": "#FFF0EE",
         "text_bg": "#FFFFFF",
     },
 }
@@ -145,6 +151,7 @@ class AVScopeApp(tk.Tk):
 
         self.summary_frame = tk.Frame(self)
         self.summary_frame.pack(side=tk.TOP, fill=tk.X, padx=12, pady=(0, 10))
+        self.summary_cards: dict[str, tk.Frame] = {}
         self.summary_values: dict[str, tk.Label] = {}
         for label, key in [("格式", "format"), ("大小", "size"), ("节点", "nodes"), ("诊断", "issues")]:
             card = tk.Frame(self.summary_frame, height=54)
@@ -153,6 +160,7 @@ class AVScopeApp(tk.Tk):
             tk.Label(card, text=label, font=("Microsoft YaHei UI", 8), anchor=tk.W).pack(anchor=tk.W, padx=12, pady=(8, 0))
             value = tk.Label(card, text="--", font=("Microsoft YaHei UI", 11, "bold"), anchor=tk.W)
             value.pack(anchor=tk.W, padx=12)
+            self.summary_cards[key] = card
             self.summary_values[key] = value
 
         main = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
@@ -376,13 +384,8 @@ class AVScopeApp(tk.Tk):
         self.file_badge.configure(bg=p["bg"], fg=p["muted"])
         self.status_bar.configure(bg=p["panel2"], fg=p["muted"], padx=12, pady=5)
         self.summary_frame.configure(bg=p["bg"])
-        for card in self.summary_frame.winfo_children():
-            card.configure(bg=p["panel2"], highlightbackground=p["border"], highlightthickness=1)
-            for child in card.winfo_children():
-                if isinstance(child, tk.Label):
-                    child.configure(bg=p["panel2"], fg=p["muted"])
-        for value in self.summary_values.values():
-            value.configure(bg=p["panel2"], fg=p["fg"])
+        for key in self.summary_cards:
+            self._paint_summary_card(key, "normal")
         self._draw_logo()
         for widget in (self.hex_text, self.preview, self.diagnostics):
             widget.configure(bg=p["text_bg"], fg=p["fg"], insertbackground=p["fg"], selectbackground=p["select"])
@@ -392,9 +395,10 @@ class AVScopeApp(tk.Tk):
         self.diagnostics.tag_configure("error", foreground=p["error"])
         self.diagnostics.tag_configure("heading", foreground=p["accent"], font=("Microsoft YaHei UI", 9, "bold"))
         for tree in (self.tree, self.fields, self.frames, self.timeline):
-            tree.tag_configure("warning", foreground=p["warning"])
-            tree.tag_configure("error", foreground=p["error"])
+            tree.tag_configure("warning", foreground=p["warning"], background=p["warning_bg"])
+            tree.tag_configure("error", foreground=p["error"], background=p["error_bg"])
             tree.tag_configure("normal", foreground=p["fg"])
+        self._render_summary_cards()
 
     def open_file(self) -> None:
         path = filedialog.askopenfilename(title="打开媒体文件")
@@ -1104,6 +1108,9 @@ class AVScopeApp(tk.Tk):
         self.diagnostics.insert(tk.END, "请选择“打开”，或通过菜单载入媒体文件。", ("info",))
         for value in self.summary_values.values():
             value.configure(text="--")
+        for key in self.summary_cards:
+            self._paint_summary_card(key, "normal")
+        self.status_bar.configure(bg=self._palette["panel2"], fg=self._palette["muted"])
 
     def _render_summary_cards(self) -> None:
         if not self.result:
@@ -1111,10 +1118,49 @@ class AVScopeApp(tk.Tk):
         issues = self.result.diagnostics
         errors = sum(1 for issue in issues if issue.severity == Severity.ERROR)
         warnings = sum(1 for issue in issues if issue.severity == Severity.WARNING)
+        issue_text, issue_state = issue_summary_state(errors, warnings)
         self.summary_values["format"].configure(text=self.result.media.format_name)
         self.summary_values["size"].configure(text=f"{self.result.media.size:,} bytes")
         self.summary_values["nodes"].configure(text=str(self._count_nodes(self.result.root)))
-        self.summary_values["issues"].configure(text=f"{errors} error / {warnings} warning")
+        self.summary_values["issues"].configure(text=issue_text)
+        for key in ("format", "size", "nodes"):
+            self._paint_summary_card(key, "normal")
+        self._paint_summary_card("issues", issue_state)
+        self._paint_status_bar(issue_state)
+
+    def _paint_summary_card(self, key: str, state: str) -> None:
+        card = self.summary_cards.get(key)
+        if not card:
+            return
+        p = self._palette
+        bg = {
+            "ok": p["ok_bg"],
+            "warning": p["warning_bg"],
+            "error": p["error_bg"],
+        }.get(state, p["panel2"])
+        border = {
+            "ok": p["accent2"],
+            "warning": p["warning"],
+            "error": p["error"],
+        }.get(state, p["border"])
+        value_fg = {
+            "ok": p["accent2"],
+            "warning": p["warning"],
+            "error": p["error"],
+        }.get(state, p["fg"])
+        card.configure(bg=bg, highlightbackground=border, highlightthickness=1)
+        for child in card.winfo_children():
+            if isinstance(child, tk.Label):
+                child.configure(bg=bg, fg=value_fg if child is self.summary_values.get(key) else p["muted"])
+
+    def _paint_status_bar(self, state: str) -> None:
+        p = self._palette
+        if state == "error":
+            self.status_bar.configure(bg=p["error_bg"], fg=p["error"])
+        elif state == "warning":
+            self.status_bar.configure(bg=p["warning_bg"], fg=p["warning"])
+        else:
+            self.status_bar.configure(bg=p["panel2"], fg=p["muted"])
 
     def _count_nodes(self, node: ParseNode) -> int:
         return 1 + sum(self._count_nodes(child) for child in node.children)
@@ -1207,6 +1253,14 @@ def format_seconds_timecode(seconds: int | float) -> str:
     minute = total_minutes % 60
     hour = total_minutes // 60
     return f"{sign}{hour:02d}:{minute:02d}:{second:02d}.{ms:03d}"
+
+
+def issue_summary_state(errors: int, warnings: int) -> tuple[str, str]:
+    if errors:
+        return f"{errors} error / {warnings} warning", "error"
+    if warnings:
+        return f"0 error / {warnings} warning", "warning"
+    return "0 error / 0 warning", "ok"
 
 
 def float_or_none(value) -> float | None:

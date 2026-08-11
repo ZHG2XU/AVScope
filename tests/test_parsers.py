@@ -15,6 +15,7 @@ from avscope.app import (
     format_seconds_timecode,
     first_loadable_drop_path,
     hex_bytes_to_ascii,
+    issue_summary_state,
     node_has_issue,
     node_matches_query,
 )
@@ -527,6 +528,11 @@ class ParserTests(unittest.TestCase):
             calculate_timestamp_seconds(1, 1, 0)
         with self.assertRaises(ValueError):
             calculate_bitrate_kbps(1000, 0)
+
+    def test_issue_summary_state(self):
+        self.assertEqual(issue_summary_state(0, 0), ("0 error / 0 warning", "ok"))
+        self.assertEqual(issue_summary_state(0, 2), ("0 error / 2 warning", "warning"))
+        self.assertEqual(issue_summary_state(1, 3), ("1 error / 3 warning", "error"))
 
     def test_protocol_tree_search_and_issue_helpers(self):
         root = ParseNode("root", "file", 0, 16)
