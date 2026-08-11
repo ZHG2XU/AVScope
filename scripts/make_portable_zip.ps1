@@ -15,6 +15,7 @@ if (Test-Path $appZip) {
 $items = @(
     "G:\AVScope\avscope",
     "G:\AVScope\packaging",
+    "G:\AVScope\plugins",
     "G:\AVScope\samples",
     "G:\AVScope\scripts",
     "G:\AVScope\tests",

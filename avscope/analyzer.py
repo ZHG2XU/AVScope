@@ -5,6 +5,7 @@ from pathlib import Path
 from avscope.byte_source import ByteSource
 from avscope.ffprobe import probe_media, probe_packet_timeline
 from avscope.models import DiagnosticIssue, MediaInfo, ParseNode, ParseResult, Severity
+from avscope.plugins import load_plugin_parsers
 from avscope.waveform import build_waveform_summary
 from avscope.parsers import DEFAULT_PARSERS
 from avscope.parsers.base import FormatParser
@@ -12,7 +13,7 @@ from avscope.parsers.base import FormatParser
 
 class Analyzer:
     def __init__(self, parsers: list[FormatParser] | None = None):
-        self.parsers = parsers or DEFAULT_PARSERS
+        self.parsers = parsers if parsers is not None else [*DEFAULT_PARSERS, *load_plugin_parsers()]
 
     def analyze(self, path: str | Path, options: dict | None = None) -> ParseResult:
         with ByteSource(path) as source:

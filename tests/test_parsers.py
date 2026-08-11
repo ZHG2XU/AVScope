@@ -17,6 +17,7 @@ from avscope.analyzer import Analyzer, build_timeline_diagnostics
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
 from avscope.models import FieldInfo, ParseNode, Severity
+from avscope.plugins import load_plugin_parsers
 from avscope.report import export_html, export_json, export_project
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
 from avscope.search import find_pattern, parse_search_pattern
@@ -256,6 +257,32 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(any("DTS 非单调" in message for message in messages))
         self.assertTrue(any("音视频时长差异" in message for message in messages))
         self.assertEqual({issue.severity for issue in issues}, {Severity.WARNING})
+
+    def test_plugin_template_parser(self):
+        plugin_dir = ROOT / "plugins"
+        plugin_dir.mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "schema_version": 1,
+            "name": "Unit Plugin",
+            "extensions": [".utp"],
+            "match": {"offset": 0, "hex": "55 54 50 31"},
+            "fields": [
+                {"name": "magic", "offset": 0, "size": 4, "type": "ascii"},
+                {"name": "version", "offset": 4, "size": 1, "type": "uint"},
+                {"name": "payload_size", "offset": 5, "size": 2, "type": "uint", "endian": "big"},
+            ],
+        }
+        (plugin_dir / "unit.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        parsers = load_plugin_parsers(plugin_dir)
+        self.assertEqual([parser.name for parser in parsers], ["Unit Plugin"])
+
+        result = Analyzer(parsers=parsers).analyze(write(ROOT / "sample.utp", b"UTP1\x02\x00\x05hello"))
+        self.assertEqual(result.media.format_name, "Unit Plugin")
+        fields = {field.name: field for field in result.root.children[0].fields}
+        self.assertEqual(fields["magic"].value, "UTP1")
+        self.assertEqual(fields["version"].value, 2)
+        self.assertEqual(fields["payload_size"].value, 5)
+        self.assertEqual((fields["payload_size"].bit_offset, fields["payload_size"].bit_length), (40, 16))
 
     def test_binary_compare(self):
         left = write(ROOT / "left.bin", b"abc123" + b"\x00" * 40 + b"tail-A")

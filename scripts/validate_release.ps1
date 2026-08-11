@@ -5,6 +5,7 @@ $python = "E:\DevelopmentEnvironment\python\python.exe"
 $setup = "G:\AVScope\dist\AVScope-Setup.exe"
 $appExe = "G:\AVScope\dist\AVScope\AVScope.exe"
 $ffprobe = "G:\AVScope\dist\AVScope\_internal\ffprobe.exe"
+$pluginTemplate = "G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json"
 $portableZip = "G:\AVScope\dist\AVScope-portable-win-x64.zip"
 $sourceZip = "G:\AVScope\dist\AVScope-portable-source.zip"
 $installDir = "G:\AVScopeInstalled\ValidationSmoke-$([DateTime]::Now.ToString('yyyyMMddHHmmss'))"
@@ -20,7 +21,7 @@ Write-Host "== Unit tests =="
 & $python -m unittest discover -s "$root\tests" -v
 
 Write-Host "== Required artifacts =="
-$artifacts = @($appExe, $ffprobe, $setup, $portableZip, $sourceZip)
+$artifacts = @($appExe, $ffprobe, $pluginTemplate, $setup, $portableZip, $sourceZip)
 foreach ($artifact in $artifacts) {
     if (-not (Test-Path $artifact)) {
         throw "Missing artifact: $artifact"
@@ -56,7 +57,7 @@ foreach ($file in $sourceFiles) {
 Write-Host "Mojibake scan OK"
 
 Write-Host "== Path constraint scan =="
-$scanTargets = @("$root\avscope", "$root\packaging", "$root\scripts")
+$scanTargets = @("$root\avscope", "$root\packaging", "$root\plugins", "$root\scripts")
 $scanFiles = Get-ChildItem -Path $scanTargets -Recurse -File |
     Where-Object { $_.FullName -ne "$root\scripts\validate_release.ps1" }
 $matches = Select-String -Path $scanFiles.FullName -Pattern "C:\\|PROGRAMFILES|DESKTOP|SMPROGRAMS" -ErrorAction SilentlyContinue
@@ -82,6 +83,9 @@ if (-not (Test-Path "$installDir\AVScope.exe")) {
 }
 if (-not (Test-Path "$installDir\_internal\ffprobe.exe")) {
     throw "Installed ffprobe.exe not found"
+}
+if (-not (Test-Path "$installDir\_internal\plugins\demo_magic.json")) {
+    throw "Installed plugin template not found"
 }
 $installedProcess = Start-Process -FilePath "$installDir\AVScope.exe" -WindowStyle Hidden -PassThru
 Start-Sleep -Seconds 3

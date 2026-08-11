@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "name": "Demo Magic Container",
+  "extensions": [".avdemo"],
+  "match": {
+    "offset": 0,
+    "hex": "41 56 53 43"
+  },
+  "fields": [
+    {
+      "name": "magic",
+      "offset": 0,
+      "size": 4,
+      "type": "ascii",
+      "description": "Template magic bytes"
+    },
+    {
+      "name": "version",
+      "offset": 4,
+      "size": 1,
+      "type": "uint",
+      "description": "Demo template version"
+    },
+    {
+      "name": "payload_size",
+      "offset": 5,
+      "size": 2,
+      "type": "uint",
+      "endian": "big",
+      "description": "Payload length in bytes"
+    }
+  ]
+}
