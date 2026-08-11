@@ -324,8 +324,11 @@ if "GOP groups=" not in html_text:
     raise SystemExit("HTML GOP structure chart missing")
 if "timeline_summary" not in json_path.read_text(encoding="utf-8"):
     raise SystemExit("JSON timeline summary missing")
-if "timeline_summary" not in csv_path.read_text(encoding="utf-8-sig"):
+csv_text = csv_path.read_text(encoding="utf-8-sig")
+if "timeline_summary" not in csv_text:
     raise SystemExit("CSV timeline summary missing")
+if "timeline_issue" not in csv_text or "PTS non-monotonic" not in csv_text:
+    raise SystemExit("CSV timeline issue rows missing")
 pcap = Analyzer().analyze(Path("G:/AVScope/samples/sample.pcap"))
 rtp = pcap.media.summary.get("timeline_summary", {}).get("rtp_sequence", {})
 if not rtp.get("available") or rtp.get("packets") != 2 or rtp.get("sequence_warnings") != 0:

@@ -1222,8 +1222,11 @@ class ParserTests(unittest.TestCase):
         )
         synthetic.media.summary["timeline_summary"] = build_timeline_summary(frames, [], bucket_seconds=0.04)
         synthetic_html = ROOT / "timeline_curves_report.html"
+        synthetic_csv = ROOT / "timeline_curves_report.csv"
         export_html(synthetic, synthetic_html)
+        export_csv(synthetic, synthetic_csv)
         synthetic_text = synthetic_html.read_text(encoding="utf-8")
+        synthetic_csv_text = synthetic_csv.read_text(encoding="utf-8-sig")
         self.assertIn('class="pts"', synthetic_text)
         self.assertIn('class="dts"', synthetic_text)
         self.assertIn("Timeline chart legend", synthetic_text)
@@ -1232,6 +1235,8 @@ class ParserTests(unittest.TestCase):
         self.assertIn('<th>Issue</th>', synthetic_text)
         self.assertIn("PTS 回退", synthetic_text)
         self.assertIn("PTS non-monotonic", synthetic_text)
+        self.assertIn("timeline_issue", synthetic_csv_text)
+        self.assertIn("PTS non-monotonic", synthetic_csv_text)
         self.assertIn("GOP 结构图", synthetic_text)
 
     def test_video_preview_helpers(self):

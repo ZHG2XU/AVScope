@@ -102,6 +102,17 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                     "value": json.dumps(timeline_summary, ensure_ascii=False),
                 }
             )
+            for issue in timeline_issue_rows(timeline_summary):
+                writer.writerow(
+                    {
+                        "section": "timeline_issue",
+                        "name": issue.get("source", ""),
+                        "type": issue.get("kind", ""),
+                        "index": issue.get("position", ""),
+                        "value": issue.get("detail", ""),
+                        "severity": "warning",
+                    }
+                )
         for frame in result.frames[:5000]:
             writer.writerow(
                 {
