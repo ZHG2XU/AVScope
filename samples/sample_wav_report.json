@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-11T23:07:01",
+  "generated_at": "2026-08-11T23:31:22",
   "tool_version": "0.1.0",
   "media": {
     "path": "G:\\AVScope\\samples\\sample.wav",
@@ -8,9 +8,17 @@
     "summary": {
       "chunks": 2,
       "audio_format": 1,
+      "wave_format_name": "PCM",
       "channels": 1,
       "sample_rate": 8000,
+      "byte_rate": 16000,
+      "block_align": 2,
       "bits_per_sample": 16,
+      "data_bytes": 1024,
+      "expected_block_align": 2,
+      "expected_byte_rate": 16000,
+      "frame_count": 512,
+      "duration_seconds": 0.064,
       "ffprobe": {
         "available": true,
         "format": {
@@ -511,11 +519,33 @@
     "size": 1068,
     "fields": [
       {
+        "name": "riff_id",
+        "value": "RIFF",
+        "offset": 0,
+        "size": 4,
+        "hex_value": "52 49 46 46",
+        "bit_offset": null,
+        "bit_length": null,
+        "description": "",
+        "severity": "normal"
+      },
+      {
         "name": "riff_size",
         "value": 1068,
         "offset": 4,
         "size": 4,
         "hex_value": "0x42c",
+        "bit_offset": null,
+        "bit_length": null,
+        "description": "RIFF 声明的总长度",
+        "severity": "normal"
+      },
+      {
+        "name": "wave_id",
+        "value": "WAVE",
+        "offset": 8,
+        "size": 4,
+        "hex_value": "57 41 56 45",
         "bit_offset": null,
         "bit_length": null,
         "description": "",
@@ -557,6 +587,17 @@
             "offset": 20,
             "size": 2,
             "hex_value": "0x1",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "PCM",
+            "severity": "normal"
+          },
+          {
+            "name": "format_name",
+            "value": "PCM",
+            "offset": 20,
+            "size": 2,
+            "hex_value": "",
             "bit_offset": null,
             "bit_length": null,
             "description": "",
@@ -648,6 +689,17 @@
             "bit_offset": null,
             "bit_length": null,
             "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "data_bytes",
+            "value": 1024,
+            "offset": 44,
+            "size": 1024,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "音频数据字节数",
             "severity": "normal"
           }
         ],
