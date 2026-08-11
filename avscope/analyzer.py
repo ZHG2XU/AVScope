@@ -51,9 +51,83 @@ class Analyzer:
         if suffix not in {".pcm", ".yuv"}:
             result.media.summary["ffprobe"] = probe_media(result.media.path)
             result.media.summary["packet_timeline"] = probe_packet_timeline(result.media.path)
+            result.diagnostics.extend(build_timeline_diagnostics(result.media.summary))
         if suffix in {".wav", ".pcm"} or result.media.format_name in {"WAV", "Raw PCM"}:
             result.media.summary["waveform"] = build_waveform_summary(
                 result.media.path,
                 result.media.format_name,
                 result.media.summary,
             )
+
+
+def build_timeline_diagnostics(summary: dict, tolerance: float = 0.000001) -> list[DiagnosticIssue]:
+    diagnostics: list[DiagnosticIssue] = []
+    diagnostics.extend(_packet_monotonic_diagnostics(summary.get("packet_timeline", {}), tolerance))
+    diagnostics.extend(_stream_duration_diagnostics(summary.get("ffprobe", {})))
+    return diagnostics
+
+
+def _packet_monotonic_diagnostics(packet_timeline: dict, tolerance: float) -> list[DiagnosticIssue]:
+    diagnostics: list[DiagnosticIssue] = []
+    last_by_stream: dict[object, dict[str, float]] = {}
+    reported: set[tuple[object, str]] = set()
+    for packet in packet_timeline.get("packets", []):
+        stream = packet.get("stream_index")
+        values = last_by_stream.setdefault(stream, {})
+        for key in ("pts", "dts"):
+            current = packet.get(key)
+            previous = values.get(key)
+            if current is None:
+                continue
+            if previous is not None and current + tolerance < previous and (stream, key) not in reported:
+                label = key.upper()
+                diagnostics.append(
+                    DiagnosticIssue(
+                        Severity.WARNING,
+                        f"{label} 非单调: stream={stream} packet={packet.get('index')} previous={previous} current={current}",
+                        packet.get("pos"),
+                        "timeline",
+                    )
+                )
+                reported.add((stream, key))
+            values[key] = current
+    return diagnostics
+
+
+def _stream_duration_diagnostics(ffprobe: dict, tolerance: float = 0.5) -> list[DiagnosticIssue]:
+    if not ffprobe.get("available"):
+        return []
+    audio = []
+    video = []
+    for stream in ffprobe.get("streams", []):
+        duration = _float_or_none(stream.get("duration"))
+        if duration is None:
+            continue
+        if stream.get("codec_type") == "audio":
+            audio.append(duration)
+        elif stream.get("codec_type") == "video":
+            video.append(duration)
+    if not audio or not video:
+        return []
+    audio_duration = max(audio)
+    video_duration = max(video)
+    delta = abs(audio_duration - video_duration)
+    if delta <= tolerance:
+        return []
+    return [
+        DiagnosticIssue(
+            Severity.WARNING,
+            f"音视频时长差异: audio={audio_duration:.3f}s video={video_duration:.3f}s delta={delta:.3f}s",
+            None,
+            "timeline",
+        )
+    ]
+
+
+def _float_or_none(value) -> float | None:
+    if value in (None, "", "N/A"):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None

@@ -13,7 +13,7 @@ from avscope.app import (
     node_has_issue,
     node_matches_query,
 )
-from avscope.analyzer import Analyzer
+from avscope.analyzer import Analyzer, build_timeline_diagnostics
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
 from avscope.models import FieldInfo, ParseNode, Severity
@@ -225,6 +225,30 @@ class ParserTests(unittest.TestCase):
         result = self.analyzer.analyze(write(ROOT / "truncated.avi", truncated_avi))
         self.assertEqual(result.media.format_name, "AVI")
         self.assertTrue(diagnostics_with(result, "warning"))
+
+    def test_timeline_diagnostics(self):
+        summary = {
+            "packet_timeline": {
+                "packets": [
+                    {"index": 0, "stream_index": 0, "pts": 1.0, "dts": 1.0, "pos": 100},
+                    {"index": 1, "stream_index": 0, "pts": 0.5, "dts": 0.75, "pos": 120},
+                    {"index": 2, "stream_index": 1, "pts": 0.25, "dts": 0.25, "pos": 200},
+                ]
+            },
+            "ffprobe": {
+                "available": True,
+                "streams": [
+                    {"codec_type": "video", "duration": "10.0"},
+                    {"codec_type": "audio", "duration": "8.9"},
+                ],
+            },
+        }
+        issues = build_timeline_diagnostics(summary)
+        messages = [issue.message for issue in issues]
+        self.assertTrue(any("PTS 非单调" in message for message in messages))
+        self.assertTrue(any("DTS 非单调" in message for message in messages))
+        self.assertTrue(any("音视频时长差异" in message for message in messages))
+        self.assertEqual({issue.severity for issue in issues}, {Severity.WARNING})
 
     def test_binary_compare(self):
         left = write(ROOT / "left.bin", b"abc123" + b"\x00" * 40 + b"tail-A")
