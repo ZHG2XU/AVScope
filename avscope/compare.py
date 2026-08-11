@@ -19,19 +19,75 @@ def compare_binary(left_path: str | Path, right_path: str | Path, limit: int = 2
             rdata = right.read_at(offset, block_size)
             if ldata != rdata:
                 equal = False
-                local = _first_diff(ldata, rdata)
-                diff_offset = offset + local
-                chunks.append(CompareChunk(diff_offset, left.read_at(diff_offset, 32), right.read_at(diff_offset, 32)))
+                local_offset = 0
+                block_limit = max(len(ldata), len(rdata))
+                while local_offset < block_limit and len(chunks) < limit:
+                    local = _first_diff(ldata[local_offset:], rdata[local_offset:])
+                    if local is None:
+                        break
+                    diff_offset = offset + local_offset + local
+                    chunks.append(CompareChunk(diff_offset, left.read_at(diff_offset, 32), right.read_at(diff_offset, 32)))
+                    local_offset += local + 32
             offset += block_size
         return CompareResult(str(left_path), str(right_path), left.size, right.size, equal, chunks)
 
 
-def _first_diff(left: bytes, right: bytes) -> int:
+def _first_diff(left: bytes, right: bytes) -> int | None:
     common = min(len(left), len(right))
     for index in range(common):
         if left[index] != right[index]:
             return index
+    if len(left) == len(right):
+        return None
     return common
+
+
+def format_binary_compare(result: CompareResult, max_chunks: int = 80) -> str:
+    lines = [
+        "二进制对比",
+        f"左侧: {result.left_path}",
+        f"右侧: {result.right_path}",
+        f"结果: {'相同' if result.equal else '不同'}",
+        f"大小: {result.left_size} -> {result.right_size} bytes",
+        f"差异窗口: {len(result.chunks)}",
+    ]
+    if not result.chunks:
+        return "\n".join(lines)
+    lines.extend(
+        [
+            "",
+            "差异列表",
+            "Offset       Left Hex                                      Left ASCII        Right Hex                                     Right ASCII       Mark",
+        ]
+    )
+    for chunk in result.chunks[:max_chunks]:
+        left_hex = _hex_columns(chunk.left)
+        right_hex = _hex_columns(chunk.right)
+        left_ascii = _ascii_column(chunk.left)
+        right_ascii = _ascii_column(chunk.right)
+        marks = _diff_marks(chunk.left, chunk.right)
+        lines.append(f"0x{chunk.offset:08X}  {left_hex}  {left_ascii}  {right_hex}  {right_ascii}  {marks}")
+    if len(result.chunks) > max_chunks:
+        lines.append(f"... 还有 {len(result.chunks) - max_chunks} 个差异窗口未显示")
+    return "\n".join(lines)
+
+
+def _hex_columns(data: bytes, width: int = 16) -> str:
+    return " ".join(f"{byte:02X}" for byte in data[:width]).ljust(width * 3 - 1)
+
+
+def _ascii_column(data: bytes, width: int = 16) -> str:
+    text = "".join(chr(byte) if 32 <= byte <= 126 else "." for byte in data[:width])
+    return f"|{text.ljust(width)}|"
+
+
+def _diff_marks(left: bytes, right: bytes, width: int = 16) -> str:
+    marks = []
+    for index in range(width):
+        lvalue = left[index] if index < len(left) else None
+        rvalue = right[index] if index < len(right) else None
+        marks.append("^^" if lvalue != rvalue else "  ")
+    return " ".join(marks).rstrip()
 
 
 def compare_protocol(left_path: str | Path, right_path: str | Path, limit: int = 500) -> dict:

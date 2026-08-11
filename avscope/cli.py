@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from avscope.analyzer import Analyzer
-from avscope.compare import compare_binary, compare_protocol
+from avscope.compare import compare_binary, compare_protocol, format_binary_compare
 from avscope.report import export_html, export_json
 from avscope.samples import generate_samples
 
@@ -59,7 +59,10 @@ def main(argv: list[str] | None = None) -> int:
                 for c in result.chunks
             ],
         }
-        _emit(document, args.json)
+        if args.json:
+            _emit(document, args.json)
+        else:
+            print(format_binary_compare(result))
         return 0
     if args.command == "compare-protocol":
         document = compare_protocol(args.left, args.right)

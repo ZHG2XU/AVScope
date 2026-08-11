@@ -44,8 +44,9 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 13. 使用“分析 / 协议结构对比”对比：
     - `G:\AVScope\samples\sample.mp4`
     - `G:\AVScope\samples\sample_changed.mp4`
-14. 导出 HTML/JSON 报告并打开检查。
-15. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
+14. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记。
+15. 导出 HTML/JSON 报告并打开检查。
+16. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
 
 ## 当前已知边界
 

@@ -9,7 +9,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from avscope.analyzer import Analyzer
 from avscope.byte_source import ByteSource
-from avscope.compare import compare_binary, compare_protocol, format_protocol_compare
+from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
 from avscope.hexview import format_hex, parse_offset
 from avscope.models import ParseNode, ParseResult, Severity
 from avscope.report import export_html, export_json
@@ -792,10 +792,9 @@ class AVScopeApp(tk.Tk):
             return
         result = compare_binary(left, right)
         self.preview.delete("1.0", tk.END)
-        self.preview.insert(tk.END, f"equal={result.equal}\nleft_size={result.left_size}\nright_size={result.right_size}\n")
-        for chunk in result.chunks[:100]:
-            self.preview.insert(tk.END, f"\n0x{chunk.offset:X}\nL {chunk.left.hex(' ').upper()}\nR {chunk.right.hex(' ').upper()}\n")
+        self.preview.insert(tk.END, format_binary_compare(result))
         self.tabs.select(self.preview)
+        self.status.set(f"二进制对比完成: 差异窗口 {len(result.chunks)}")
 
     def compare_protocol_files(self) -> None:
         left = filedialog.askopenfilename(title="选择左侧文件")

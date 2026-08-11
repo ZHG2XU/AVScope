@@ -15,7 +15,7 @@ from avscope.app import (
 )
 from avscope.analyzer import Analyzer
 from avscope.cli import main as cli_main
-from avscope.compare import compare_binary, compare_protocol, format_protocol_compare
+from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
 from avscope.models import FieldInfo, ParseNode, Severity
 from avscope.report import export_html, export_json
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
@@ -227,11 +227,18 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(diagnostics_with(result, "warning"))
 
     def test_binary_compare(self):
-        left = write(ROOT / "left.bin", b"abc123")
-        right = write(ROOT / "right.bin", b"abc923")
+        left = write(ROOT / "left.bin", b"abc123" + b"\x00" * 40 + b"tail-A")
+        right = write(ROOT / "right.bin", b"abc923" + b"\x00" * 40 + b"tail-B")
         result = compare_binary(left, right)
         self.assertFalse(result.equal)
         self.assertEqual(result.chunks[0].offset, 3)
+        self.assertEqual(result.chunks[1].offset, 51)
+        text = format_binary_compare(result)
+        self.assertIn("二进制对比", text)
+        self.assertIn("0x00000003", text)
+        self.assertIn("0x00000033", text)
+        self.assertIn("^^", text)
+        self.assertIn("|123", text)
 
     def test_protocol_compare(self):
         left = write(ROOT / "left_proto.mp4", b"\x00\x00\x00\x0Cftypisom")
