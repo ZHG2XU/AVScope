@@ -301,6 +301,8 @@ if 'class="pts"' not in html_text or 'class="dts"' not in html_text:
     raise SystemExit("HTML PTS/DTS curves missing")
 if 'class="timestamp-anomaly"' not in html_text:
     raise SystemExit("HTML timestamp anomaly marker missing")
+if "Timeline chart legend" not in html_text:
+    raise SystemExit("HTML timeline chart legend missing")
 if "GOP groups=" not in html_text:
     raise SystemExit("HTML GOP structure chart missing")
 if "timeline_summary" not in json_path.read_text(encoding="utf-8"):

@@ -25,6 +25,7 @@ DEFAULT_ARTIFACTS = [
 ]
 
 VALIDATED_CHECKS = [
+    "Timeline chart legend rendering smoke test",
     "MPEG-TS PCR summary, curve and report export smoke test",
     "单元测试",
     "128MB+ 大文件只读随机访问测试",

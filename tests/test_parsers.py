@@ -435,6 +435,7 @@ class ParserTests(unittest.TestCase):
         export_csv(result, csv_path)
         export_json(result, json_path)
         self.assertIn("PCR", html_path.read_text(encoding="utf-8"))
+        self.assertIn("Timeline chart legend", html_path.read_text(encoding="utf-8"))
         self.assertIn("PCR curve", html_path.read_text(encoding="utf-8"))
         self.assertIn("pcr_seconds", csv_path.read_text(encoding="utf-8-sig"))
         self.assertIn('"pcr_seconds": 1.0', json_path.read_text(encoding="utf-8"))
@@ -489,6 +490,7 @@ class ParserTests(unittest.TestCase):
         export_csv(result, csv_path)
         export_json(result, json_path)
         self.assertIn("RTP Sequence", html_path.read_text(encoding="utf-8"))
+        self.assertIn("Timeline chart legend", html_path.read_text(encoding="utf-8"))
         self.assertIn("RTP sequence 曲线", html_path.read_text(encoding="utf-8"))
         self.assertIn("RTP seq=100", csv_path.read_text(encoding="utf-8-sig"))
         self.assertIn('"rtp_sequence": 100', json_path.read_text(encoding="utf-8"))
@@ -1145,6 +1147,7 @@ class ParserTests(unittest.TestCase):
         synthetic_text = synthetic_html.read_text(encoding="utf-8")
         self.assertIn('class="pts"', synthetic_text)
         self.assertIn('class="dts"', synthetic_text)
+        self.assertIn("Timeline chart legend", synthetic_text)
         self.assertIn('class="timestamp-anomaly"', synthetic_text)
         self.assertIn("GOP 结构图", synthetic_text)
 

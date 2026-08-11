@@ -309,6 +309,16 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     .timeline-chart .pts {{ fill: none; stroke: var(--ok); stroke-width: 2; stroke-linecap: round; }}
     .timeline-chart .dts {{ fill: none; stroke: var(--err); stroke-width: 1.8; stroke-linecap: round; stroke-dasharray: 5 4; }}
     .timeline-chart .timestamp-anomaly {{ fill: var(--err); }}
+    .chart-legend {{ display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 10px 0 12px; color: var(--muted); font-size: 12px; }}
+    .legend-item {{ display: inline-flex; align-items: center; gap: 6px; min-height: 20px; }}
+    .legend-swatch {{ width: 22px; height: 0; border-top: 3px solid var(--accent); }}
+    .legend-swatch.pts {{ border-color: var(--ok); }}
+    .legend-swatch.dts {{ border-color: var(--err); border-top-style: dashed; }}
+    .legend-swatch.bitrate {{ border-color: var(--warn); }}
+    .legend-swatch.gop {{ border-color: var(--ok); border-top-width: 6px; }}
+    .legend-swatch.rtp {{ border-color: var(--accent); }}
+    .legend-swatch.pcr {{ border-color: var(--muted); border-top-style: dashed; }}
+    .legend-swatch.anomaly {{ width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--err); }}
     .chart-caption {{ color: var(--muted); font-size: 12px; margin: -4px 0 8px; }}
     .waveform {{ white-space: pre; line-height: 1.1; margin-top: 10px; }}
     @media (max-width: 720px) {{
@@ -640,12 +650,38 @@ def _timeline_summary_html(timeline_summary: dict) -> str:
         "<table><tr><th>指标</th><th>值</th></tr>"
         + body
         + "</table>"
+        + _timeline_legend_html(timeline_summary)
         + _timestamp_svg_html(timeline_summary)
         + _bitrate_svg_html(bitrate)
         + _gop_svg_html(gop)
         + _rtp_sequence_svg_html(rtp)
         + _pcr_svg_html(pcr)
     )
+
+
+def _timeline_legend_html(timeline_summary: dict) -> str:
+    items = []
+    if timeline_summary.get("pts", {}).get("available"):
+        items.append(("pts", "PTS"))
+    if timeline_summary.get("dts", {}).get("available"):
+        items.append(("dts", "DTS"))
+    if timeline_summary.get("bitrate", {}).get("available"):
+        items.append(("bitrate", "Bitrate"))
+    if timeline_summary.get("gop", {}).get("groups_available"):
+        items.append(("gop", "GOP"))
+    if timeline_summary.get("rtp_sequence", {}).get("available"):
+        items.append(("rtp", "RTP seq"))
+    if timeline_summary.get("pcr", {}).get("available"):
+        items.append(("pcr", "PCR"))
+    if timeline_summary.get("timestamp_anomalies"):
+        items.append(("anomaly", "Anomaly"))
+    if not items:
+        return ""
+    body = "".join(
+        f'<span class="legend-item"><span class="legend-swatch {html.escape(kind)}"></span>{html.escape(label)}</span>'
+        for kind, label in items
+    )
+    return f'<div class="chart-legend" aria-label="Timeline chart legend">{body}</div>'
 
 
 def _timestamp_svg_html(timeline_summary: dict) -> str:

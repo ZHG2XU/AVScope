@@ -1032,7 +1032,7 @@ class AVScopeApp(tk.Tk):
 
         left = 18
         right = max(left + 1, width - 18)
-        top = 16
+        top = 28
         bottom = max(top + 1, height - 26)
         mid = (top + bottom) / 2
         for frac in (0.25, 0.5, 0.75):
@@ -1053,12 +1053,51 @@ class AVScopeApp(tk.Tk):
                 canvas.create_line(x, top, x, min(bottom, y0), fill=p["accent2"], dash=(2, 3))
         label = f"{len(items)} 项 | max size {max_size} bytes"
         canvas.create_text(left, bottom + 13, text=label, fill=p["muted"], anchor=tk.W, font=("Microsoft YaHei UI", 9))
+        self._render_timeline_legend(canvas, left, right)
         self._render_gop_structure(canvas, left, right, top, bottom)
         self._render_timestamp_curves(canvas, left, right, top, bottom)
         self._render_bitrate_curve(canvas, left, right, top, bottom)
         self._render_rtp_sequence_curve(canvas, left, right, top, bottom)
         self._render_pcr_curve(canvas, left, right, top, bottom)
         canvas.create_line(left, mid, right, mid, fill=p["border"])
+
+    def _render_timeline_legend(self, canvas: tk.Canvas, left: int, right: int) -> None:
+        if not self.result:
+            return
+        summary = self.result.media.summary.get("timeline_summary", {})
+        p = self._palette
+        items = []
+        if summary.get("series"):
+            if summary.get("pts", {}).get("available"):
+                items.append(("PTS", p["accent2"], ()))
+            if summary.get("dts", {}).get("available"):
+                items.append(("DTS", p["error"], (4, 3)))
+        if summary.get("bitrate", {}).get("available"):
+            items.append(("Bitrate", p["warning"], ()))
+        if summary.get("gop", {}).get("groups_available"):
+            items.append(("GOP", p["accent2"], ()))
+        if summary.get("rtp_sequence", {}).get("available"):
+            items.append(("RTP", p["accent"], ()))
+        if summary.get("pcr", {}).get("available"):
+            items.append(("PCR", p["muted"], (5, 3)))
+        if summary.get("timestamp_anomalies"):
+            items.append(("Anomaly", p["error"], ()))
+        if not items:
+            return
+        x = left
+        y = 10
+        font = ("Microsoft YaHei UI", 8)
+        for label, color, dash in items:
+            text_width = max(32, len(label) * 7)
+            item_width = 28 + text_width + 10
+            if x + item_width > right and x > left:
+                break
+            if label == "Anomaly":
+                canvas.create_oval(x, y - 4, x + 8, y + 4, fill=color, outline="")
+            else:
+                canvas.create_line(x, y, x + 18, y, fill=color, width=2, dash=dash)
+            canvas.create_text(x + 24, y, text=label, fill=p["muted"], anchor=tk.W, font=font)
+            x += item_width
 
     def _render_gop_structure(self, canvas: tk.Canvas, left: int, right: int, top: int, bottom: int) -> None:
         if not self.result:
