@@ -306,6 +306,8 @@ if 'class="pts"' not in html_text or 'class="dts"' not in html_text:
     raise SystemExit("HTML PTS/DTS curves missing")
 if 'class="timestamp-anomaly"' not in html_text:
     raise SystemExit("HTML timestamp anomaly marker missing")
+if 'class="timeline-issues"' not in html_text or "PTS non-monotonic" not in html_text:
+    raise SystemExit("HTML timeline issue table missing")
 if "Timeline chart legend" not in html_text:
     raise SystemExit("HTML timeline chart legend missing")
 if "GOP groups=" not in html_text:

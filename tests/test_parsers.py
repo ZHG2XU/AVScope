@@ -46,7 +46,7 @@ from avscope.frame_stats import build_frame_stats
 from avscope.models import FieldInfo, FrameInfo, MediaInfo, ParseNode, ParseResult, Severity
 from avscope.packet_stats import build_packet_stats
 from avscope.plugins import build_plugin_template_manifest, load_plugin_parsers, normalize_extension, normalize_magic_hex, write_plugin_template
-from avscope.report import export_csv, export_html, export_json, export_project
+from avscope.report import export_csv, export_html, export_json, export_project, timeline_issue_rows
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
@@ -1106,8 +1106,34 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(timeline_anomaly_item_orders(summary), {2})
         self.assertEqual(timeline_item_row_tag(1, {2}), "normal")
         self.assertEqual(timeline_item_row_tag(2, {2}), "warning")
+        issue_rows = timeline_issue_rows(summary)
+        self.assertEqual(issue_rows[0]["source"], "Timestamp")
+        self.assertIn("PTS non-monotonic", issue_rows[0]["kind"])
         lines = format_timeline_summary_lines(summary)
         self.assertTrue(any("时间戳异常" in line for line in lines))
+
+    def test_timeline_issue_rows_include_transport_warnings(self):
+        rows = timeline_issue_rows(
+            {
+                "rtp_sequence": {
+                    "warnings": [
+                        {
+                            "ssrc": "0x12345678",
+                            "item_order": 4,
+                            "index": 1,
+                            "previous": 100,
+                            "expected": 101,
+                            "current": 105,
+                            "delta": 4,
+                        }
+                    ]
+                },
+                "pcr": {"warnings": [{"pid": "0x0100", "kind": "non_monotonic", "count": 2}]},
+            }
+        )
+        self.assertEqual([row["source"] for row in rows], ["RTP", "PCR"])
+        self.assertIn("expected=101", rows[0]["detail"])
+        self.assertIn("count=2", rows[1]["detail"])
 
     def test_timeline_summary_from_packets_and_reports(self):
         packets = [
@@ -1154,6 +1180,8 @@ class ParserTests(unittest.TestCase):
         self.assertIn('class="dts"', synthetic_text)
         self.assertIn("Timeline chart legend", synthetic_text)
         self.assertIn('class="timestamp-anomaly"', synthetic_text)
+        self.assertIn('class="timeline-issues"', synthetic_text)
+        self.assertIn("PTS non-monotonic", synthetic_text)
         self.assertIn("GOP 结构图", synthetic_text)
 
     def test_video_preview_helpers(self):

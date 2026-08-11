@@ -283,6 +283,9 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     th, td {{ border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }}
     th {{ color: var(--muted); background: var(--panel-soft); font-weight: 600; }}
     tr:hover td {{ background: #f8fbfd; }}
+    .timeline-issues {{ margin: 12px 0 14px; }}
+    .timeline-issues tr.warning-row td {{ background: #fff8e5; }}
+    .timeline-issues .source {{ font-weight: 700; color: var(--warn); }}
     details {{
       border-left: 2px solid var(--line);
       margin: 7px 0 7px 12px;
@@ -650,6 +653,7 @@ def _timeline_summary_html(timeline_summary: dict) -> str:
         "<table><tr><th>指标</th><th>值</th></tr>"
         + body
         + "</table>"
+        + _timeline_issue_table_html(timeline_summary)
         + _timeline_legend_html(timeline_summary)
         + _timestamp_svg_html(timeline_summary)
         + _bitrate_svg_html(bitrate)
@@ -657,6 +661,73 @@ def _timeline_summary_html(timeline_summary: dict) -> str:
         + _rtp_sequence_svg_html(rtp)
         + _pcr_svg_html(pcr)
     )
+
+
+def _timeline_issue_table_html(timeline_summary: dict) -> str:
+    rows = timeline_issue_rows(timeline_summary)
+    if not rows:
+        return ""
+    body = "".join(
+        "<tr class=\"warning-row\">"
+        f"<td class=\"source\">{html.escape(str(row.get('source', '')))}</td>"
+        f"<td>{html.escape(str(row.get('position', '')))}</td>"
+        f"<td>{html.escape(str(row.get('kind', '')))}</td>"
+        f"<td>{html.escape(str(row.get('detail', '')))}</td>"
+        "</tr>"
+        for row in rows[:80]
+    )
+    return (
+        "<h3>时间线异常清单</h3>"
+        "<table class=\"timeline-issues\">"
+        "<tr><th>来源</th><th>位置</th><th>类型</th><th>详情</th></tr>"
+        + body
+        + "</table>"
+    )
+
+
+def timeline_issue_rows(timeline_summary: dict | None = None) -> list[dict[str, str]]:
+    summary = timeline_summary or {}
+    rows: list[dict[str, str]] = []
+    for anomaly in summary.get("timestamp_anomalies", [])[:100]:
+        kind = str(anomaly.get("kind") or "timestamp").upper()
+        stream = anomaly.get("stream", "")
+        rows.append(
+            {
+                "source": "Timestamp",
+                "position": f"item {anomaly.get('item_order', '')}, index {anomaly.get('index', '')}, stream {stream or '-'}",
+                "kind": f"{kind} non-monotonic",
+                "detail": (
+                    f"previous={anomaly.get('previous', '')} at item {anomaly.get('previous_order', '')}; "
+                    f"current={anomaly.get('current', '')}"
+                ),
+            }
+        )
+    rtp = summary.get("rtp_sequence", {})
+    for warning in rtp.get("warnings", [])[:100]:
+        rows.append(
+            {
+                "source": "RTP",
+                "position": f"item {warning.get('item_order', '')}, packet #{warning.get('index', '')}, SSRC {warning.get('ssrc') or '-'}",
+                "kind": "sequence jump",
+                "detail": (
+                    f"previous={warning.get('previous', '')}; expected={warning.get('expected', '')}; "
+                    f"current={warning.get('current', '')}; delta={warning.get('delta', '')}"
+                ),
+            }
+        )
+    pcr = summary.get("pcr", {})
+    for warning in pcr.get("warnings", [])[:100]:
+        kind = str(warning.get("kind") or "warning")
+        detail = f"count={warning.get('count', '')}" if "count" in warning else json.dumps(warning, ensure_ascii=False)
+        rows.append(
+            {
+                "source": "PCR",
+                "position": f"PID {warning.get('pid', '-')}",
+                "kind": kind,
+                "detail": detail,
+            }
+        )
+    return rows[:200]
 
 
 def _timeline_legend_html(timeline_summary: dict) -> str:
