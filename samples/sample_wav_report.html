@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AVScope Report</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --panel: #ffffff;
+      --ink: #17212b;
+      --muted: #5e6b78;
+      --line: #dce3ea;
+      --head: #101820;
+      --accent: #176b9a;
+      --ok: #287a5c;
+      --warn: #9a6700;
+      --err: #b42318;
+      --code: #f0f4f7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.55;
+    }
+    header {
+      background: var(--head);
+      color: #e6edf3;
+      padding: 28px 36px 24px;
+      border-bottom: 4px solid var(--accent);
+    }
+    header h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
+    header .meta { margin-top: 8px; color: #a9b7c4; font-size: 13px; }
+    main { max-width: 1180px; margin: 0 auto; padding: 26px 24px 40px; }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      margin-bottom: 18px;
+      padding: 20px 22px;
+    }
+    h2 { margin: 0 0 14px; font-size: 17px; color: var(--head); }
+    code, pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+    code { padding: 2px 6px; }
+    pre { padding: 14px; overflow: auto; font-family: Consolas, monospace; font-size: 12px; }
+    .overview {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .metric {
+      border-left: 3px solid var(--accent);
+      background: #f8fafc;
+      padding: 10px 12px;
+    }
+    .metric .label { color: var(--muted); font-size: 12px; }
+    .metric .value { margin-top: 3px; font-weight: 600; word-break: break-all; }
+    .badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+    }
+    .badge.info { color: var(--ok); }
+    .badge.warning { color: var(--warn); }
+    .badge.error { color: var(--err); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { color: var(--muted); background: #f8fafc; font-weight: 600; }
+    tr:hover td { background: #f8fbfd; }
+    details { border-left: 2px solid var(--line); margin: 7px 0 7px 12px; padding-left: 12px; }
+    summary { cursor: pointer; padding: 3px 0; font-family: Consolas, monospace; }
+    .warning { color: var(--warn); }
+    .error { color: var(--err); }
+    .empty { color: var(--muted); }
+    .waveform { white-space: pre; line-height: 1.1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AVScope 分析报告</h1>
+    <div class="meta">生成时间：2026-08-11T23:07:01，工具版本：0.1.0</div>
+  </header>
+  <main>
+    <section>
+      <h2>文件概览</h2>
+      <div class="overview">
+        <div class="metric"><div class="label">文件路径</div><div class="value"><code>G:\AVScope\samples\sample.wav</code></div></div>
+        <div class="metric"><div class="label">识别格式</div><div class="value">WAV</div></div>
+        <div class="metric"><div class="label">文件大小</div><div class="value">1068 bytes</div></div>
+        <div class="metric"><div class="label">协议节点</div><div class="value">2</div></div>
+      </div>
+    </section>
+    <section>
+      <h2>诊断摘要</h2>
+      <div class="badges">
+        <span class="badge info">info 0</span>
+        <span class="badge warning">warning 0</span>
+        <span class="badge error">error 0</span>
+      </div>
+      <ul><li class="empty">未发现 warning/error</li></ul>
+    </section>
+    <section>
+      <h2>媒体摘要</h2>
+      <table><tr><th>#</th><th>类型</th><th>Codec</th><th>参数</th><th>时长</th></tr><tr><td>0</td><td>audio</td><td>pcm_s16le</td><td>8000 Hz / 1 ch</td><td>0.064000</td></tr></table>
+      <pre>{
+  &quot;chunks&quot;: 2,
+  &quot;audio_format&quot;: 1,
+  &quot;channels&quot;: 1,
+  &quot;sample_rate&quot;: 8000,
+  &quot;bits_per_sample&quot;: 16,
+  &quot;ffprobe&quot;: {
+    &quot;available&quot;: true,
+    &quot;format&quot;: {
+      &quot;format_name&quot;: &quot;wav&quot;,
+      &quot;duration&quot;: &quot;0.064000&quot;,
+      &quot;bit_rate&quot;: &quot;133500&quot;,
+      &quot;probe_score&quot;: 99
+    },
+    &quot;streams&quot;: [
+      {
+        &quot;index&quot;: 0,
+        &quot;codec_type&quot;: &quot;audio&quot;,
+        &quot;codec_name&quot;: &quot;pcm_s16le&quot;,
+        &quot;profile&quot;: &quot;&quot;,
+        &quot;width&quot;: null,
+        &quot;height&quot;: null,
+        &quot;sample_rate&quot;: &quot;8000&quot;,
+        &quot;channels&quot;: 1,
+        &quot;pix_fmt&quot;: &quot;&quot;,
+        &quot;sample_fmt&quot;: &quot;s16&quot;,
+        &quot;duration&quot;: &quot;0.064000&quot;,
+        &quot;bit_rate&quot;: &quot;128000&quot;,
+        &quot;nb_frames&quot;: &quot;&quot;,
+        &quot;r_frame_rate&quot;: &quot;0/0&quot;,
+        &quot;avg_frame_rate&quot;: &quot;0/0&quot;,
+        &quot;time_base&quot;: &quot;1/8000&quot;
+      }
+    ]
+  },
+  &quot;packet_timeline&quot;: {
+    &quot;available&quot;: true,
+    &quot;packets&quot;: [
+      {
+        &quot;index&quot;: 0,
+        &quot;stream_index&quot;: 0,
+        &quot;codec_type&quot;: &quot;audio&quot;,
+        &quot;pts&quot;: 0.0,
+        &quot;dts&quot;: 0.0,
+        &quot;duration&quot;: 0.064,
+        &quot;size&quot;: 1024,
+        &quot;pos&quot;: 44,
+        &quot;flags&quot;: &quot;K__&quot;,
+        &quot;keyframe&quot;: true
+      }
+    ]
+  },
+  &quot;waveform&quot;: {
+    &quot;available&quot;: true,
+    &quot;source&quot;: &quot;wav&quot;,
+    &quot;sample_rate&quot;: 8000,
+    &quot;channels&quot;: 1,
+    &quot;sample_width&quot;: 2,
+    &quot;total_frames&quot;: 512,
+    &quot;scanned_frames&quot;: 512,
+    &quot;duration_seconds&quot;: 0.064,
+    &quot;peaks&quot;: [
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0005,
+        &quot;rms&quot;: 0.0003
+      },
+      {
+        &quot;min&quot;: -0.0005,
+        &quot;max&quot;: 0.0,
+        &quot;rms&quot;: 0.0003
+      }
+    ],
+    &quot;ascii&quot;: &quot;\n\n\n\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n\n\n\n&quot;
+  }
+}</pre>
+    </section>
+    <section>
+      <h2>音频波形</h2>
+      <pre class="waveform">
+
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+
+</pre>
+    </section>
+    <section>
+      <h2>Packet 时间线</h2>
+      <table><tr><th>#</th><th>stream</th><th>PTS</th><th>DTS</th><th>pos</th><th>size</th><th>type</th><th>key</th></tr><tr><td>0</td><td>0</td><td>0.0</td><td>0.0</td><td>44</td><td>1024</td><td>audio</td><td>yes</td></tr></table>
+    </section>
+    <section>
+      <h2>协议结构</h2>
+      <details open><summary>sample.wav [WAV] offset=0x0 size=1068</summary><table><tr><th>字段</th><th>值</th><th>Hex</th><th>Offset</th><th>Size</th><th>说明</th></tr><tr><td>riff_size</td><td>1068</td><td>0x42c</td><td>0x4</td><td>4</td><td></td></tr></table><details open><summary>fmt  [riff_chunk] offset=0xC size=24</summary><table><tr><th>字段</th><th>值</th><th>Hex</th><th>Offset</th><th>Size</th><th>说明</th></tr><tr><td>chunk_id</td><td>fmt </td><td>66 6D 74 20</td><td>0xC</td><td>4</td><td></td></tr><tr><td>chunk_size</td><td>16</td><td>0x10</td><td>0x10</td><td>4</td><td></td></tr><tr><td>audio_format</td><td>1</td><td>0x1</td><td>0x14</td><td>2</td><td></td></tr><tr><td>channels</td><td>1</td><td></td><td>0x16</td><td>2</td><td></td></tr><tr><td>sample_rate</td><td>8000</td><td></td><td>0x18</td><td>4</td><td></td></tr><tr><td>byte_rate</td><td>16000</td><td></td><td>0x1C</td><td>4</td><td></td></tr><tr><td>block_align</td><td>2</td><td></td><td>0x20</td><td>2</td><td></td></tr><tr><td>bits_per_sample</td><td>16</td><td></td><td>0x22</td><td>2</td><td></td></tr></table></details>
+<details open><summary>data [riff_chunk] offset=0x24 size=1032</summary><table><tr><th>字段</th><th>值</th><th>Hex</th><th>Offset</th><th>Size</th><th>说明</th></tr><tr><td>chunk_id</td><td>data</td><td>64 61 74 61</td><td>0x24</td><td>4</td><td></td></tr><tr><td>chunk_size</td><td>1024</td><td>0x400</td><td>0x28</td><td>4</td><td></td></tr></table></details></details>
+    </section>
+  </main>
+</body>
+</html>

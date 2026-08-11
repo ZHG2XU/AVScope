@@ -1,0 +1,48 @@
+{
+  "left_path": "G:\\AVScope\\samples\\sample.mp4",
+  "right_path": "G:\\AVScope\\samples\\sample_changed.mp4",
+  "left_format": "MP4/MOV",
+  "right_format": "MP4/MOV",
+  "added": [
+    {
+      "path": "<root>/moov/free",
+      "name": "free",
+      "node_type": "box",
+      "offset": 64,
+      "size": 8,
+      "severity": "normal",
+      "field_count": 2,
+      "child_count": 0
+    }
+  ],
+  "removed": [],
+  "changed": [
+    {
+      "path": "<root>",
+      "changes": {
+        "size": {
+          "left": 80,
+          "right": 88
+        }
+      }
+    },
+    {
+      "path": "<root>/mdat",
+      "changes": {
+        "offset": {
+          "left": 64,
+          "right": 72
+        }
+      }
+    },
+    {
+      "path": "<root>/moov",
+      "changes": {
+        "size": {
+          "left": 40,
+          "right": 48
+        }
+      }
+    }
+  ]
+}

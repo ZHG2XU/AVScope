@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.pyo
+
+build/
+dist/
+tmp/
+
+data/*
+!data/.gitkeep
+
+*.log
+*.tmp
+*.bak
+
+packaging/*.spec

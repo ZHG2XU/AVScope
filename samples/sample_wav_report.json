@@ -1,0 +1,662 @@
+{
+  "generated_at": "2026-08-11T23:07:01",
+  "tool_version": "0.1.0",
+  "media": {
+    "path": "G:\\AVScope\\samples\\sample.wav",
+    "size": 1068,
+    "format_name": "WAV",
+    "summary": {
+      "chunks": 2,
+      "audio_format": 1,
+      "channels": 1,
+      "sample_rate": 8000,
+      "bits_per_sample": 16,
+      "ffprobe": {
+        "available": true,
+        "format": {
+          "format_name": "wav",
+          "duration": "0.064000",
+          "bit_rate": "133500",
+          "probe_score": 99
+        },
+        "streams": [
+          {
+            "index": 0,
+            "codec_type": "audio",
+            "codec_name": "pcm_s16le",
+            "profile": "",
+            "width": null,
+            "height": null,
+            "sample_rate": "8000",
+            "channels": 1,
+            "pix_fmt": "",
+            "sample_fmt": "s16",
+            "duration": "0.064000",
+            "bit_rate": "128000",
+            "nb_frames": "",
+            "r_frame_rate": "0/0",
+            "avg_frame_rate": "0/0",
+            "time_base": "1/8000"
+          }
+        ]
+      },
+      "packet_timeline": {
+        "available": true,
+        "packets": [
+          {
+            "index": 0,
+            "stream_index": 0,
+            "codec_type": "audio",
+            "pts": 0.0,
+            "dts": 0.0,
+            "duration": 0.064,
+            "size": 1024,
+            "pos": 44,
+            "flags": "K__",
+            "keyframe": true
+          }
+        ]
+      },
+      "waveform": {
+        "available": true,
+        "source": "wav",
+        "sample_rate": 8000,
+        "channels": 1,
+        "sample_width": 2,
+        "total_frames": 512,
+        "scanned_frames": 512,
+        "duration_seconds": 0.064,
+        "peaks": [
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0005,
+            "rms": 0.0003
+          },
+          {
+            "min": -0.0005,
+            "max": 0.0,
+            "rms": 0.0003
+          }
+        ],
+        "ascii": "\n\n\n\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n\n\n\n"
+      }
+    }
+  },
+  "diagnostics": [],
+  "frames": [],
+  "root": {
+    "name": "sample.wav",
+    "node_type": "WAV",
+    "offset": 0,
+    "size": 1068,
+    "fields": [
+      {
+        "name": "riff_size",
+        "value": 1068,
+        "offset": 4,
+        "size": 4,
+        "hex_value": "0x42c",
+        "bit_offset": null,
+        "bit_length": null,
+        "description": "",
+        "severity": "normal"
+      }
+    ],
+    "children": [
+      {
+        "name": "fmt ",
+        "node_type": "riff_chunk",
+        "offset": 12,
+        "size": 24,
+        "fields": [
+          {
+            "name": "chunk_id",
+            "value": "fmt ",
+            "offset": 12,
+            "size": 4,
+            "hex_value": "66 6D 74 20",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "chunk_size",
+            "value": 16,
+            "offset": 16,
+            "size": 4,
+            "hex_value": "0x10",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "audio_format",
+            "value": 1,
+            "offset": 20,
+            "size": 2,
+            "hex_value": "0x1",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "channels",
+            "value": 1,
+            "offset": 22,
+            "size": 2,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "sample_rate",
+            "value": 8000,
+            "offset": 24,
+            "size": 4,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "byte_rate",
+            "value": 16000,
+            "offset": 28,
+            "size": 4,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "block_align",
+            "value": 2,
+            "offset": 32,
+            "size": 2,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "bits_per_sample",
+            "value": 16,
+            "offset": 34,
+            "size": 2,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          }
+        ],
+        "children": [],
+        "severity": "normal",
+        "description": ""
+      },
+      {
+        "name": "data",
+        "node_type": "riff_chunk",
+        "offset": 36,
+        "size": 1032,
+        "fields": [
+          {
+            "name": "chunk_id",
+            "value": "data",
+            "offset": 36,
+            "size": 4,
+            "hex_value": "64 61 74 61",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "chunk_size",
+            "value": 1024,
+            "offset": 40,
+            "size": 4,
+            "hex_value": "0x400",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          }
+        ],
+        "children": [],
+        "severity": "normal",
+        "description": ""
+      }
+    ],
+    "severity": "normal",
+    "description": ""
+  }
+}

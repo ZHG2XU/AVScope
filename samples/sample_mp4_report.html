@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AVScope Report</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --panel: #ffffff;
+      --ink: #17212b;
+      --muted: #5e6b78;
+      --line: #dce3ea;
+      --head: #101820;
+      --accent: #176b9a;
+      --ok: #287a5c;
+      --warn: #9a6700;
+      --err: #b42318;
+      --code: #f0f4f7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.55;
+    }
+    header {
+      background: var(--head);
+      color: #e6edf3;
+      padding: 28px 36px 24px;
+      border-bottom: 4px solid var(--accent);
+    }
+    header h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
+    header .meta { margin-top: 8px; color: #a9b7c4; font-size: 13px; }
+    main { max-width: 1180px; margin: 0 auto; padding: 26px 24px 40px; }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      margin-bottom: 18px;
+      padding: 20px 22px;
+    }
+    h2 { margin: 0 0 14px; font-size: 17px; color: var(--head); }
+    code, pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+    code { padding: 2px 6px; }
+    pre { padding: 14px; overflow: auto; font-family: Consolas, monospace; font-size: 12px; }
+    .overview {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .metric {
+      border-left: 3px solid var(--accent);
+      background: #f8fafc;
+      padding: 10px 12px;
+    }
+    .metric .label { color: var(--muted); font-size: 12px; }
+    .metric .value { margin-top: 3px; font-weight: 600; word-break: break-all; }
+    .badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+    }
+    .badge.info { color: var(--ok); }
+    .badge.warning { color: var(--warn); }
+    .badge.error { color: var(--err); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { color: var(--muted); background: #f8fafc; font-weight: 600; }
+    tr:hover td { background: #f8fbfd; }
+    details { border-left: 2px solid var(--line); margin: 7px 0 7px 12px; padding-left: 12px; }
+    summary { cursor: pointer; padding: 3px 0; font-family: Consolas, monospace; }
+    .warning { color: var(--warn); }
+    .error { color: var(--err); }
+    .empty { color: var(--muted); }
+    .waveform { white-space: pre; line-height: 1.1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AVScope 分析报告</h1>
+    <div class="meta">生成时间：2026-08-11T22:57:42，工具版本：0.1.0</div>
+  </header>
+  <main>
+    <section>
+      <h2>文件概览</h2>
+      <div class="overview">
+        <div class="metric"><div class="label">文件路径</div><div class="value"><code>G:\AVScope\samples\sample.mp4</code></div></div>
+        <div class="metric"><div class="label">识别格式</div><div class="value">MP4/MOV</div></div>
+        <div class="metric"><div class="label">文件大小</div><div class="value">80 bytes</div></div>
+        <div class="metric"><div class="label">协议节点</div><div class="value">3</div></div>
+      </div>
+    </section>
+    <section>
+      <h2>诊断摘要</h2>
+      <div class="badges">
+        <span class="badge info">info 0</span>
+        <span class="badge warning">warning 0</span>
+        <span class="badge error">error 0</span>
+      </div>
+      <ul><li class="empty">未发现 warning/error</li></ul>
+    </section>
+    <section>
+      <h2>媒体摘要</h2>
+      <p class="empty">无 ffprobe 流信息。</p>
+      <pre>{
+  &quot;boxes&quot;: 3,
+  &quot;has_moov&quot;: true,
+  &quot;has_mdat&quot;: true,
+  &quot;ffprobe&quot;: {
+    &quot;available&quot;: true,
+    &quot;format&quot;: {
+      &quot;format_name&quot;: &quot;mov,mp4,m4a,3gp,3g2,mj2&quot;,
+      &quot;duration&quot;: &quot;&quot;,
+      &quot;bit_rate&quot;: &quot;&quot;,
+      &quot;probe_score&quot;: 100
+    },
+    &quot;streams&quot;: []
+  },
+  &quot;packet_timeline&quot;: {
+    &quot;available&quot;: true,
+    &quot;packets&quot;: []
+  }
+}</pre>
+    </section>
+    <section>
+      <h2>音频波形</h2>
+      <p class="empty">无波形摘要。</p>
+    </section>
+    <section>
+      <h2>Packet 时间线</h2>
+      <p class="empty">无 packet 时间线。</p>
+    </section>
+    <section>
+      <h2>协议结构</h2>
+      <details open><summary>sample.mp4 [MP4/MOV] offset=0x0 size=80</summary><details open><summary>ftyp [box] offset=0x0 size=24</summary><table><tr><th>字段</th><th>值</th><th>Hex</th><th>Offset</th><th>Size</th><th>说明</th></tr><tr><td>size</td><td>24</td><td>0x18</td><td>0x0</td><td>8</td><td>box 总长度</td></tr><tr><td>type</td><td>ftyp</td><td>66 74 79 70</td><td>0x4</td><td>4</td><td>box 类型</td></tr><tr><td>major_brand</td><td>isom</td><td>69 73 6F 6D</td><td>0x8</td><td>4</td><td></td></tr><tr><td>minor_version</td><td>0</td><td>0x0</td><td>0xC</td><td>4</td><td></td></tr><tr><td>compatible_brands</td><td>isom, iso2</td><td></td><td>0x10</td><td>8</td><td></td></tr></table></details>
+<details open><summary>moov [box] offset=0x18 size=40</summary><table><tr><th>字段</th><th>值</th><th>Hex</th><th>Offset</th><th>Size</th><th>说明</th></tr><tr><td>size</td><td>40</td><td>0x28</td><td>0x18</td><td>8</td><td>box 总长度</td></tr><tr><td>type</td><td>moov</td><td>6D 6F 6F 76</td><td>0x1C</td><td>4</td><td>box 类型</td></tr></table><details open><summary>mvhd [box] offset=0x20 size=32</summary><table><tr><th>字段</th><th>值</th><th>Hex</th><th>Offset</th><th>Size</th><th>说明</th></tr><tr><td>size</td><td>32</td><td>0x20</td><td>0x20</td><td>8</td><td>box 总长度</td></tr><tr><td>type</td><td>mvhd</td><td>6D 76 68 64</td><td>0x24</td><td>4</td><td>box 类型</td></tr></table></details></details>
+<details open><summary>mdat [box] offset=0x40 size=16</summary><table><tr><th>字段</th><th>值</th><th>Hex</th><th>Offset</th><th>Size</th><th>说明</th></tr><tr><td>size</td><td>16</td><td>0x10</td><td>0x40</td><td>8</td><td>box 总长度</td></tr><tr><td>type</td><td>mdat</td><td>6D 64 61 74</td><td>0x44</td><td>4</td><td>box 类型</td></tr></table></details></details>
+    </section>
+  </main>
+</body>
+</html>

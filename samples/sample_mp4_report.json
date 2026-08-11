@@ -1,0 +1,207 @@
+{
+  "generated_at": "2026-08-11T22:57:42",
+  "tool_version": "0.1.0",
+  "media": {
+    "path": "G:\\AVScope\\samples\\sample.mp4",
+    "size": 80,
+    "format_name": "MP4/MOV",
+    "summary": {
+      "boxes": 3,
+      "has_moov": true,
+      "has_mdat": true,
+      "ffprobe": {
+        "available": true,
+        "format": {
+          "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+          "duration": "",
+          "bit_rate": "",
+          "probe_score": 100
+        },
+        "streams": []
+      },
+      "packet_timeline": {
+        "available": true,
+        "packets": []
+      }
+    }
+  },
+  "diagnostics": [],
+  "frames": [],
+  "root": {
+    "name": "sample.mp4",
+    "node_type": "MP4/MOV",
+    "offset": 0,
+    "size": 80,
+    "fields": [],
+    "children": [
+      {
+        "name": "ftyp",
+        "node_type": "box",
+        "offset": 0,
+        "size": 24,
+        "fields": [
+          {
+            "name": "size",
+            "value": 24,
+            "offset": 0,
+            "size": 8,
+            "hex_value": "0x18",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "box 总长度",
+            "severity": "normal"
+          },
+          {
+            "name": "type",
+            "value": "ftyp",
+            "offset": 4,
+            "size": 4,
+            "hex_value": "66 74 79 70",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "box 类型",
+            "severity": "normal"
+          },
+          {
+            "name": "major_brand",
+            "value": "isom",
+            "offset": 8,
+            "size": 4,
+            "hex_value": "69 73 6F 6D",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "minor_version",
+            "value": 0,
+            "offset": 12,
+            "size": 4,
+            "hex_value": "0x0",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "compatible_brands",
+            "value": "isom, iso2",
+            "offset": 16,
+            "size": 8,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          }
+        ],
+        "children": [],
+        "severity": "normal",
+        "description": ""
+      },
+      {
+        "name": "moov",
+        "node_type": "box",
+        "offset": 24,
+        "size": 40,
+        "fields": [
+          {
+            "name": "size",
+            "value": 40,
+            "offset": 24,
+            "size": 8,
+            "hex_value": "0x28",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "box 总长度",
+            "severity": "normal"
+          },
+          {
+            "name": "type",
+            "value": "moov",
+            "offset": 28,
+            "size": 4,
+            "hex_value": "6D 6F 6F 76",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "box 类型",
+            "severity": "normal"
+          }
+        ],
+        "children": [
+          {
+            "name": "mvhd",
+            "node_type": "box",
+            "offset": 32,
+            "size": 32,
+            "fields": [
+              {
+                "name": "size",
+                "value": 32,
+                "offset": 32,
+                "size": 8,
+                "hex_value": "0x20",
+                "bit_offset": null,
+                "bit_length": null,
+                "description": "box 总长度",
+                "severity": "normal"
+              },
+              {
+                "name": "type",
+                "value": "mvhd",
+                "offset": 36,
+                "size": 4,
+                "hex_value": "6D 76 68 64",
+                "bit_offset": null,
+                "bit_length": null,
+                "description": "box 类型",
+                "severity": "normal"
+              }
+            ],
+            "children": [],
+            "severity": "normal",
+            "description": ""
+          }
+        ],
+        "severity": "normal",
+        "description": ""
+      },
+      {
+        "name": "mdat",
+        "node_type": "box",
+        "offset": 64,
+        "size": 16,
+        "fields": [
+          {
+            "name": "size",
+            "value": 16,
+            "offset": 64,
+            "size": 8,
+            "hex_value": "0x10",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "box 总长度",
+            "severity": "normal"
+          },
+          {
+            "name": "type",
+            "value": "mdat",
+            "offset": 68,
+            "size": 4,
+            "hex_value": "6D 64 61 74",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "box 类型",
+            "severity": "normal"
+          }
+        ],
+        "children": [],
+        "severity": "normal",
+        "description": ""
+      }
+    ],
+    "severity": "normal",
+    "description": ""
+  }
+}
