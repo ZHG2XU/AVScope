@@ -1,5 +1,18 @@
 # AVScope 明早验收清单
 
+## 快速验收入口
+
+1. 打开绿色版主程序：`G:\AVScope\dist\AVScope\AVScope.exe`。
+2. 查看完整验证报告：`G:\AVScope\dist\AVScope-validation-report.md`。
+3. 查看发布产物清单：`G:\AVScope\dist\AVScope-release-manifest.json`。
+4. 打开示例报告目录：`G:\AVScope\dist\sample-reports`。
+5. 需要安装包验收时运行：`G:\AVScope\dist\AVScope-Setup.exe`，默认安装目录为 `G:\AVScopeInstalled\AVScope`。
+6. 需要重新验证时运行：
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
+```
+
 ## 产物位置
 
 - GUI 绿色版目录：`G:\AVScope\dist\AVScope`
@@ -75,7 +88,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 31. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，并打开 `G:\AVScope\dist\AVScope-release-manifest.json` 确认安装包、绿色版、源码包和内置 FFmpeg/插件文件均记录 size 与 SHA256。
 32. 打开 `G:\AVScope\dist\sample-reports\sample_wav_report.html` 和 `G:\AVScope\dist\sample-reports\sample_mp4_report.json`，确认交付目录包含示例分析报告。
 33. 打开 `G:\AVScope\dist\AVScope-validation-report.md`，确认一键验证通过项和关键产物大小已写入测试报告。
-34. 导出 HTML/JSON/CSV 报告并打开检查，确认可选用户备注会写入报告；HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含音频波形图、结构化统计摘要表、帧/packet 大小图和“帧列表”章节；CSV 应包含 `media`、`notes`、`frame_stats`、`packet_stats`、`frame`、`node`、`field` 等 section。
+34. 导出 HTML/JSON/CSV 报告并打开检查，确认可选用户备注会写入报告；HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含音频波形图、结构化统计摘要表、帧/packet 大小图和“帧列表”章节；CSV 应包含 `media`、`notes`、`diagnostic`、`timeline_issue`、`frame_stats`、`packet_stats`、`frame`、`packet`、`node`、`field` 等 section。
 35. 打开 `G:\AVScope\docs\KNOWN_ISSUES_AND_ROADMAP.md`，确认当前 MVP 边界和后续规划已有明确说明。
 36. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
 

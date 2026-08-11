@@ -2,6 +2,15 @@
 
 AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本使用 Python 标准库实现，优先保证在现有电脑环境中可运行，不需要安装新依赖。
 
+## 明早验收入口
+
+- 直接运行绿色版：`G:\AVScope\dist\AVScope\AVScope.exe`
+- 安装包：`G:\AVScope\dist\AVScope-Setup.exe`，默认安装到 `G:\AVScopeInstalled\AVScope`
+- 完整验证报告：`G:\AVScope\dist\AVScope-validation-report.md`
+- 发布产物清单：`G:\AVScope\dist\AVScope-release-manifest.json`
+- 示例报告目录：`G:\AVScope\dist\sample-reports`
+- 手工验收清单：`G:\AVScope\docs\ACCEPTANCE.md`
+
 ## 当前能力
 
 - 只读打开本地媒体文件，支持菜单选择、打开文件夹、拖拽到窗口，以及将文件拖到 exe 图标上启动打开。
