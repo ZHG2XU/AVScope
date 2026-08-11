@@ -44,6 +44,7 @@ def export_html(result: ParseResult, path: str | Path) -> None:
         else "<p class=\"empty\">暂无可展示的音频波形摘要。</p>"
     )
     timeline_html = _timeline_html(result.media.summary.get("packet_timeline", {}).get("packets", [])[:100])
+    frame_html = _frame_html(doc["frames"][:200])
     stream_html = _stream_html(result.media.summary.get("ffprobe", {}).get("streams", []))
     generated_at = html.escape(doc["generated_at"])
     body = f"""<!doctype html>
@@ -217,6 +218,10 @@ def export_html(result: ParseResult, path: str | Path) -> None:
       {waveform_html}
     </section>
     <section>
+      <h2>帧列表</h2>
+      {frame_html}
+    </section>
+    <section>
       <h2>Packet 时间线</h2>
       {timeline_html}
     </section>
@@ -320,6 +325,26 @@ def _timeline_html(packets: list[dict]) -> str:
             "</tr>"
         )
     return "<table><tr><th>#</th><th>stream</th><th>PTS</th><th>DTS</th><th>pos</th><th>size</th><th>type</th><th>key</th></tr>" + "".join(rows) + "</table>"
+
+
+def _frame_html(frames: list[dict]) -> str:
+    if not frames:
+        return "<p class=\"empty\">暂无解析器帧列表。</p>"
+    rows = []
+    for frame in frames:
+        rows.append(
+            "<tr>"
+            f"<td>{frame.get('index', '')}</td>"
+            f"<td>0x{int(frame.get('offset', 0)):X}</td>"
+            f"<td>{frame.get('size', '')}</td>"
+            f"<td>{frame.get('pts', '') or ''}</td>"
+            f"<td>{frame.get('dts', '') or ''}</td>"
+            f"<td>{frame.get('duration', '') or ''}</td>"
+            f"<td>{html.escape(str(frame.get('frame_type', '')))}</td>"
+            f"<td>{'yes' if frame.get('keyframe') else ''}</td>"
+            "</tr>"
+        )
+    return "<table><tr><th>#</th><th>offset</th><th>size</th><th>PTS</th><th>DTS</th><th>duration</th><th>type</th><th>key</th></tr>" + "".join(rows) + "</table>"
 
 
 def _node_html(node: ParseNode) -> str:

@@ -32,12 +32,12 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 
 1. 打开 `G:\AVScope\dist\AVScope\AVScope.exe`。
 2. 使用“打开”加载 `G:\AVScope\samples\sample.wav`。
-3. 查看协议树、Hex、字段、时间线、预览、诊断面板。
+3. 查看协议树、Hex、字段、帧列表、时间线、预览、诊断面板。
 4. 在搜索框输入 `fmt`，模式选择 `node`，点击“查找下一个”，确认协议树可定位匹配节点；勾选“只看异常”确认协议树可过滤 warning/error 节点。
 5. 在 WAV `fmt ` 和 `data` 节点里检查 `sample_rate`、`byte_rate`、`block_align`、`data_bytes`、`duration_seconds`。
 6. 打开 `G:\AVScope\samples\sample.h264`，检查 SPS/PPS 节点里是否显示 `profile_idc`、`level_idc`、`derived_width`、`derived_height`、`pic_parameter_set_id`、`seq_parameter_set_id`。
 7. 打开 `G:\AVScope\samples\sample.h265`，检查 VPS/SPS/PPS 节点里是否显示 `general_profile_idc`、`general_level_idc`、`derived_width`、`derived_height`、`bit_depth_luma`、`pps_pic_parameter_set_id`。
-8. 打开 `G:\AVScope\samples\sample.aac`，检查 ADTS frame 字段里是否显示 `profile`、`sample_rate`、`channel_configuration`、`duration_seconds`，并确认 `syncword`、`profile`、`sampling_frequency_index`、`frame_length` 显示 bit offset/bit length。
+8. 打开 `G:\AVScope\samples\sample.aac`，检查 ADTS frame 字段里是否显示 `profile`、`sample_rate`、`channel_configuration`、`duration_seconds`，并确认 `syncword`、`profile`、`sampling_frequency_index`、`frame_length` 显示 bit offset/bit length；切换到“帧列表”页，确认 AAC frame 可按 offset、size、duration 列表查看，选中行后 Hex 跳转到对应位置。
 9. 在工具栏搜索框输入 `RIFF`，模式选择 `text`，点击“查找下一个”；同时检查 `Ctrl+F` 聚焦搜索框、`F3` 查找下一个、Hex 右键菜单可复制当前 offset、选中字节和 ASCII，并可通过 `Endian` 选择后解释选中字节为整数/浮点。
 10. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`，并检查 `trak/tkhd/mdia/mdhd/hdlr/stbl` 相关节点里的 `track_id`、`width`、`height`、`handler_type`、`sample_count`、`chunk_offset`。
 11. 打开 `G:\AVScope\samples\sample.avi`，检查 `hdrl/avih` 节点里是否显示 `dwWidth`、`dwHeight`、`dwTotalFrames`、`fps`。
@@ -49,7 +49,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 15. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记。
 16. 使用“文件 / 保存工程”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径和 Raw 参数。
 17. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，确认声明式插件模板随产物交付。
-18. 导出 HTML/JSON 报告并打开检查，确认 HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置。
+18. 导出 HTML/JSON 报告并打开检查，确认 HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含“帧列表”章节。
 19. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
 
 ## 当前已知边界

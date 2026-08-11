@@ -78,6 +78,7 @@ class AVScopeApp(tk.Tk):
         self.current_hex_offset = 0
         self._node_by_iid: dict[str, ParseNode] = {}
         self._tree_iids_in_display_order: list[str] = []
+        self._frame_offset_by_iid: dict[str, tuple[int, int]] = {}
         self._last_search: tuple[str, str, int] | None = None
         self._last_node_search: tuple[str, int] | None = None
         self.raw_options_by_path: dict[str, dict] = {}
@@ -190,6 +191,27 @@ class AVScopeApp(tk.Tk):
             self.fields.heading(col, text=title)
             self.fields.column(col, width=width, anchor=anchor)
         self.tabs.add(self.fields, text="字段")
+
+        self.frames = ttk.Treeview(
+            self.tabs,
+            columns=("index", "offset", "size", "pts", "dts", "duration", "type", "key"),
+            show="headings",
+            style="Data.Treeview",
+        )
+        for col, title, width, anchor in [
+            ("index", "#", 64, tk.E),
+            ("offset", "Offset", 104, tk.E),
+            ("size", "Size", 92, tk.E),
+            ("pts", "PTS", 98, tk.E),
+            ("dts", "DTS", 98, tk.E),
+            ("duration", "Duration", 96, tk.E),
+            ("type", "类型", 150, tk.W),
+            ("key", "Key", 64, tk.CENTER),
+        ]:
+            self.frames.heading(col, text=title)
+            self.frames.column(col, width=width, anchor=anchor)
+        self.tabs.add(self.frames, text="帧列表")
+        self.frames.bind("<<TreeviewSelect>>", self.on_frame_select)
 
         self.timeline = ttk.Treeview(
             self.tabs,
@@ -354,7 +376,7 @@ class AVScopeApp(tk.Tk):
         self.diagnostics.tag_configure("warning", foreground=p["warning"])
         self.diagnostics.tag_configure("error", foreground=p["error"])
         self.diagnostics.tag_configure("heading", foreground=p["accent"], font=("Microsoft YaHei UI", 9, "bold"))
-        for tree in (self.tree, self.fields, self.timeline):
+        for tree in (self.tree, self.fields, self.frames, self.timeline):
             tree.tag_configure("warning", foreground=p["warning"])
             tree.tag_configure("error", foreground=p["error"])
             tree.tag_configure("normal", foreground=p["fg"])
@@ -470,6 +492,7 @@ class AVScopeApp(tk.Tk):
             return
         self._render_tree()
         self.fields.delete(*self.fields.get_children())
+        self._render_frames()
         self._render_timeline()
         self._render_diagnostics()
         self.preview.delete("1.0", tk.END)
@@ -524,6 +547,29 @@ class AVScopeApp(tk.Tk):
                 ),
                 tags=("normal",),
             )
+
+    def _render_frames(self) -> None:
+        if not self.result:
+            return
+        self.frames.delete(*self.frames.get_children())
+        self._frame_offset_by_iid.clear()
+        for frame in self.result.frames[:5000]:
+            iid = self.frames.insert(
+                "",
+                tk.END,
+                values=(
+                    frame.index,
+                    f"0x{frame.offset:X}",
+                    frame.size,
+                    self._fmt(frame.pts),
+                    self._fmt(frame.dts),
+                    self._fmt(frame.duration),
+                    frame.frame_type,
+                    "yes" if frame.keyframe else "",
+                ),
+                tags=("normal",),
+            )
+            self._frame_offset_by_iid[iid] = (frame.offset, frame.size)
 
     def _render_diagnostics(self) -> None:
         if not self.result:
@@ -586,6 +632,18 @@ class AVScopeApp(tk.Tk):
                 values=(field.name, field.value, field.hex_value, f"0x{field.offset:X}", bit_info, field.description),
                 tags=(tag,),
             )
+
+    def on_frame_select(self, _event) -> None:
+        selection = self.frames.selection()
+        if not selection:
+            return
+        frame_range = self._frame_offset_by_iid.get(selection[0])
+        if not frame_range:
+            return
+        offset, size = frame_range
+        self._load_hex(offset)
+        self._highlight_hex_range(offset, min(size, 4096))
+        self.status.set(f"帧 offset=0x{offset:X}, size={size}")
 
     def _preview_text(self) -> str:
         if not self.result:

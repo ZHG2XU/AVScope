@@ -86,6 +86,8 @@ class ParserTests(unittest.TestCase):
         export_html(result, html_path)
         html = html_path.read_text(encoding="utf-8")
         self.assertIn("Bit / Size", html)
+        self.assertIn("帧列表", html)
+        self.assertIn("AAC LC", html)
         self.assertIn("<td>0/12</td>", html)
 
     def test_h264_parser(self):
