@@ -487,6 +487,7 @@ class AVScopeApp(tk.Tk):
         analysis_menu.add_separator()
         analysis_menu.add_command(label="上一预览帧", command=lambda: self.step_video_preview(-VIDEO_PREVIEW_STEP_SECONDS))
         analysis_menu.add_command(label="下一预览帧", command=lambda: self.step_video_preview(VIDEO_PREVIEW_STEP_SECONDS))
+        analysis_menu.add_command(label="跳转预览时间", command=self.jump_video_preview_time)
         analysis_menu.add_command(label="上一 YUV 帧", command=lambda: self.step_yuv_preview(-YUV_PREVIEW_STEP_FRAMES))
         analysis_menu.add_command(label="下一 YUV 帧", command=lambda: self.step_yuv_preview(YUV_PREVIEW_STEP_FRAMES))
         analysis_menu.add_separator()
@@ -1293,6 +1294,7 @@ class AVScopeApp(tk.Tk):
             if video_preview.get("width") and video_preview.get("height"):
                 shape = f" ({video_preview.get('width')}x{video_preview.get('height')})"
             position = float(video_preview.get("position_seconds") or 0.0)
+            lines.extend("  " + line for line in format_video_frame_info_lines(video_preview.get("frame_info", {})))
             lines.append(f"视频预览帧: {format_seconds_timecode(position)} 已生成{shape}，见下方画面。")
             lines.append("")
         elif video_preview.get("error"):
@@ -1373,6 +1375,9 @@ class AVScopeApp(tk.Tk):
         self.preview.insert(tk.END, f"\n视频预览帧 {format_seconds_timecode(position)}\n")
         self.preview.image_create(tk.END, image=image)
         self.preview.insert(tk.END, "\n")
+        frame_lines = format_video_frame_info_lines(video_preview.get("frame_info", {}))
+        if frame_lines:
+            self.preview.insert(tk.END, "\n".join(frame_lines) + "\n")
 
     def step_video_preview(self, delta_seconds: float) -> None:
         if not self.current_file or not self.result:
@@ -1398,6 +1403,36 @@ class AVScopeApp(tk.Tk):
             self.status.set(f"视频预览帧生成失败: {preview.get('error')}")
         else:
             self.status.set(f"已生成视频预览帧 {format_seconds_timecode(target)}")
+
+    def jump_video_preview_time(self) -> None:
+        if not self.current_file or not self.result:
+            messagebox.showinfo("视频预览", "请先打开含视频流的媒体文件。")
+            return
+        streams = self.result.media.summary.get("ffprobe", {}).get("streams", [])
+        if not any(stream.get("codec_type") == "video" for stream in streams):
+            messagebox.showinfo("视频预览", "当前文件未发现可预览的视频流。")
+            return
+        current = float(self.result.media.summary.get("video_preview", {}).get("position_seconds") or self._video_preview_position_seconds)
+        duration = self._video_preview_duration_seconds()
+        prompt = "目标时间（秒）"
+        if duration is not None:
+            prompt += f"，范围 0 - {duration:.3f}"
+        target = simpledialog.askfloat("跳转预览时间", prompt, initialvalue=current, minvalue=0.0, parent=self)
+        if target is None:
+            return
+        if duration is not None:
+            target = min(float(target), max(0.0, duration - 0.001))
+        self._video_preview_position_seconds = max(0.0, float(target))
+        self.status.set(f"正在生成视频预览帧 {format_seconds_timecode(self._video_preview_position_seconds)}...")
+        self.update_idletasks()
+        preview = build_video_preview(self.current_file, position_seconds=self._video_preview_position_seconds)
+        self.result.media.summary["video_preview"] = preview
+        self._render_result()
+        self.tabs.select(self.preview)
+        if preview.get("error"):
+            self.status.set(f"视频预览帧生成失败: {preview.get('error')}")
+        else:
+            self.status.set(f"已跳转视频预览帧 {format_seconds_timecode(self._video_preview_position_seconds)}")
 
     def _video_preview_duration_seconds(self) -> float | None:
         if not self.result:
@@ -2079,6 +2114,26 @@ def issue_summary_state(errors: int, warnings: int) -> tuple[str, str]:
     if warnings:
         return f"0 error / {warnings} warning", "warning"
     return "0 error / 0 warning", "ok"
+
+
+def format_video_frame_info_lines(frame_info: dict | None = None) -> list[str]:
+    info = frame_info or {}
+    if not info.get("available"):
+        error = str(info.get("error") or "").strip()
+        return [] if not error else [f"视频帧信息: {error}"]
+    shape = ""
+    if info.get("width") and info.get("height"):
+        shape = f" {info.get('width')}x{info.get('height')}"
+    pix_fmt = f" {info.get('pix_fmt')}" if info.get("pix_fmt") else ""
+    parts = [
+        f"PTS={_fmt_seconds(info.get('pts'))}" if info.get("pts") is not None else "",
+        f"DTS={_fmt_seconds(info.get('dts'))}" if info.get("dts") is not None else "",
+        f"duration={_fmt_seconds(info.get('duration'))}" if info.get("duration") is not None else "",
+        f"type={info.get('frame_type')}" if info.get("frame_type") else "",
+        "keyframe=yes" if info.get("keyframe") else "keyframe=no",
+        f"size={info.get('size')} bytes" if info.get("size") is not None else "",
+    ]
+    return [f"视频帧信息:{shape}{pix_fmt} " + " ".join(part for part in parts if part)]
 
 
 def format_frame_preview_lines(frames: list[FrameInfo], frame_stats: dict | None = None) -> list[str]:

@@ -204,6 +204,9 @@ for result in outputs:
         raise SystemExit("Video preview PNG was not generated")
     if result.get("width") != 160 or result.get("height") != 90:
         raise SystemExit(f"Unexpected preview size: {result}")
+    frame_info = result.get("frame_info", {})
+    if not frame_info.get("available") or not frame_info.get("frame_type"):
+        raise SystemExit(f"Video preview frame info missing: {result}")
 if outputs[0].get("path") == outputs[1].get("path"):
     raise SystemExit("Preview seek did not produce a distinct cache path")
 '@

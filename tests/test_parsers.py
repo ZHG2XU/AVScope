@@ -21,6 +21,7 @@ from avscope.app import (
     format_plugin_template_summary,
     format_elapsed_seconds,
     format_frame_preview_lines,
+    format_video_frame_info_lines,
     format_timeline_summary_lines,
     format_hex_interpretation,
     format_sample_files_help,
@@ -38,7 +39,7 @@ from avscope.byte_source import ByteSource
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare, format_protocol_compare
 from avscope.extract import build_extract_command, extract_media_stream
-from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, png_dimensions, preview_output_path
+from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, png_dimensions, preview_output_path, probe_video_frame_info
 from avscope.frame_stats import build_frame_stats
 from avscope.models import FieldInfo, FrameInfo, MediaInfo, ParseNode, ParseResult, Severity
 from avscope.packet_stats import build_packet_stats
@@ -1124,24 +1125,74 @@ class ParserTests(unittest.TestCase):
 
         def fake_run(command, capture_output, text, timeout, check):
             commands.append(command)
+            if "-show_frames" in command:
+                class Completed:
+                    returncode = 0
+                    stderr = ""
+                    stdout = json.dumps(
+                        {
+                            "frames": [
+                                {
+                                    "best_effort_timestamp_time": "1.250000",
+                                    "pkt_dts_time": "1.200000",
+                                    "pkt_duration_time": "0.040000",
+                                    "pkt_size": "2048",
+                                    "pict_type": "I",
+                                    "key_frame": 1,
+                                    "width": 320,
+                                    "height": 180,
+                                    "pix_fmt": "yuv420p",
+                                }
+                            ]
+                        }
+                    )
+
+                return Completed()
             output = Path(command[-1])
             write(output, b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x01\x40\x00\x00\x00\xb4")
 
             class Completed:
                 returncode = 0
                 stderr = ""
+                stdout = ""
 
             return Completed()
 
-        with patch("avscope.ffmpeg_preview.find_ffmpeg", return_value="ffmpeg"), patch("avscope.ffmpeg_preview.subprocess.run", side_effect=fake_run):
+        with patch("avscope.ffmpeg_preview.find_ffmpeg", return_value="ffmpeg"), patch("avscope.ffmpeg_preview.find_ffprobe", return_value="ffprobe"), patch("avscope.ffmpeg_preview.subprocess.run", side_effect=fake_run):
             result = build_video_preview(source, output_dir=ROOT / "previews", position_seconds=1.25)
         self.assertTrue(result["available"])
         self.assertEqual(result["width"], 320)
         self.assertEqual(result["height"], 180)
         self.assertEqual(result["position_seconds"], 1.25)
+        self.assertEqual(result["frame_info"]["frame_type"], "I")
+        self.assertTrue(result["frame_info"]["keyframe"])
+        lines = format_video_frame_info_lines(result["frame_info"])
+        self.assertIn("PTS=1.25s", lines[0])
         self.assertIn("-ss", commands[0])
         self.assertIn("1.250", commands[0])
+        self.assertIn("-show_frames", commands[1])
         self.assertTrue(Path(result["path"]).exists())
+
+    def test_video_frame_probe_helper(self):
+        source = write(ROOT / "frame-probe.mp4", b"mock")
+
+        def fake_run(command, capture_output, text, timeout, check):
+            self.assertIn("-read_intervals", command)
+            self.assertIn("2.500%+1", command)
+
+            class Completed:
+                returncode = 0
+                stderr = ""
+                stdout = json.dumps({"frames": [{"pts_time": "2.5", "pict_type": "P", "key_frame": 0}]})
+
+            return Completed()
+
+        with patch("avscope.ffmpeg_preview.find_ffprobe", return_value="ffprobe"), patch("avscope.ffmpeg_preview.subprocess.run", side_effect=fake_run):
+            info = probe_video_frame_info(source, 2.5)
+        self.assertTrue(info["available"])
+        self.assertEqual(info["pts"], 2.5)
+        self.assertEqual(info["frame_type"], "P")
+        self.assertFalse(info["keyframe"])
 
     def test_extract_media_stream_helpers(self):
         source = write(ROOT / "extract_source.mp4", b"media")
