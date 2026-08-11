@@ -10,6 +10,7 @@ from avscope.app import (
     calculate_bitrate_kbps,
     calculate_timestamp_seconds,
     extract_hex_bytes_from_dump_text,
+    field_highlight_size,
     format_hex_interpretation,
     format_seconds_timecode,
     first_loadable_drop_path,
@@ -470,6 +471,11 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(node_has_issue(trak))
         self.assertTrue(node_has_issue(stsz))
         self.assertFalse(node_has_issue(ParseNode("mdat", "box", 32, 128)))
+
+    def test_field_highlight_size(self):
+        self.assertEqual(field_highlight_size(FieldInfo("size", 1, size=4)), 4)
+        self.assertEqual(field_highlight_size(FieldInfo("syncword", "0xFFF", bit_length=12)), 2)
+        self.assertEqual(field_highlight_size(FieldInfo("derived", 1, size=0)), 1)
 
     def test_recent_file_settings(self):
         settings_path = ROOT / "settings.json"

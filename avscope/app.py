@@ -12,7 +12,7 @@ from avscope.analyzer import Analyzer
 from avscope.byte_source import ByteSource
 from avscope.compare import compare_binary, compare_protocol, format_binary_compare, format_protocol_compare
 from avscope.hexview import format_hex, parse_offset
-from avscope.models import ParseNode, ParseResult, Severity
+from avscope.models import FieldInfo, ParseNode, ParseResult, Severity
 from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.search import SearchPatternError, find_pattern, parse_search_pattern
 from avscope.settings import AppSettings
@@ -79,6 +79,7 @@ class AVScopeApp(tk.Tk):
         self.current_hex_offset = 0
         self._node_by_iid: dict[str, ParseNode] = {}
         self._tree_iids_in_display_order: list[str] = []
+        self._field_range_by_iid: dict[str, tuple[int, int]] = {}
         self._frame_offset_by_iid: dict[str, tuple[int, int]] = {}
         self._last_search: tuple[str, str, int] | None = None
         self._last_node_search: tuple[str, int] | None = None
@@ -196,6 +197,7 @@ class AVScopeApp(tk.Tk):
             self.fields.heading(col, text=title)
             self.fields.column(col, width=width, anchor=anchor)
         self.tabs.add(self.fields, text="字段")
+        self.fields.bind("<<TreeviewSelect>>", self.on_field_select)
 
         self.frames = ttk.Treeview(
             self.tabs,
@@ -587,6 +589,7 @@ class AVScopeApp(tk.Tk):
             return
         self._render_tree()
         self.fields.delete(*self.fields.get_children())
+        self._field_range_by_iid.clear()
         self._render_frames()
         self._render_timeline()
         self._render_diagnostics()
@@ -718,15 +721,29 @@ class AVScopeApp(tk.Tk):
 
     def _render_fields(self, node: ParseNode) -> None:
         self.fields.delete(*self.fields.get_children())
+        self._field_range_by_iid.clear()
         for field in node.fields:
             bit_info = f"{field.bit_offset or 0}/{field.bit_length or 0}" if field.bit_offset is not None or field.bit_length is not None else str(field.size)
             tag = "error" if field.severity == Severity.ERROR else "warning" if field.severity == Severity.WARNING else "normal"
-            self.fields.insert(
+            iid = self.fields.insert(
                 "",
                 tk.END,
                 values=(field.name, field.value, field.hex_value, f"0x{field.offset:X}", bit_info, field.description),
                 tags=(tag,),
             )
+            self._field_range_by_iid[iid] = (field.offset, field_highlight_size(field))
+
+    def on_field_select(self, _event) -> None:
+        selection = self.fields.selection()
+        if not selection:
+            return
+        field_range = self._field_range_by_iid.get(selection[0])
+        if not field_range:
+            return
+        offset, size = field_range
+        self._load_hex(offset)
+        self._highlight_hex_range(offset, min(size, 4096))
+        self.status.set(f"字段 offset=0x{offset:X}, size={size}")
 
     def on_frame_select(self, _event) -> None:
         selection = self.frames.selection()
@@ -1152,6 +1169,14 @@ def first_loadable_drop_path(paths: list[str | Path]) -> Path | None:
         if path.exists() and (path.is_file() or path.is_dir()):
             return path
     return None
+
+
+def field_highlight_size(field: FieldInfo) -> int:
+    if field.size > 0:
+        return field.size
+    if field.bit_length is not None and field.bit_length > 0:
+        return max(1, (field.bit_length + 7) // 8)
+    return 1
 
 
 def calculate_timestamp_seconds(timestamp: int | float, time_base_num: int | float, time_base_den: int | float) -> float:

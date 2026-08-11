@@ -20,7 +20,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - AAC ADTS 可解析 profile、采样率、声道布局、帧时长、平均码率，并在字段表和 HTML 报告中显示 header 字段 bit offset/bit length。
 - WAV 可解析 PCM 格式参数、data 字节数、帧数、时长，并校验 byte_rate/block_align。
 - Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、宽高、像素格式和帧率。
-- 显示协议树、字段表、Hex 分页视图、帧列表和基础时间线，帧列表可联动跳转 Hex。
+- 显示协议树、字段表、Hex 分页视图、帧列表和基础时间线，协议树、字段表和帧列表均可联动跳转 Hex。
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
 - 为 WAV/PCM 生成抽样波形摘要。
 - 桌面端提供深色/浅色专业工作台主题、品牌图标、关键指标摘要条和空状态，导出 HTML 报告带结构化视觉样式。
