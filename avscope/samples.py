@@ -41,8 +41,8 @@ def _aac_sample() -> bytes:
 def _h264_sample() -> bytes:
     return (
         b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(width=640, height=480)
-        + b"\x00\x00\x01\x68\xee\x3c\x80"
-        b"\x00\x00\x01\x65\x88\x84\x21\xa0"
+        + b"\x00\x00\x01\x68" + make_h264_pps()
+        + b"\x00\x00\x01\x65\x88\x84\x21\xa0"
         b"\x00\x00\x01\x41\x9a\x22\x11"
     )
 
@@ -51,7 +51,7 @@ def _h265_sample() -> bytes:
     return (
         _h265_nalu(32, make_h265_vps())
         + _h265_nalu(33, make_h265_sps(width=640, height=360))
-        + _h265_nalu(34, b"\x80")
+        + _h265_nalu(34, make_h265_pps())
         + _h265_nalu(19, b"\x80")
     )
 
@@ -75,6 +75,16 @@ def make_h264_baseline_sps(width: int = 640, height: int = 480, profile_idc: int
     writer.write_bit(1)
     writer.write_bit(0)
     writer.write_bit(0)
+    return writer.finish()
+
+
+def make_h264_pps(pic_parameter_set_id: int = 0, seq_parameter_set_id: int = 0) -> bytes:
+    writer = _BitWriter()
+    writer.write_ue(pic_parameter_set_id)
+    writer.write_ue(seq_parameter_set_id)
+    writer.write_bit(0)
+    writer.write_bit(0)
+    writer.write_ue(0)
     return writer.finish()
 
 
@@ -115,6 +125,18 @@ def make_h265_sps(width: int = 640, height: int = 360, profile_idc: int = 1, lev
     writer.write_ue(0)
     writer.write_ue(0)
     writer.write_ue(0)
+    return writer.finish()
+
+
+def make_h265_pps(pic_parameter_set_id: int = 0, seq_parameter_set_id: int = 0) -> bytes:
+    writer = _BitWriter()
+    writer.write_ue(pic_parameter_set_id)
+    writer.write_ue(seq_parameter_set_id)
+    writer.write_bit(0)
+    writer.write_bit(0)
+    writer.write_bits(0, 3)
+    writer.write_bit(0)
+    writer.write_bit(0)
     return writer.finish()
 
 

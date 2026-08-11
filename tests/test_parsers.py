@@ -10,7 +10,7 @@ from avscope.analyzer import Analyzer
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_protocol_compare
 from avscope.report import export_html, export_json
-from avscope.samples import generate_samples, make_h264_baseline_sps
+from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
 
@@ -62,15 +62,19 @@ class ParserTests(unittest.TestCase):
         self.assertIn("duration_seconds", fields)
 
     def test_h264_parser(self):
-        data = b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(640, 480) + b"\x00\x00\x01\x68\xee" + b"\x00\x00\x01\x65\x88"
+        data = b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(640, 480) + b"\x00\x00\x01\x68" + make_h264_pps() + b"\x00\x00\x01\x65\x88"
         result = self.analyzer.analyze(write(ROOT / "ok.h264", data))
         self.assertEqual(result.media.format_name, "H.264 Annex-B")
         self.assertGreaterEqual(result.media.summary["nalu_count"], 3)
         self.assertEqual(result.media.summary["width"], 640)
         self.assertEqual(result.media.summary["height"], 480)
+        self.assertEqual(result.media.summary["pps_id"], 0)
         sps_fields = {field.name: field.value for field in result.root.children[0].fields}
         self.assertEqual(sps_fields["profile_idc"], 66)
         self.assertEqual(sps_fields["level_idc"], 30)
+        pps_fields = {field.name: field.value for field in result.root.children[1].fields}
+        self.assertEqual(pps_fields["pic_parameter_set_id"], 0)
+        self.assertEqual(pps_fields["seq_parameter_set_id"], 0)
 
     def test_h265_parser(self):
         sample_dir = ROOT / "h265_sample"
@@ -87,6 +91,9 @@ class ParserTests(unittest.TestCase):
         sps_fields = {field.name: field.value for field in result.root.children[1].fields}
         self.assertEqual(sps_fields["derived_width"], 640)
         self.assertEqual(sps_fields["bit_depth_luma"], 8)
+        pps_fields = {field.name: field.value for field in result.root.children[2].fields}
+        self.assertEqual(pps_fields["pps_pic_parameter_set_id"], 0)
+        self.assertEqual(pps_fields["pps_seq_parameter_set_id"], 0)
 
     def test_mp4_parser_and_reports(self):
         ftyp_payload = b"isom" + struct.pack(">I", 0) + b"isomiso2"

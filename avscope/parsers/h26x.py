@@ -47,6 +47,15 @@ class H264SpsInfo:
 
 
 @dataclass(slots=True)
+class H264PpsInfo:
+    pic_parameter_set_id: int
+    seq_parameter_set_id: int
+    entropy_coding_mode_flag: int
+    bottom_field_pic_order_in_frame_present_flag: int
+    num_slice_groups_minus1: int
+
+
+@dataclass(slots=True)
 class H265VpsInfo:
     video_parameter_set_id: int
     max_layers_minus1: int
@@ -74,6 +83,17 @@ class H265SpsInfo:
     conf_win_bottom_offset: int
     profile_idc: int
     level_idc: int
+
+
+@dataclass(slots=True)
+class H265PpsInfo:
+    pic_parameter_set_id: int
+    seq_parameter_set_id: int
+    dependent_slice_segments_enabled_flag: int
+    output_flag_present_flag: int
+    num_extra_slice_header_bits: int
+    sign_data_hiding_enabled_flag: int
+    cabac_init_present_flag: int
 
 
 class BitReader:
@@ -204,9 +224,35 @@ class H264AnnexBParser(_AnnexBParser):
         return header[0] & 0x1F
 
     def _parse_nalu_payload(self, source: ByteSource, node: ParseNode, nal_type: int, payload_offset: int, nalu_size: int, summary: dict, diagnostics: list) -> None:
-        if nal_type != 7 or nalu_size <= 1:
+        if nalu_size <= 1:
             return
         payload = source.read_at(payload_offset + 1, min(nalu_size - 1, 4096))
+        if nal_type == 8:
+            try:
+                pps = parse_h264_pps(payload)
+            except ValueError as exc:
+                node.severity = Severity.WARNING
+                diagnostics.append(warn(f"H.264 PPS parse failed: {exc}", payload_offset, self.name))
+                return
+            node.fields.extend(
+                [
+                    FieldInfo("pic_parameter_set_id", pps.pic_parameter_set_id, payload_offset + 1, 0),
+                    FieldInfo("seq_parameter_set_id", pps.seq_parameter_set_id, payload_offset + 1, 0),
+                    FieldInfo("entropy_coding_mode_flag", pps.entropy_coding_mode_flag, payload_offset + 1, 0),
+                    FieldInfo(
+                        "bottom_field_pic_order_in_frame_present_flag",
+                        pps.bottom_field_pic_order_in_frame_present_flag,
+                        payload_offset + 1,
+                        0,
+                    ),
+                    FieldInfo("num_slice_groups_minus1", pps.num_slice_groups_minus1, payload_offset + 1, 0),
+                ]
+            )
+            summary["pps_id"] = pps.pic_parameter_set_id
+            summary["pps_sps_id"] = pps.seq_parameter_set_id
+            return
+        if nal_type != 7:
+            return
         try:
             sps = parse_h264_sps(payload)
         except ValueError as exc:
@@ -278,42 +324,62 @@ class H265AnnexBParser(_AnnexBParser):
             summary["profile_idc"] = vps.profile_idc
             summary["level_idc"] = vps.level_idc
             return
-        if nal_type != 33:
+        if nal_type == 34:
+            try:
+                pps = parse_h265_pps(payload)
+            except ValueError as exc:
+                node.severity = Severity.WARNING
+                diagnostics.append(warn(f"H.265 PPS parse failed: {exc}", payload_offset, self.name))
+                return
+            node.fields.extend(
+                [
+                    FieldInfo("pps_pic_parameter_set_id", pps.pic_parameter_set_id, payload_offset + 2, 0),
+                    FieldInfo("pps_seq_parameter_set_id", pps.seq_parameter_set_id, payload_offset + 2, 0),
+                    FieldInfo("dependent_slice_segments_enabled_flag", pps.dependent_slice_segments_enabled_flag, payload_offset + 2, 0),
+                    FieldInfo("output_flag_present_flag", pps.output_flag_present_flag, payload_offset + 2, 0),
+                    FieldInfo("num_extra_slice_header_bits", pps.num_extra_slice_header_bits, payload_offset + 2, 0),
+                    FieldInfo("sign_data_hiding_enabled_flag", pps.sign_data_hiding_enabled_flag, payload_offset + 2, 0),
+                    FieldInfo("cabac_init_present_flag", pps.cabac_init_present_flag, payload_offset + 2, 0),
+                ]
+            )
+            summary["pps_id"] = pps.pic_parameter_set_id
+            summary["pps_sps_id"] = pps.seq_parameter_set_id
             return
-        try:
-            sps = parse_h265_sps(payload)
-        except ValueError as exc:
-            node.severity = Severity.WARNING
-            diagnostics.append(warn(f"H.265 SPS parse failed: {exc}", payload_offset, self.name))
-            return
-        node.fields.extend(
-            [
-                FieldInfo("sps_video_parameter_set_id", sps.video_parameter_set_id, payload_offset + 2, 0),
-                FieldInfo("sps_max_sub_layers_minus1", sps.max_sub_layers_minus1, payload_offset + 2, 0),
-                FieldInfo("sps_temporal_id_nesting_flag", sps.temporal_id_nesting_flag, payload_offset + 2, 0),
-                FieldInfo("sps_seq_parameter_set_id", sps.seq_parameter_set_id, payload_offset + 2, 0),
-                FieldInfo("chroma_format_idc", sps.chroma_format_idc, payload_offset + 2, 0),
-                FieldInfo("bit_depth_luma", sps.bit_depth_luma, payload_offset + 2, 0),
-                FieldInfo("bit_depth_chroma", sps.bit_depth_chroma, payload_offset + 2, 0),
-                FieldInfo("conformance_window_flag", sps.conformance_window_flag, payload_offset + 2, 0),
-                FieldInfo("conf_win_left_offset", sps.conf_win_left_offset, payload_offset + 2, 0),
-                FieldInfo("conf_win_right_offset", sps.conf_win_right_offset, payload_offset + 2, 0),
-                FieldInfo("conf_win_top_offset", sps.conf_win_top_offset, payload_offset + 2, 0),
-                FieldInfo("conf_win_bottom_offset", sps.conf_win_bottom_offset, payload_offset + 2, 0),
-                FieldInfo("derived_width", sps.width, payload_offset + 2, 0, description="derived from SPS luma samples"),
-                FieldInfo("derived_height", sps.height, payload_offset + 2, 0, description="derived from SPS luma samples"),
-                FieldInfo("general_profile_idc", sps.profile_idc, payload_offset + 2, 0),
-                FieldInfo("general_level_idc", sps.level_idc, payload_offset + 2, 0),
-            ]
-        )
-        summary["width"] = sps.width
-        summary["height"] = sps.height
-        summary["chroma_format_idc"] = sps.chroma_format_idc
-        summary["bit_depth_luma"] = sps.bit_depth_luma
-        summary["bit_depth_chroma"] = sps.bit_depth_chroma
-        summary["sps_id"] = sps.seq_parameter_set_id
-        summary["profile_idc"] = sps.profile_idc
-        summary["level_idc"] = sps.level_idc
+        if nal_type == 33:
+            try:
+                sps = parse_h265_sps(payload)
+            except ValueError as exc:
+                node.severity = Severity.WARNING
+                diagnostics.append(warn(f"H.265 SPS parse failed: {exc}", payload_offset, self.name))
+                return
+            node.fields.extend(
+                [
+                    FieldInfo("sps_video_parameter_set_id", sps.video_parameter_set_id, payload_offset + 2, 0),
+                    FieldInfo("sps_max_sub_layers_minus1", sps.max_sub_layers_minus1, payload_offset + 2, 0),
+                    FieldInfo("sps_temporal_id_nesting_flag", sps.temporal_id_nesting_flag, payload_offset + 2, 0),
+                    FieldInfo("sps_seq_parameter_set_id", sps.seq_parameter_set_id, payload_offset + 2, 0),
+                    FieldInfo("chroma_format_idc", sps.chroma_format_idc, payload_offset + 2, 0),
+                    FieldInfo("bit_depth_luma", sps.bit_depth_luma, payload_offset + 2, 0),
+                    FieldInfo("bit_depth_chroma", sps.bit_depth_chroma, payload_offset + 2, 0),
+                    FieldInfo("conformance_window_flag", sps.conformance_window_flag, payload_offset + 2, 0),
+                    FieldInfo("conf_win_left_offset", sps.conf_win_left_offset, payload_offset + 2, 0),
+                    FieldInfo("conf_win_right_offset", sps.conf_win_right_offset, payload_offset + 2, 0),
+                    FieldInfo("conf_win_top_offset", sps.conf_win_top_offset, payload_offset + 2, 0),
+                    FieldInfo("conf_win_bottom_offset", sps.conf_win_bottom_offset, payload_offset + 2, 0),
+                    FieldInfo("derived_width", sps.width, payload_offset + 2, 0, description="derived from SPS luma samples"),
+                    FieldInfo("derived_height", sps.height, payload_offset + 2, 0, description="derived from SPS luma samples"),
+                    FieldInfo("general_profile_idc", sps.profile_idc, payload_offset + 2, 0),
+                    FieldInfo("general_level_idc", sps.level_idc, payload_offset + 2, 0),
+                ]
+            )
+            summary["width"] = sps.width
+            summary["height"] = sps.height
+            summary["chroma_format_idc"] = sps.chroma_format_idc
+            summary["bit_depth_luma"] = sps.bit_depth_luma
+            summary["bit_depth_chroma"] = sps.bit_depth_chroma
+            summary["sps_id"] = sps.seq_parameter_set_id
+            summary["profile_idc"] = sps.profile_idc
+            summary["level_idc"] = sps.level_idc
 
     def _has_required_parameter_sets(self, seen: set[int]) -> bool:
         return 32 in seen and 33 in seen and 34 in seen
@@ -407,6 +473,23 @@ def parse_h264_sps(payload: bytes) -> H264SpsInfo:
     )
 
 
+def parse_h264_pps(payload: bytes) -> H264PpsInfo:
+    rbsp = remove_emulation_prevention_bytes(payload)
+    reader = BitReader(rbsp)
+    pic_parameter_set_id = reader.read_ue()
+    seq_parameter_set_id = reader.read_ue()
+    entropy_coding_mode_flag = reader.read_bit()
+    bottom_field_pic_order_in_frame_present_flag = reader.read_bit()
+    num_slice_groups_minus1 = reader.read_ue()
+    return H264PpsInfo(
+        pic_parameter_set_id=pic_parameter_set_id,
+        seq_parameter_set_id=seq_parameter_set_id,
+        entropy_coding_mode_flag=entropy_coding_mode_flag,
+        bottom_field_pic_order_in_frame_present_flag=bottom_field_pic_order_in_frame_present_flag,
+        num_slice_groups_minus1=num_slice_groups_minus1,
+    )
+
+
 def parse_h265_vps(payload: bytes) -> H265VpsInfo:
     rbsp = remove_emulation_prevention_bytes(payload)
     reader = BitReader(rbsp)
@@ -488,6 +571,27 @@ def parse_h265_sps(payload: bytes) -> H265SpsInfo:
         conf_win_bottom_offset=conf_win_bottom_offset,
         profile_idc=profile_idc,
         level_idc=level_idc,
+    )
+
+
+def parse_h265_pps(payload: bytes) -> H265PpsInfo:
+    rbsp = remove_emulation_prevention_bytes(payload)
+    reader = BitReader(rbsp)
+    pic_parameter_set_id = reader.read_ue()
+    seq_parameter_set_id = reader.read_ue()
+    dependent_slice_segments_enabled_flag = reader.read_bit()
+    output_flag_present_flag = reader.read_bit()
+    num_extra_slice_header_bits = reader.read_bits(3)
+    sign_data_hiding_enabled_flag = reader.read_bit()
+    cabac_init_present_flag = reader.read_bit()
+    return H265PpsInfo(
+        pic_parameter_set_id=pic_parameter_set_id,
+        seq_parameter_set_id=seq_parameter_set_id,
+        dependent_slice_segments_enabled_flag=dependent_slice_segments_enabled_flag,
+        output_flag_present_flag=output_flag_present_flag,
+        num_extra_slice_header_bits=num_extra_slice_header_bits,
+        sign_data_hiding_enabled_flag=sign_data_hiding_enabled_flag,
+        cabac_init_present_flag=cabac_init_present_flag,
     )
 
 

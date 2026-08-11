@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-11T23:19:34",
+  "generated_at": "2026-08-12T00:12:48",
   "tool_version": "0.1.0",
   "media": {
     "path": "G:\\AVScope\\samples\\sample.h264",
-    "size": 35,
+    "size": 33,
     "format_name": "H.264 Annex-B",
     "summary": {
       "nalu_count": 4,
@@ -11,6 +11,8 @@
       "height": 480,
       "profile_idc": 66,
       "level_idc": 30,
+      "pps_id": 0,
+      "pps_sps_id": 0,
       "parsed_nalu": 4,
       "ffprobe": {
         "available": true,
@@ -30,7 +32,7 @@
             "height": 480,
             "sample_rate": null,
             "channels": null,
-            "pix_fmt": "",
+            "pix_fmt": "yuv420p",
             "sample_fmt": "",
             "duration": "",
             "bit_rate": "",
@@ -51,7 +53,7 @@
             "pts": null,
             "dts": null,
             "duration": 0.04,
-            "size": 28,
+            "size": 26,
             "pos": 0,
             "flags": "K__",
             "keyframe": true
@@ -64,7 +66,7 @@
             "dts": null,
             "duration": 0.04,
             "size": 7,
-            "pos": 28,
+            "pos": 26,
             "flags": "___",
             "keyframe": false
           }
@@ -87,7 +89,7 @@
     {
       "index": 1,
       "offset": 13,
-      "size": 7,
+      "size": 5,
       "pts": null,
       "dts": null,
       "duration": null,
@@ -96,7 +98,7 @@
     },
     {
       "index": 2,
-      "offset": 20,
+      "offset": 18,
       "size": 8,
       "pts": null,
       "dts": null,
@@ -106,7 +108,7 @@
     },
     {
       "index": 3,
-      "offset": 28,
+      "offset": 26,
       "size": 7,
       "pts": null,
       "dts": null,
@@ -119,7 +121,7 @@
     "name": "sample.h264",
     "node_type": "H.264 Annex-B",
     "offset": 0,
-    "size": 35,
+    "size": 33,
     "fields": [],
     "children": [
       {
@@ -269,7 +271,7 @@
         "name": "NALU[1] PPS",
         "node_type": "nalu",
         "offset": 13,
-        "size": 7,
+        "size": 5,
         "fields": [
           {
             "name": "start_code",
@@ -295,9 +297,64 @@
           },
           {
             "name": "payload_size",
-            "value": 4,
+            "value": 2,
             "offset": 16,
-            "size": 4,
+            "size": 2,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "pic_parameter_set_id",
+            "value": 0,
+            "offset": 17,
+            "size": 0,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "seq_parameter_set_id",
+            "value": 0,
+            "offset": 17,
+            "size": 0,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "entropy_coding_mode_flag",
+            "value": 0,
+            "offset": 17,
+            "size": 0,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "bottom_field_pic_order_in_frame_present_flag",
+            "value": 0,
+            "offset": 17,
+            "size": 0,
+            "hex_value": "",
+            "bit_offset": null,
+            "bit_length": null,
+            "description": "",
+            "severity": "normal"
+          },
+          {
+            "name": "num_slice_groups_minus1",
+            "value": 0,
+            "offset": 17,
+            "size": 0,
             "hex_value": "",
             "bit_offset": null,
             "bit_length": null,
@@ -312,13 +369,13 @@
       {
         "name": "NALU[2] IDR Slice",
         "node_type": "nalu",
-        "offset": 20,
+        "offset": 18,
         "size": 8,
         "fields": [
           {
             "name": "start_code",
             "value": "00 00 01",
-            "offset": 20,
+            "offset": 18,
             "size": 3,
             "hex_value": "",
             "bit_offset": null,
@@ -329,7 +386,7 @@
           {
             "name": "nal_unit_type",
             "value": 5,
-            "offset": 23,
+            "offset": 21,
             "size": 1,
             "hex_value": "",
             "bit_offset": null,
@@ -340,7 +397,7 @@
           {
             "name": "payload_size",
             "value": 5,
-            "offset": 23,
+            "offset": 21,
             "size": 5,
             "hex_value": "",
             "bit_offset": null,
@@ -356,13 +413,13 @@
       {
         "name": "NALU[3] Non-IDR Slice",
         "node_type": "nalu",
-        "offset": 28,
+        "offset": 26,
         "size": 7,
         "fields": [
           {
             "name": "start_code",
             "value": "00 00 01",
-            "offset": 28,
+            "offset": 26,
             "size": 3,
             "hex_value": "",
             "bit_offset": null,
@@ -373,7 +430,7 @@
           {
             "name": "nal_unit_type",
             "value": 1,
-            "offset": 31,
+            "offset": 29,
             "size": 1,
             "hex_value": "",
             "bit_offset": null,
@@ -384,7 +441,7 @@
           {
             "name": "payload_size",
             "value": 4,
-            "offset": 31,
+            "offset": 29,
             "size": 4,
             "hex_value": "",
             "bit_offset": null,

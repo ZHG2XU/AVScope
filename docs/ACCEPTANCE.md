@@ -32,8 +32,8 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 2. 使用“打开”加载 `G:\AVScope\samples\sample.wav`。
 3. 查看协议树、Hex、字段、时间线、预览、诊断面板。
 4. 在 WAV `fmt ` 和 `data` 节点里检查 `sample_rate`、`byte_rate`、`block_align`、`data_bytes`、`duration_seconds`。
-5. 打开 `G:\AVScope\samples\sample.h264`，检查 SPS 节点里是否显示 `profile_idc`、`level_idc`、`derived_width`、`derived_height`。
-6. 打开 `G:\AVScope\samples\sample.h265`，检查 VPS/SPS 节点里是否显示 `general_profile_idc`、`general_level_idc`、`derived_width`、`derived_height`、`bit_depth_luma`。
+5. 打开 `G:\AVScope\samples\sample.h264`，检查 SPS/PPS 节点里是否显示 `profile_idc`、`level_idc`、`derived_width`、`derived_height`、`pic_parameter_set_id`、`seq_parameter_set_id`。
+6. 打开 `G:\AVScope\samples\sample.h265`，检查 VPS/SPS/PPS 节点里是否显示 `general_profile_idc`、`general_level_idc`、`derived_width`、`derived_height`、`bit_depth_luma`、`pps_pic_parameter_set_id`。
 7. 打开 `G:\AVScope\samples\sample.aac`，检查 ADTS frame 字段里是否显示 `profile`、`sample_rate`、`channel_configuration`、`duration_seconds`。
 8. 在工具栏搜索框输入 `RIFF`，模式选择 `text`，点击“查找下一个”。
 9. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`，并检查 `trak/tkhd/mdia/mdhd/hdlr/stbl` 相关节点里的 `track_id`、`width`、`height`、`handler_type`、`sample_count`、`chunk_offset`。
@@ -49,5 +49,5 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 
 - 当前是可安装 MVP，不是完整播放器。
 - 视频画面解码预览尚未做到逐帧渲染，当前优先提供 ffprobe 流信息、packet 时间线和协议结构。
-- MP4/H.264/H.265 字段解析仍是基础层级，后续可继续补 SPS/PPS 深度字段、sample table 和 GOP 视图。
+- MP4/H.264/H.265 字段解析仍是基础层级，后续可继续补更深层 SPS/PPS 字段和 GOP 视图。
 - 安装包不创建桌面或开始菜单快捷方式，以避免向 C 盘用户目录写入文件。
