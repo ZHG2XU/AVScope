@@ -71,6 +71,9 @@ def build_timeline_summary(frames: Iterable[Any], packets: Iterable[dict], max_p
     rtp_sequence = _rtp_sequence_summary(items)
     if rtp_sequence.get("available"):
         summary["rtp_sequence"] = rtp_sequence
+    pcr = _pcr_summary(items)
+    if pcr.get("available"):
+        summary["pcr"] = pcr
     by_stream = _stream_summaries(items)
     if by_stream:
         summary["by_stream"] = by_stream
@@ -97,6 +100,10 @@ def _timeline_items(frames: Iterable[Any], packets: Iterable[dict]) -> list[dict
                 "rtp_ssrc": str(metadata.get("rtp_ssrc") or ""),
                 "rtp_payload_type": _int_or_none(metadata.get("rtp_payload_type")),
                 "rtp_marker": bool(metadata.get("rtp_marker")),
+                "pcr_pid": str(metadata.get("pcr_pid") or ""),
+                "pcr_base": _int_or_none(metadata.get("pcr_base")),
+                "pcr_extension": _int_or_none(metadata.get("pcr_extension")),
+                "pcr_seconds": _float_or_none(metadata.get("pcr_seconds")),
             }
         )
     for packet in packets:
@@ -366,6 +373,51 @@ def _rtp_sequence_summary(items: list[dict]) -> dict:
     }
 
 
+def _pcr_summary(items: list[dict]) -> dict:
+    indexed = [(order, item) for order, item in enumerate(items) if item.get("pcr_seconds") is not None]
+    if not indexed:
+        return {"available": False, "points": 0}
+    grouped: dict[str, list[tuple[int, dict]]] = {}
+    for order, item in indexed:
+        grouped.setdefault(str(item.get("pcr_pid") or "unknown"), []).append((order, item))
+    by_pid = {}
+    warnings = []
+    for pid, pid_items in grouped.items():
+        seconds = [float(item.get("pcr_seconds", 0.0) or 0.0) for _, item in pid_items]
+        intervals = [round(seconds[index] - seconds[index - 1], 9) for index in range(1, len(seconds))]
+        non_monotonic = sum(1 for interval in intervals if interval < 0)
+        if non_monotonic:
+            warnings.append({"pid": pid, "kind": "non_monotonic", "count": non_monotonic})
+        summary = {
+            "points": len(pid_items),
+            "first": round(seconds[0], 9),
+            "last": round(seconds[-1], 9),
+            "span": round(seconds[-1] - seconds[0], 9),
+            "min": round(min(seconds), 9),
+            "max": round(max(seconds), 9),
+            "non_monotonic": non_monotonic,
+        }
+        if intervals:
+            average_interval = sum(intervals) / len(intervals)
+            summary.update(
+                {
+                    "average_interval": round(average_interval, 9),
+                    "min_interval": round(min(intervals), 9),
+                    "max_interval": round(max(intervals), 9),
+                    "max_interval_jitter": round(max(abs(interval - average_interval) for interval in intervals), 9),
+                }
+            )
+        by_pid[pid] = summary
+    return {
+        "available": True,
+        "points": len(indexed),
+        "pid_count": len(grouped),
+        "by_pid": by_pid,
+        "warnings": warnings[:100],
+        "series": _sample_pcr_series(indexed, 160),
+    }
+
+
 def _sample_series(items: list[dict], max_points: int) -> list[dict]:
     max_points = max(1, int(max_points))
     if len(items) <= max_points:
@@ -399,6 +451,11 @@ def _series_point(item: dict) -> dict:
         point["rtp_ssrc"] = item.get("rtp_ssrc")
         point["rtp_payload_type"] = item.get("rtp_payload_type")
         point["rtp_marker"] = item.get("rtp_marker")
+    if item.get("pcr_seconds") is not None:
+        point["pcr_pid"] = item.get("pcr_pid")
+        point["pcr_base"] = item.get("pcr_base")
+        point["pcr_extension"] = item.get("pcr_extension")
+        point["pcr_seconds"] = item.get("pcr_seconds")
     return point
 
 
@@ -420,6 +477,28 @@ def _sample_rtp_series(indexed: list[tuple[int, dict]], max_points: int) -> list
             "ssrc": item.get("rtp_ssrc"),
             "payload_type": item.get("rtp_payload_type"),
             "marker": bool(item.get("rtp_marker")),
+        }
+        for order, item in selected
+    ]
+
+
+def _sample_pcr_series(indexed: list[tuple[int, dict]], max_points: int) -> list[dict]:
+    max_points = max(1, int(max_points))
+    if len(indexed) <= max_points:
+        selected = indexed
+    else:
+        selected = []
+        for index in range(max_points):
+            source_index = index * len(indexed) // max_points
+            selected.append(indexed[source_index])
+    return [
+        {
+            "item_order": order,
+            "index": item.get("index"),
+            "pid": item.get("pcr_pid"),
+            "pcr_base": item.get("pcr_base"),
+            "pcr_extension": item.get("pcr_extension"),
+            "seconds": item.get("pcr_seconds"),
         }
         for order, item in selected
     ]

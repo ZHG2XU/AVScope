@@ -412,12 +412,32 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(result.media.summary["packet_size"], 188)
         self.assertEqual(result.media.summary["packets"], 3)
         self.assertEqual(result.media.summary["pid_counts"]["0x0000"], 1)
-        self.assertEqual(result.media.summary["pid_counts"]["0x0100"], 1)
+        self.assertEqual(result.media.summary["pid_counts"]["0x0100"], 2)
+        self.assertTrue(result.media.summary["pcr"]["available"])
+        self.assertEqual(result.media.summary["pcr"]["points"], 2)
+        self.assertEqual(result.media.summary["pcr"]["by_pid"]["0x0100"]["span"], 1.0)
+        self.assertEqual(len(result.frames), 2)
+        self.assertEqual(result.frames[1].metadata["pcr_pid"], "0x0100")
+        self.assertEqual(result.media.summary["timeline_summary"]["pcr"]["points"], 2)
         self.assertEqual(result.root.children[0].name, "Packet[0] PID=0x0000")
         fields = {field.name: field for field in result.root.children[0].fields}
         self.assertEqual(fields["sync_byte"].value, "0x47")
         self.assertEqual(fields["pid"].value, "0x0000")
         self.assertEqual((fields["pid"].bit_offset, fields["pid"].bit_length), (11, 13))
+        pcr_fields = {field.name: field.value for field in result.root.children[1].fields}
+        self.assertTrue(pcr_fields["pcr_flag"])
+        self.assertEqual(pcr_fields["pcr_base"], 0)
+        self.assertEqual(pcr_fields["pcr_seconds"], 0.0)
+        html_path = ROOT / "mpegts_pcr_report.html"
+        csv_path = ROOT / "mpegts_pcr_report.csv"
+        json_path = ROOT / "mpegts_pcr_report.json"
+        export_html(result, html_path)
+        export_csv(result, csv_path)
+        export_json(result, json_path)
+        self.assertIn("PCR", html_path.read_text(encoding="utf-8"))
+        self.assertIn("PCR curve", html_path.read_text(encoding="utf-8"))
+        self.assertIn("pcr_seconds", csv_path.read_text(encoding="utf-8-sig"))
+        self.assertIn('"pcr_seconds": 1.0', json_path.read_text(encoding="utf-8"))
 
     def test_mpegps_parser(self):
         sample_dir = ROOT / "ps_sample"

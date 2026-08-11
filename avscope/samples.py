@@ -67,8 +67,8 @@ def _h265_sample() -> bytes:
 def _mpegts_sample() -> bytes:
     return (
         _ts_packet(pid=0x0000, payload_unit_start=True, continuity_counter=0, payload=b"\x00\xb0\r\x00\x01\xc1\x00\x00\x00\x01\xe1\x00")
-        + _ts_packet(pid=0x0100, payload_unit_start=True, continuity_counter=0, payload=b"\x00\x00\x01\xe0\x00\x00\x80\x80\x05")
-        + _ts_packet(pid=0x0101, payload_unit_start=False, continuity_counter=1, payload=b"\x00\x00\x01\xc0\x00\x00\x80\x80\x05")
+        + _ts_packet(pid=0x0100, payload_unit_start=True, continuity_counter=0, payload=b"\x00\x00\x01\xe0\x00\x00\x80\x80\x05", pcr_base=0)
+        + _ts_packet(pid=0x0100, payload_unit_start=False, continuity_counter=1, payload=b"\x65\x88\x84\x21", pcr_base=90000)
     )
 
 
@@ -225,16 +225,37 @@ def _ebml_size(size: int) -> bytes:
     raise ValueError("synthetic EBML sample is too large")
 
 
-def _ts_packet(pid: int, payload_unit_start: bool, continuity_counter: int, payload: bytes) -> bytes:
+def _ts_packet(pid: int, payload_unit_start: bool, continuity_counter: int, payload: bytes, pcr_base: int | None = None) -> bytes:
+    adaptation = b""
+    adaptation_field_control = 0x10
+    if pcr_base is not None:
+        adaptation_field_control = 0x30
+        adaptation = bytes([7, 0x10]) + _encode_pcr(pcr_base)
     header = bytes(
         [
             0x47,
             (0x40 if payload_unit_start else 0x00) | ((pid >> 8) & 0x1F),
             pid & 0xFF,
-            0x10 | (continuity_counter & 0x0F),
+            adaptation_field_control | (continuity_counter & 0x0F),
         ]
     )
-    return header + payload[: TS_PACKET_SIZE - 4] + b"\xFF" * max(0, TS_PACKET_SIZE - 4 - len(payload))
+    capacity = TS_PACKET_SIZE - 4 - len(adaptation)
+    return header + adaptation + payload[:capacity] + b"\xFF" * max(0, capacity - len(payload))
+
+
+def _encode_pcr(pcr_base: int, pcr_extension: int = 0) -> bytes:
+    base = max(0, int(pcr_base)) & ((1 << 33) - 1)
+    extension = max(0, int(pcr_extension)) & 0x1FF
+    return bytes(
+        [
+            (base >> 25) & 0xFF,
+            (base >> 17) & 0xFF,
+            (base >> 9) & 0xFF,
+            (base >> 1) & 0xFF,
+            ((base & 0x01) << 7) | 0x7E | ((extension >> 8) & 0x01),
+            extension & 0xFF,
+        ]
+    )
 
 
 def make_h264_baseline_sps(width: int = 640, height: int = 480, profile_idc: int = 66, level_idc: int = 30) -> bytes:

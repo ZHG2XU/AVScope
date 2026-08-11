@@ -1057,6 +1057,7 @@ class AVScopeApp(tk.Tk):
         self._render_timestamp_curves(canvas, left, right, top, bottom)
         self._render_bitrate_curve(canvas, left, right, top, bottom)
         self._render_rtp_sequence_curve(canvas, left, right, top, bottom)
+        self._render_pcr_curve(canvas, left, right, top, bottom)
         canvas.create_line(left, mid, right, mid, fill=p["border"])
 
     def _render_gop_structure(self, canvas: tk.Canvas, left: int, right: int, top: int, bottom: int) -> None:
@@ -1200,6 +1201,49 @@ class AVScopeApp(tk.Tk):
             text=f"RTP seq warnings {rtp.get('sequence_warnings', 0)}",
             fill=p["accent"],
             anchor=tk.SW,
+            font=("Microsoft YaHei UI", 8),
+        )
+
+    def _render_pcr_curve(self, canvas: tk.Canvas, left: int, right: int, top: int, bottom: int) -> None:
+        if not self.result:
+            return
+        pcr = self.result.media.summary.get("timeline_summary", {}).get("pcr", {})
+        series = pcr.get("series", [])
+        if not pcr.get("available") or len(series) < 2:
+            return
+        values = []
+        for point in series:
+            try:
+                values.append(float(point.get("seconds", 0.0) or 0.0))
+            except (TypeError, ValueError):
+                continue
+        if len(values) < 2:
+            return
+        value_min = min(values)
+        value_max = max(values)
+        if value_max <= value_min:
+            value_max = value_min + 1
+        p = self._palette
+        span = right - left
+        denom = max(1, len(series) - 1)
+        y_span = bottom - top
+        points = []
+        for index, point in enumerate(series):
+            try:
+                seconds = float(point.get("seconds", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                continue
+            x = left + span * index / denom
+            y = bottom - (seconds - value_min) / (value_max - value_min) * y_span
+            points.extend([x, y])
+        if len(points) >= 4:
+            canvas.create_line(*points, fill=p["muted"], width=1.6, dash=(5, 3), smooth=True)
+        canvas.create_text(
+            right,
+            top + 10,
+            text=f"PCR {pcr.get('points', 0)} pts",
+            fill=p["muted"],
+            anchor=tk.NE,
             font=("Microsoft YaHei UI", 8),
         )
 
@@ -2409,6 +2453,16 @@ def format_timeline_summary_lines(timeline_summary: dict | None = None) -> list[
                 f"RTP sequence 异常: first #{first.get('index')} "
                 f"expected={first.get('expected')} current={first.get('current')}"
             )
+    pcr = summary.get("pcr", {})
+    if pcr.get("available"):
+        by_pid = pcr.get("by_pid", {})
+        first_pid = next(iter(by_pid.values()), {})
+        lines.append(
+            "  "
+            f"PCR: points={pcr.get('points', 0)} pid_count={pcr.get('pid_count', 0)} "
+            f"range={_fmt_seconds(first_pid.get('first'))}->{_fmt_seconds(first_pid.get('last'))} "
+            f"max_interval={_fmt_seconds(first_pid.get('max_interval'))}"
+        )
     return lines
 
 

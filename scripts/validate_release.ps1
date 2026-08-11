@@ -319,6 +319,18 @@ if "RTP Sequence" not in pcap_html.read_text(encoding="utf-8"):
     raise SystemExit("HTML RTP sequence summary missing")
 if "RTP seq=100" not in pcap_csv.read_text(encoding="utf-8-sig"):
     raise SystemExit("CSV RTP sequence metadata missing")
+ts = Analyzer().analyze(Path("G:/AVScope/samples/sample.ts"))
+pcr = ts.media.summary.get("timeline_summary", {}).get("pcr", {})
+if not pcr.get("available") or pcr.get("points") != 2:
+    raise SystemExit(f"PCR summary missing: {pcr}")
+ts_html = out_dir / "mpegts_pcr.html"
+ts_csv = out_dir / "mpegts_pcr.csv"
+export_html(ts, ts_html)
+export_csv(ts, ts_csv)
+if "PCR curve" not in ts_html.read_text(encoding="utf-8"):
+    raise SystemExit("HTML PCR curve missing")
+if "pcr_seconds" not in ts_csv.read_text(encoding="utf-8-sig"):
+    raise SystemExit("CSV PCR metadata missing")
 '@
 $timelineSummaryCheck | & $python -
 if ($LASTEXITCODE -ne 0) {

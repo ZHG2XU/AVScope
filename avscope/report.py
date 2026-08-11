@@ -624,6 +624,7 @@ def _timeline_summary_html(timeline_summary: dict) -> str:
     bitrate = timeline_summary.get("bitrate", {})
     gop = timeline_summary.get("gop", {})
     rtp = timeline_summary.get("rtp_sequence", {})
+    pcr = timeline_summary.get("pcr", {})
     rows = [
         ("采样点", f"{timeline_summary.get('items', 0)} ({timeline_summary.get('source', '')})"),
         ("PTS 范围", _timestamp_range(pts)),
@@ -631,6 +632,7 @@ def _timeline_summary_html(timeline_summary: dict) -> str:
         ("码率曲线", _bitrate_range(bitrate)),
         ("GOP / 关键帧", _gop_range(gop)),
         ("RTP Sequence", _rtp_sequence_range(rtp)),
+        ("PCR", _pcr_range(pcr)),
     ]
     body = "".join(f"<tr><td>{html.escape(label)}</td><td>{html.escape(value)}</td></tr>" for label, value in rows)
     return (
@@ -642,6 +644,7 @@ def _timeline_summary_html(timeline_summary: dict) -> str:
         + _bitrate_svg_html(bitrate)
         + _gop_svg_html(gop)
         + _rtp_sequence_svg_html(rtp)
+        + _pcr_svg_html(pcr)
     )
 
 
@@ -810,6 +813,75 @@ def _rtp_sequence_svg_html(rtp: dict) -> str:
     )
 
 
+def _pcr_svg_html(pcr: dict) -> str:
+    series = pcr.get("series", [])
+    if not pcr.get("available") or len(series) < 2:
+        return ""
+    values = []
+    for point in series:
+        try:
+            values.append(float(point.get("seconds", 0.0) or 0.0))
+        except (TypeError, ValueError):
+            continue
+    if len(values) < 2:
+        return ""
+    value_min = min(values)
+    value_max = max(values)
+    if value_max <= value_min:
+        value_max = value_min + 1
+    width = 720
+    height = 120
+    left = 12
+    right = width - 12
+    top = 12
+    bottom = height - 20
+    plot_width = max(1, right - left)
+    y_span = max(1, bottom - top)
+    denom = max(1, len(series) - 1)
+    pairs = []
+    for index, point in enumerate(series):
+        try:
+            seconds = float(point.get("seconds", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            continue
+        x = left + plot_width * index / denom
+        y = bottom - (seconds - value_min) / (value_max - value_min) * y_span
+        pairs.append(f"{x:.2f},{y:.2f}")
+    if len(pairs) < 2:
+        return ""
+    warning_orders = []
+    for item in pcr.get("warnings", [])[:48]:
+        try:
+            warning_orders.append(int(item.get("item_order", 0) or 0))
+        except (TypeError, ValueError):
+            continue
+    warnings = []
+    max_order = max(1, max((int(point.get("item_order", 0) or 0) for point in series), default=0))
+    for order in warning_orders:
+        x = left + plot_width * min(max(order, 0), max_order) / max_order
+        warnings.append(f'<circle class="timestamp-anomaly" cx="{x:.2f}" cy="{top + 7:.2f}" r="3.8" />')
+    grid_lines = "\n".join(
+        [
+            f'<line class="grid" x1="{left}" y1="{top + y_span * 0.33:.2f}" x2="{right}" y2="{top + y_span * 0.33:.2f}" />',
+            f'<line class="grid" x1="{left}" y1="{top + y_span * 0.66:.2f}" x2="{right}" y2="{top + y_span * 0.66:.2f}" />',
+            f'<line class="axis" x1="{left}" y1="{bottom}" x2="{right}" y2="{bottom}" />',
+        ]
+    )
+    caption = (
+        f"PCR points={pcr.get('points', 0)}, pid_count={pcr.get('pid_count', 0)}, "
+        f"range={_format_seconds(value_min)}..{_format_seconds(value_max)}"
+    )
+    return (
+        f'<svg class="timeline-chart" viewBox="0 0 {width} {height}" role="img" aria-label="PCR curve">'
+        f'<rect class="bg" x="0" y="0" width="{width}" height="{height}" rx="8" />'
+        f"{grid_lines}"
+        f'<polyline class="pts" points="{" ".join(pairs)}" />'
+        f"{''.join(warnings)}"
+        "</svg>"
+        f'<p class="chart-caption">{html.escape(caption)}</p>'
+    )
+
+
 def _gop_svg_html(gop: dict) -> str:
     groups = gop.get("groups", [])
     if not gop.get("groups_available") or not groups:
@@ -896,6 +968,18 @@ def _rtp_sequence_range(data: dict) -> str:
         f"packets={data.get('packets', 0)}; streams={len(streams)}; "
         f"warnings={data.get('sequence_warnings', 0)}; "
         f"range={first_stream.get('first_sequence', '')}->{first_stream.get('last_sequence', '')}"
+    )
+
+
+def _pcr_range(data: dict) -> str:
+    if not data.get("available"):
+        return "none"
+    by_pid = data.get("by_pid", {})
+    first_pid = next(iter(by_pid.values()), {})
+    return (
+        f"points={data.get('points', 0)}; pid_count={data.get('pid_count', 0)}; "
+        f"range={_format_seconds(first_pid.get('first'))}->{_format_seconds(first_pid.get('last'))}; "
+        f"max_interval={_format_seconds(first_pid.get('max_interval'))}"
     )
 
 
