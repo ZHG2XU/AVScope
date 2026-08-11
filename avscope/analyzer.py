@@ -77,6 +77,7 @@ def build_timeline_diagnostics(summary: dict, tolerance: float = 0.000001) -> li
     diagnostics.extend(build_probe_diagnostics(summary))
     diagnostics.extend(_packet_monotonic_diagnostics(summary.get("packet_timeline", {}), tolerance))
     diagnostics.extend(_stream_duration_diagnostics(summary.get("ffprobe", {})))
+    diagnostics.extend(_size_spike_diagnostics(summary))
     return diagnostics
 
 
@@ -151,6 +152,59 @@ def _stream_duration_diagnostics(ffprobe: dict, tolerance: float = 0.5) -> list[
             "timeline",
         )
     ]
+
+
+def _size_spike_diagnostics(summary: dict, ratio: float = 4.0, minimum_items: int = 3) -> list[DiagnosticIssue]:
+    diagnostics: list[DiagnosticIssue] = []
+    frame_stats = summary.get("frame_stats", {})
+    if _has_size_spike(frame_stats, "frames", ratio, minimum_items):
+        diagnostics.append(
+            DiagnosticIssue(
+                Severity.WARNING,
+                (
+                    "帧大小尖峰 "
+                    f"frame=#{frame_stats.get('largest_index')} "
+                    f"max={frame_stats.get('largest_size', frame_stats.get('max_size'))} bytes "
+                    f"average={frame_stats.get('average_size')} bytes"
+                ),
+                frame_stats.get("largest_offset"),
+                "timeline",
+            )
+        )
+
+    packet_stats = summary.get("packet_stats", {})
+    if not packet_stats.get("available"):
+        return diagnostics
+    for stream, item in packet_stats.get("by_stream", {}).items():
+        if not _has_size_spike(item, "packets", ratio, minimum_items):
+            continue
+        diagnostics.append(
+            DiagnosticIssue(
+                Severity.WARNING,
+                (
+                    "Packet 大小尖峰 "
+                    f"stream={stream} "
+                    f"packet={item.get('largest_index')} "
+                    f"max={item.get('largest_size', item.get('max_size'))} bytes "
+                    f"average={item.get('average_size')} bytes"
+                ),
+                item.get("largest_pos"),
+                "timeline",
+            )
+        )
+    return diagnostics
+
+
+def _has_size_spike(stats: dict, count_key: str, ratio: float, minimum_items: int) -> bool:
+    if not stats.get("available", True):
+        return False
+    try:
+        count = int(stats.get(count_key, 0) or 0)
+        average_size = float(stats.get("average_size", 0) or 0)
+        max_size = float(stats.get("max_size", stats.get("largest_size", 0)) or 0)
+    except (TypeError, ValueError):
+        return False
+    return count >= minimum_items and average_size > 0 and max_size >= average_size * ratio
 
 
 def _float_or_none(value) -> float | None:

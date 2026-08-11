@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-12T00:00:05",
+  "generated_at": "2026-08-12T03:19:44",
   "tool_version": "0.1.0",
   "media": {
     "path": "G:\\AVScope\\samples\\sample.mp4",
@@ -11,16 +11,29 @@
       "has_mdat": true,
       "ffprobe": {
         "available": true,
-        "error": "[h264 @ 0000015e1c2908c0] missing picture in access unit with size 8\n[extract_extradata @ 0000015e1c297900] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input"
+        "error": "[h264 @ 00000195f0e50a00] missing picture in access unit with size 8\n[extract_extradata @ 00000195f0e7e740] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input"
       },
       "packet_timeline": {
         "available": true,
-        "error": "[h264 @ 000001ee670f2f00] missing picture in access unit with size 8\n[extract_extradata @ 000001ee670f6200] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input",
+        "error": "[h264 @ 000002561c423040] missing picture in access unit with size 8\n[extract_extradata @ 000002561c425d00] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input",
         "packets": []
       }
     }
   },
-  "diagnostics": [],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "message": "ffprobe 媒体流探测失败：[h264 @ 00000195f0e50a00] missing picture in access unit with size 8\n[extract_extradata @ 00000195f0e7e740] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input",
+      "offset": null,
+      "source": "ffprobe"
+    },
+    {
+      "severity": "warning",
+      "message": "ffprobe packet 时间线探测失败：[h264 @ 000002561c423040] missing picture in access unit with size 8\n[extract_extradata @ 000002561c425d00] No start code is found.\nG:\\AVScope\\samples\\sample.mp4: Invalid data found when processing input",
+      "offset": null,
+      "source": "ffprobe"
+    }
+  ],
   "frames": [],
   "root": {
     "name": "sample.mp4",

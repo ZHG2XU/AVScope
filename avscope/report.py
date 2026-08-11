@@ -590,6 +590,7 @@ def _packet_stats_table(packet_stats: dict) -> str:
             f"<td>{item.get('keyframes', 0)}</td>"
             f"<td>{item.get('average_size', 0)}</td>"
             f"<td>{item.get('max_size', 0)}</td>"
+            f"<td>#{html.escape(str(item.get('largest_index', '')))}</td>"
             f"<td>{html.escape(str(pts_span))}</td>"
             f"<td>{html.escape(codec_types)}</td>"
             "</tr>"
@@ -598,7 +599,7 @@ def _packet_stats_table(packet_stats: dict) -> str:
         return "<p class=\"empty\">暂无 packet stream 分布。</p>"
     return (
         "<h3>Packet 统计</h3>"
-        "<table><tr><th>Stream</th><th>Packets</th><th>Key</th><th>Avg Size</th><th>Max Size</th><th>PTS Span</th><th>类型</th></tr>"
+        "<table><tr><th>Stream</th><th>Packets</th><th>Key</th><th>Avg Size</th><th>Max Size</th><th>Max Packet</th><th>PTS Span</th><th>类型</th></tr>"
         + "".join(rows)
         + "</table>"
     )

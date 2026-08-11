@@ -10,12 +10,14 @@ def build_packet_stats(packet_timeline: dict) -> dict:
         return {"available": False, "packets": 0}
     sizes = [_int_or_zero(packet.get("size")) for packet in packets]
     keyframes = sum(1 for packet in packets if packet.get("keyframe"))
+    largest_packet = max(packets, key=lambda packet: _int_or_zero(packet.get("size")))
     by_stream: dict[str, dict[str, Any]] = {}
     grouped: dict[str, list[dict]] = defaultdict(list)
     for packet in packets:
         grouped[str(packet.get("stream_index", ""))].append(packet)
     for stream, stream_packets in grouped.items():
         stream_sizes = [_int_or_zero(packet.get("size")) for packet in stream_packets]
+        stream_largest = max(stream_packets, key=lambda packet: _int_or_zero(packet.get("size")))
         pts_values = [_float_or_none(packet.get("pts")) for packet in stream_packets]
         pts_values = [value for value in pts_values if value is not None]
         codec_counts = Counter(str(packet.get("codec_type") or "packet") for packet in stream_packets)
@@ -26,6 +28,9 @@ def build_packet_stats(packet_timeline: dict) -> dict:
             "min_size": min(stream_sizes),
             "max_size": max(stream_sizes),
             "average_size": round(sum(stream_sizes) / len(stream_sizes), 2),
+            "largest_index": stream_largest.get("index"),
+            "largest_pos": stream_largest.get("pos"),
+            "largest_size": _int_or_zero(stream_largest.get("size")),
             "codec_types": dict(codec_counts.most_common(8)),
         }
         if pts_values:
@@ -42,6 +47,10 @@ def build_packet_stats(packet_timeline: dict) -> dict:
         "min_size": min(sizes),
         "max_size": max(sizes),
         "average_size": round(sum(sizes) / len(sizes), 2),
+        "largest_index": largest_packet.get("index"),
+        "largest_stream": largest_packet.get("stream_index"),
+        "largest_pos": largest_packet.get("pos"),
+        "largest_size": _int_or_zero(largest_packet.get("size")),
         "by_stream": by_stream,
     }
 

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-12T00:12:48",
+  "generated_at": "2026-08-12T03:19:44",
   "tool_version": "0.1.0",
   "media": {
     "path": "G:\\AVScope\\samples\\sample.h264",
@@ -14,6 +14,28 @@
       "pps_id": 0,
       "pps_sps_id": 0,
       "parsed_nalu": 4,
+      "frame_stats": {
+        "available": true,
+        "frames": 4,
+        "keyframes": 1,
+        "keyframe_ratio": 0.25,
+        "total_bytes": 33,
+        "min_size": 5,
+        "max_size": 13,
+        "average_size": 8.25,
+        "first_offset": 0,
+        "first_size": 13,
+        "first_pts": null,
+        "largest_index": 0,
+        "largest_offset": 0,
+        "largest_size": 13,
+        "frame_types": {
+          "SPS": 1,
+          "PPS": 1,
+          "IDR Slice": 1,
+          "Non-IDR Slice": 1
+        }
+      },
       "ffprobe": {
         "available": true,
         "format": {
@@ -71,6 +93,36 @@
             "keyframe": false
           }
         ]
+      },
+      "packet_stats": {
+        "available": true,
+        "packets": 2,
+        "streams": 1,
+        "keyframes": 1,
+        "total_bytes": 33,
+        "min_size": 7,
+        "max_size": 26,
+        "average_size": 16.5,
+        "largest_index": 0,
+        "largest_stream": 0,
+        "largest_pos": 0,
+        "largest_size": 26,
+        "by_stream": {
+          "0": {
+            "packets": 2,
+            "keyframes": 1,
+            "total_bytes": 33,
+            "min_size": 7,
+            "max_size": 26,
+            "average_size": 16.5,
+            "largest_index": 0,
+            "largest_pos": 0,
+            "largest_size": 26,
+            "codec_types": {
+              "video": 2
+            }
+          }
+        }
       }
     }
   },

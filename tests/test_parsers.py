@@ -436,12 +436,40 @@ class ParserTests(unittest.TestCase):
                     {"codec_type": "audio", "duration": "8.9"},
                 ],
             },
+            "frame_stats": {
+                "available": True,
+                "frames": 5,
+                "average_size": 150,
+                "max_size": 600,
+                "largest_index": 2,
+                "largest_offset": 512,
+                "largest_size": 600,
+            },
+            "packet_stats": {
+                "available": True,
+                "packets": 6,
+                "average_size": 90,
+                "max_size": 500,
+                "by_stream": {
+                    "0": {
+                        "packets": 5,
+                        "average_size": 125,
+                        "max_size": 500,
+                        "largest_index": 3,
+                        "largest_pos": 2048,
+                        "largest_size": 500,
+                    },
+                    "1": {"packets": 2, "average_size": 50, "max_size": 60, "largest_index": 5, "largest_size": 60},
+                },
+            },
         }
         issues = build_timeline_diagnostics(summary)
         messages = [issue.message for issue in issues]
         self.assertTrue(any("PTS 非单调" in message for message in messages))
         self.assertTrue(any("DTS 非单调" in message for message in messages))
         self.assertTrue(any("音视频时长差异" in message for message in messages))
+        self.assertTrue(any("帧大小尖峰" in message and "frame=#2" in message for message in messages))
+        self.assertTrue(any("Packet 大小尖峰" in message and "stream=0" in message for message in messages))
         self.assertEqual({issue.severity for issue in issues}, {Severity.WARNING})
 
     def test_packet_stats(self):
@@ -459,7 +487,10 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(stats["streams"], 2)
         self.assertEqual(stats["keyframes"], 1)
         self.assertEqual(stats["average_size"], 58.33)
+        self.assertEqual(stats["largest_index"], None)
+        self.assertEqual(stats["largest_size"], 100)
         self.assertEqual(stats["by_stream"]["0"]["pts_span"], 0.04)
+        self.assertEqual(stats["by_stream"]["0"]["largest_size"], 100)
 
     def test_ffprobe_errors_emit_diagnostics(self):
         summary = {
