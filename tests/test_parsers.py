@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from avscope.app import extract_hex_bytes_from_dump_text, hex_bytes_to_ascii
+from avscope.app import extract_hex_bytes_from_dump_text, format_hex_interpretation, hex_bytes_to_ascii
 from avscope.analyzer import Analyzer
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_protocol, format_protocol_compare
@@ -325,6 +325,13 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(data, b"\x00\x01hello\xFF\xF1 A")
         self.assertEqual(hex_bytes_to_ascii(data), "..hello.. A")
         self.assertEqual(extract_hex_bytes_from_dump_text("FF F1"), b"\xFF\xF1")
+        little = format_hex_interpretation(bytes.fromhex("01 00 00 00"), "little")
+        big = format_hex_interpretation(bytes.fromhex("01 00 00 00"), "big")
+        self.assertIn("u16: 1", little)
+        self.assertIn("u32: 1", little)
+        self.assertIn("u16: 256", big)
+        self.assertIn("u32: 16777216", big)
+        self.assertIn("ASCII: ....", little)
 
     def test_recent_file_settings(self):
         settings_path = ROOT / "settings.json"

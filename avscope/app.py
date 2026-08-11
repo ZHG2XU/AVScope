@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import struct
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
@@ -81,6 +82,7 @@ class AVScopeApp(tk.Tk):
         self.settings = AppSettings()
         self._theme_name = "dark"
         self._palette = PALETTES["dark"]
+        self.hex_endian = tk.StringVar(value="little")
         self._build_ui()
         self._bind_shortcuts()
         self._apply_theme("dark")
@@ -123,6 +125,9 @@ class AVScopeApp(tk.Tk):
         self.search_mode_box = ttk.Combobox(toolbar, width=7, textvariable=self.search_mode, values=("hex", "text"), state="readonly")
         self.search_mode_box.pack(side=tk.LEFT, padx=(6, 0))
         ttk.Button(toolbar, text="查找下一个", command=self.find_next, style="Toolbar.TButton").pack(side=tk.LEFT, padx=8)
+        ttk.Label(toolbar, text="Endian", style="Toolbar.TLabel").pack(side=tk.LEFT, padx=(10, 6))
+        self.endian_box = ttk.Combobox(toolbar, width=7, textvariable=self.hex_endian, values=("little", "big"), state="readonly")
+        self.endian_box.pack(side=tk.LEFT)
 
         self.summary_frame = tk.Frame(self)
         self.summary_frame.pack(side=tk.TOP, fill=tk.X, padx=12, pady=(0, 10))
@@ -247,6 +252,7 @@ class AVScopeApp(tk.Tk):
         tools_menu.add_command(label="复制当前 Offset", command=self.copy_current_offset, accelerator="Ctrl+Shift+O")
         tools_menu.add_command(label="复制选中 Hex 字节", command=self.copy_selected_hex_bytes, accelerator="Ctrl+Shift+C")
         tools_menu.add_command(label="复制选中 ASCII", command=self.copy_selected_ascii)
+        tools_menu.add_command(label="解释选中字节", command=self.show_selected_hex_interpretation, accelerator="Ctrl+Shift+I")
         menu.add_cascade(label="工具", menu=tools_menu)
         self.config(menu=menu)
         self._refresh_recent_menu()
@@ -256,6 +262,8 @@ class AVScopeApp(tk.Tk):
         self.hex_context_menu.add_command(label="复制当前 Offset", command=self.copy_current_offset)
         self.hex_context_menu.add_command(label="复制选中 Hex 字节", command=self.copy_selected_hex_bytes)
         self.hex_context_menu.add_command(label="复制选中 ASCII", command=self.copy_selected_ascii)
+        self.hex_context_menu.add_separator()
+        self.hex_context_menu.add_command(label="解释选中字节", command=self.show_selected_hex_interpretation)
         self.hex_text.bind("<Button-3>", self._show_hex_context_menu)
 
     def _bind_shortcuts(self) -> None:
@@ -270,6 +278,7 @@ class AVScopeApp(tk.Tk):
         self.bind_all("<Control-Shift-J>", self._shortcut(self.export_json_report))
         self.bind_all("<Control-Shift-O>", self._shortcut(self.copy_current_offset))
         self.bind_all("<Control-Shift-C>", self._shortcut(self.copy_selected_hex_bytes))
+        self.bind_all("<Control-Shift-I>", self._shortcut(self.show_selected_hex_interpretation))
 
     def _shortcut(self, command):
         def handler(_event=None):
@@ -671,6 +680,17 @@ class AVScopeApp(tk.Tk):
         self._copy_to_clipboard(hex_bytes_to_ascii(data))
         self.status.set(f"已复制 {len(data)} 个 ASCII 字符")
 
+    def show_selected_hex_interpretation(self) -> None:
+        data = self._selected_hex_bytes()
+        if not data:
+            self.status.set("未选择可解释的 Hex 字节")
+            return
+        text = format_hex_interpretation(data, self.hex_endian.get())
+        self.diagnostics.delete("1.0", tk.END)
+        self.diagnostics.insert(tk.END, text, ("info",))
+        self.tabs.select(self.hex_text)
+        self.status.set(f"已解释 {len(data)} 个字节 ({self.hex_endian.get()} endian)")
+
     def _selected_hex_bytes(self) -> bytes:
         try:
             text = self.hex_text.get(tk.SEL_FIRST, tk.SEL_LAST)
@@ -795,6 +815,35 @@ def extract_hex_bytes_from_dump_text(text: str) -> bytes:
 
 def hex_bytes_to_ascii(data: bytes) -> str:
     return "".join(chr(byte) if 32 <= byte <= 126 else "." for byte in data)
+
+
+def format_hex_interpretation(data: bytes, endian: str = "little") -> str:
+    byteorder = "big" if endian == "big" else "little"
+    struct_prefix = ">" if byteorder == "big" else "<"
+    u8_values = ", ".join(str(value) for value in data[:16])
+    i8_values = ", ".join(str(value if value < 128 else value - 256) for value in data[:16])
+    suffix = "" if len(data) <= 16 else f", ... ({len(data)} bytes)"
+    lines = [
+        "Hex 选区解释",
+        f"Endian: {byteorder}",
+        f"Length: {len(data)} bytes",
+        f"Hex: {data.hex(' ').upper()}",
+        f"ASCII: {hex_bytes_to_ascii(data)}",
+        f"u8[]: {u8_values}{suffix}",
+        f"i8[]: {i8_values}{suffix}",
+    ]
+    for size in (2, 4, 8):
+        if len(data) < size:
+            continue
+        chunk = data[:size]
+        bits = size * 8
+        lines.append(f"u{bits}: {int.from_bytes(chunk, byteorder=byteorder, signed=False)}")
+        lines.append(f"i{bits}: {int.from_bytes(chunk, byteorder=byteorder, signed=True)}")
+    if len(data) >= 4:
+        lines.append(f"float32: {struct.unpack(struct_prefix + 'f', data[:4])[0]:.9g}")
+    if len(data) >= 8:
+        lines.append(f"float64: {struct.unpack(struct_prefix + 'd', data[:8])[0]:.17g}")
+    return "\n".join(lines)
 
 
 def main() -> None:
