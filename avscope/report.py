@@ -18,34 +18,42 @@ def export_json(result: ParseResult, path: str | Path) -> None:
 
 def export_html(result: ParseResult, path: str | Path) -> None:
     doc = _document(result)
-    summary_json = html.escape(json.dumps(doc["media"].get("summary", {}), ensure_ascii=False, indent=2))
+    media = doc["media"]
+    summary_json = html.escape(json.dumps(media.get("summary", {}), ensure_ascii=False, indent=2))
     issue_counts = _issue_counts(doc["diagnostics"])
     issue_items = "\n".join(_issue_item(issue) for issue in doc["diagnostics"])
+    health_class, health_text = _health(issue_counts)
     nodes = _node_html(result.root)
     waveform = result.media.summary.get("waveform", {})
-    waveform_html = f"<pre class=\"waveform\">{html.escape(waveform.get('ascii', ''))}</pre>" if waveform.get("available") else "<p class=\"empty\">无波形摘要。</p>"
+    waveform_html = (
+        f"<pre class=\"waveform\">{html.escape(waveform.get('ascii', ''))}</pre>"
+        if waveform.get("available")
+        else "<p class=\"empty\">暂无可展示的音频波形摘要。</p>"
+    )
     timeline_html = _timeline_html(result.media.summary.get("packet_timeline", {}).get("packets", [])[:100])
     stream_html = _stream_html(result.media.summary.get("ffprobe", {}).get("streams", []))
-    media = doc["media"]
+    generated_at = html.escape(doc["generated_at"])
     body = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AVScope Report</title>
+  <title>AVScope 分析报告</title>
   <style>
     :root {{
-      --bg: #f5f7fa;
+      --bg: #f4f7fa;
       --panel: #ffffff;
+      --panel-soft: #f8fafc;
       --ink: #17212b;
       --muted: #5e6b78;
       --line: #dce3ea;
       --head: #101820;
       --accent: #176b9a;
+      --accent-soft: #e4f2f9;
       --ok: #287a5c;
       --warn: #9a6700;
       --err: #b42318;
-      --code: #f0f4f7;
+      --code: #eef3f7;
     }}
     * {{ box-sizing: border-box; }}
     body {{
@@ -58,15 +66,34 @@ def export_html(result: ParseResult, path: str | Path) -> None:
     header {{
       background: var(--head);
       color: #e6edf3;
-      padding: 28px 36px 24px;
+      padding: 30px 36px 28px;
       border-bottom: 4px solid var(--accent);
     }}
-    header h1 {{ margin: 0; font-size: 28px; letter-spacing: 0; }}
-    header .meta {{ margin-top: 8px; color: #a9b7c4; font-size: 13px; }}
-    main {{ max-width: 1180px; margin: 0 auto; padding: 26px 24px 40px; }}
+    .header-inner {{
+      max-width: 1180px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }}
+    .mark {{
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #355166;
+      background: #142435;
+      color: #e6edf3;
+      font-weight: 700;
+      letter-spacing: 0;
+    }}
+    h1 {{ margin: 0; font-size: 28px; letter-spacing: 0; }}
+    .meta {{ margin-top: 6px; color: #a9b7c4; font-size: 13px; }}
+    main {{ max-width: 1180px; margin: 0 auto; padding: 26px 24px 42px; }}
     section {{
       background: var(--panel);
       border: 1px solid var(--line);
+      border-radius: 8px;
       margin-bottom: 18px;
       padding: 20px 22px;
     }}
@@ -80,46 +107,71 @@ def export_html(result: ParseResult, path: str | Path) -> None:
     pre {{ padding: 14px; overflow: auto; font-family: Consolas, monospace; font-size: 12px; }}
     .overview {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
       gap: 12px;
     }}
     .metric {{
-      border-left: 3px solid var(--accent);
-      background: #f8fafc;
-      padding: 10px 12px;
+      border-left: 4px solid var(--accent);
+      background: var(--panel-soft);
+      border-radius: 8px;
+      padding: 11px 13px;
+      min-width: 0;
     }}
     .metric .label {{ color: var(--muted); font-size: 12px; }}
-    .metric .value {{ margin-top: 3px; font-weight: 600; word-break: break-all; }}
-    .badges {{ display: flex; gap: 8px; flex-wrap: wrap; }}
-    .badge {{
+    .metric .value {{ margin-top: 3px; font-weight: 700; word-break: break-word; }}
+    .status-line {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }}
+    .pill {{
       display: inline-flex;
       align-items: center;
-      min-height: 26px;
-      padding: 3px 10px;
+      min-height: 28px;
+      padding: 4px 10px;
       border-radius: 999px;
       font-size: 12px;
       border: 1px solid var(--line);
-      background: #f8fafc;
+      background: var(--panel-soft);
     }}
-    .badge.info {{ color: var(--ok); }}
-    .badge.warning {{ color: var(--warn); }}
-    .badge.error {{ color: var(--err); }}
+    .pill.ok {{ color: var(--ok); border-color: #b9dbc9; background: #edf8f1; }}
+    .pill.warning {{ color: var(--warn); border-color: #ead59b; background: #fff8e5; }}
+    .pill.error {{ color: var(--err); border-color: #efb8b0; background: #fff0ee; }}
+    ul {{ margin: 0; padding-left: 20px; }}
     table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
     th, td {{ border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }}
-    th {{ color: var(--muted); background: #f8fafc; font-weight: 600; }}
+    th {{ color: var(--muted); background: var(--panel-soft); font-weight: 600; }}
     tr:hover td {{ background: #f8fbfd; }}
-    details {{ border-left: 2px solid var(--line); margin: 7px 0 7px 12px; padding-left: 12px; }}
+    details {{
+      border-left: 2px solid var(--line);
+      margin: 7px 0 7px 12px;
+      padding-left: 12px;
+    }}
     summary {{ cursor: pointer; padding: 3px 0; font-family: Consolas, monospace; }}
     .warning {{ color: var(--warn); }}
     .error {{ color: var(--err); }}
-    .empty {{ color: var(--muted); }}
+    .empty {{ color: var(--muted); margin: 0; }}
     .waveform {{ white-space: pre; line-height: 1.1; }}
+    @media (max-width: 720px) {{
+      header {{ padding: 24px 18px; }}
+      .header-inner {{ align-items: flex-start; }}
+      main {{ padding: 18px 14px 30px; }}
+      section {{ padding: 16px; }}
+      h1 {{ font-size: 22px; }}
+    }}
   </style>
 </head>
 <body>
   <header>
-    <h1>AVScope 分析报告</h1>
-    <div class="meta">生成时间：{html.escape(doc["generated_at"])}，工具版本：{html.escape(doc["tool_version"])}</div>
+    <div class="header-inner">
+      <div class="mark">AV</div>
+      <div>
+        <h1>AVScope 分析报告</h1>
+        <div class="meta">生成时间：{generated_at}，工具版本：{html.escape(doc["tool_version"])}</div>
+      </div>
+    </div>
   </header>
   <main>
     <section>
@@ -127,18 +179,20 @@ def export_html(result: ParseResult, path: str | Path) -> None:
       <div class="overview">
         <div class="metric"><div class="label">文件路径</div><div class="value"><code>{html.escape(media["path"])}</code></div></div>
         <div class="metric"><div class="label">识别格式</div><div class="value">{html.escape(media["format_name"])}</div></div>
-        <div class="metric"><div class="label">文件大小</div><div class="value">{media["size"]} bytes</div></div>
-        <div class="metric"><div class="label">协议节点</div><div class="value">{len(result.root.children)}</div></div>
+        <div class="metric"><div class="label">文件大小</div><div class="value">{_format_size(media["size"])}</div></div>
+        <div class="metric"><div class="label">协议节点</div><div class="value">{_count_nodes(result.root)}</div></div>
+        <div class="metric"><div class="label">字段数量</div><div class="value">{_count_fields(result.root)}</div></div>
       </div>
     </section>
     <section>
       <h2>诊断摘要</h2>
-      <div class="badges">
-        <span class="badge info">info {issue_counts["info"]}</span>
-        <span class="badge warning">warning {issue_counts["warning"]}</span>
-        <span class="badge error">error {issue_counts["error"]}</span>
+      <div class="status-line">
+        <span class="pill {health_class}">{health_text}</span>
+        <span class="pill ok">info {issue_counts["info"]}</span>
+        <span class="pill warning">warning {issue_counts["warning"]}</span>
+        <span class="pill error">error {issue_counts["error"]}</span>
       </div>
-      <ul>{issue_items or "<li class=\"empty\">未发现 warning/error</li>"}</ul>
+      <ul>{issue_items or "<li class=\"empty\">未发现 warning/error。</li>"}</ul>
     </section>
     <section>
       <h2>媒体摘要</h2>
@@ -197,6 +251,14 @@ def _issue_counts(diagnostics: list[dict]) -> dict[str, int]:
     return counts
 
 
+def _health(counts: dict[str, int]) -> tuple[str, str]:
+    if counts["error"]:
+        return "error", "存在错误"
+    if counts["warning"]:
+        return "warning", "存在警告"
+    return "ok", "未发现异常"
+
+
 def _issue_item(issue: dict) -> str:
     severity = html.escape(str(issue.get("severity", "info")))
     message = html.escape(str(issue.get("message", "")))
@@ -207,7 +269,7 @@ def _issue_item(issue: dict) -> str:
 
 def _stream_html(streams: list[dict]) -> str:
     if not streams:
-        return "<p class=\"empty\">无 ffprobe 流信息。</p>"
+        return "<p class=\"empty\">暂无 ffprobe 流信息。</p>"
     rows = []
     for stream in streams:
         shape = ""
@@ -229,7 +291,7 @@ def _stream_html(streams: list[dict]) -> str:
 
 def _timeline_html(packets: list[dict]) -> str:
     if not packets:
-        return "<p class=\"empty\">无 packet 时间线。</p>"
+        return "<p class=\"empty\">暂无 packet 时间线。</p>"
     rows = []
     for packet in packets:
         rows.append(
@@ -269,3 +331,19 @@ def _node_html(node: ParseNode) -> str:
     )
     children = "\n".join(_node_html(child) for child in node.children)
     return f"<details open><summary>{html.escape(title)}</summary>{table}{children}</details>"
+
+
+def _count_nodes(node: ParseNode) -> int:
+    return 1 + sum(_count_nodes(child) for child in node.children)
+
+
+def _count_fields(node: ParseNode) -> int:
+    return len(node.fields) + sum(_count_fields(child) for child in node.children)
+
+
+def _format_size(size: int) -> str:
+    if size < 1024:
+        return f"{size} bytes"
+    if size < 1024 * 1024:
+        return f"{size / 1024:.1f} KB"
+    return f"{size / 1024 / 1024:.1f} MB"

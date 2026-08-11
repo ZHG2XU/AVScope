@@ -3,20 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AVScope Report</title>
+  <title>AVScope 分析报告</title>
   <style>
     :root {
-      --bg: #f5f7fa;
+      --bg: #f4f7fa;
       --panel: #ffffff;
+      --panel-soft: #f8fafc;
       --ink: #17212b;
       --muted: #5e6b78;
       --line: #dce3ea;
       --head: #101820;
       --accent: #176b9a;
+      --accent-soft: #e4f2f9;
       --ok: #287a5c;
       --warn: #9a6700;
       --err: #b42318;
-      --code: #f0f4f7;
+      --code: #eef3f7;
     }
     * { box-sizing: border-box; }
     body {
@@ -29,15 +31,34 @@
     header {
       background: var(--head);
       color: #e6edf3;
-      padding: 28px 36px 24px;
+      padding: 30px 36px 28px;
       border-bottom: 4px solid var(--accent);
     }
-    header h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
-    header .meta { margin-top: 8px; color: #a9b7c4; font-size: 13px; }
-    main { max-width: 1180px; margin: 0 auto; padding: 26px 24px 40px; }
+    .header-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #355166;
+      background: #142435;
+      color: #e6edf3;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+    h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
+    .meta { margin-top: 6px; color: #a9b7c4; font-size: 13px; }
+    main { max-width: 1180px; margin: 0 auto; padding: 26px 24px 42px; }
     section {
       background: var(--panel);
       border: 1px solid var(--line);
+      border-radius: 8px;
       margin-bottom: 18px;
       padding: 20px 22px;
     }
@@ -51,46 +72,71 @@
     pre { padding: 14px; overflow: auto; font-family: Consolas, monospace; font-size: 12px; }
     .overview {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
       gap: 12px;
     }
     .metric {
-      border-left: 3px solid var(--accent);
-      background: #f8fafc;
-      padding: 10px 12px;
+      border-left: 4px solid var(--accent);
+      background: var(--panel-soft);
+      border-radius: 8px;
+      padding: 11px 13px;
+      min-width: 0;
     }
     .metric .label { color: var(--muted); font-size: 12px; }
-    .metric .value { margin-top: 3px; font-weight: 600; word-break: break-all; }
-    .badges { display: flex; gap: 8px; flex-wrap: wrap; }
-    .badge {
+    .metric .value { margin-top: 3px; font-weight: 700; word-break: break-word; }
+    .status-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .pill {
       display: inline-flex;
       align-items: center;
-      min-height: 26px;
-      padding: 3px 10px;
+      min-height: 28px;
+      padding: 4px 10px;
       border-radius: 999px;
       font-size: 12px;
       border: 1px solid var(--line);
-      background: #f8fafc;
+      background: var(--panel-soft);
     }
-    .badge.info { color: var(--ok); }
-    .badge.warning { color: var(--warn); }
-    .badge.error { color: var(--err); }
+    .pill.ok { color: var(--ok); border-color: #b9dbc9; background: #edf8f1; }
+    .pill.warning { color: var(--warn); border-color: #ead59b; background: #fff8e5; }
+    .pill.error { color: var(--err); border-color: #efb8b0; background: #fff0ee; }
+    ul { margin: 0; padding-left: 20px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
-    th { color: var(--muted); background: #f8fafc; font-weight: 600; }
+    th { color: var(--muted); background: var(--panel-soft); font-weight: 600; }
     tr:hover td { background: #f8fbfd; }
-    details { border-left: 2px solid var(--line); margin: 7px 0 7px 12px; padding-left: 12px; }
+    details {
+      border-left: 2px solid var(--line);
+      margin: 7px 0 7px 12px;
+      padding-left: 12px;
+    }
     summary { cursor: pointer; padding: 3px 0; font-family: Consolas, monospace; }
     .warning { color: var(--warn); }
     .error { color: var(--err); }
-    .empty { color: var(--muted); }
+    .empty { color: var(--muted); margin: 0; }
     .waveform { white-space: pre; line-height: 1.1; }
+    @media (max-width: 720px) {
+      header { padding: 24px 18px; }
+      .header-inner { align-items: flex-start; }
+      main { padding: 18px 14px 30px; }
+      section { padding: 16px; }
+      h1 { font-size: 22px; }
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>AVScope 分析报告</h1>
-    <div class="meta">生成时间：2026-08-11T23:31:22，工具版本：0.1.0</div>
+    <div class="header-inner">
+      <div class="mark">AV</div>
+      <div>
+        <h1>AVScope 分析报告</h1>
+        <div class="meta">生成时间：2026-08-11T23:47:10，工具版本：0.1.0</div>
+      </div>
+    </div>
   </header>
   <main>
     <section>
@@ -98,18 +144,20 @@
       <div class="overview">
         <div class="metric"><div class="label">文件路径</div><div class="value"><code>G:\AVScope\samples\sample.wav</code></div></div>
         <div class="metric"><div class="label">识别格式</div><div class="value">WAV</div></div>
-        <div class="metric"><div class="label">文件大小</div><div class="value">1068 bytes</div></div>
-        <div class="metric"><div class="label">协议节点</div><div class="value">2</div></div>
+        <div class="metric"><div class="label">文件大小</div><div class="value">1.0 KB</div></div>
+        <div class="metric"><div class="label">协议节点</div><div class="value">3</div></div>
+        <div class="metric"><div class="label">字段数量</div><div class="value">15</div></div>
       </div>
     </section>
     <section>
       <h2>诊断摘要</h2>
-      <div class="badges">
-        <span class="badge info">info 0</span>
-        <span class="badge warning">warning 0</span>
-        <span class="badge error">error 0</span>
+      <div class="status-line">
+        <span class="pill ok">未发现异常</span>
+        <span class="pill ok">info 0</span>
+        <span class="pill warning">warning 0</span>
+        <span class="pill error">error 0</span>
       </div>
-      <ul><li class="empty">未发现 warning/error</li></ul>
+      <ul><li class="empty">未发现 warning/error。</li></ul>
     </section>
     <section>
       <h2>媒体摘要</h2>
