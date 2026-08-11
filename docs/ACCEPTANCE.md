@@ -59,19 +59,20 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 21. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；`sample.pcm` 可设置采样率、声道、位深、大小端和有符号/无符号，也可通过“工具 / 设置当前 Raw 参数”重新指定参数。
 22. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“预览”页是否显示 Raw YUV 首帧画面。
 23. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
-24. 打开“插件 / 查看已加载模板”，确认可看到 `Demo Magic Container`；打开“帮助 / 快捷键”和“帮助 / 示例文件”，确认可看到验收操作提示。
-25. 查看诊断面板，确认工具可在 MP4 chunk offset 异常、ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调、音视频时长差异或帧/packet 大小尖峰时输出 warning/error。
-26. 使用“分析 / 协议结构对比”对比：
+24. 使用“分析 / 提取音频”“分析 / 提取视频”“分析 / 提取首个关键帧”对真实音视频文件导出到 G 盘临时验收目录，确认失败时有可读错误、成功时状态栏显示输出路径和大小。
+25. 打开“插件 / 查看已加载模板”，确认可看到 `Demo Magic Container`；打开“帮助 / 快捷键”和“帮助 / 示例文件”，确认可看到验收操作提示。
+26. 查看诊断面板，确认工具可在 MP4 chunk offset 异常、ffprobe 媒体流探测失败、packet 时间线探测失败、packet PTS/DTS 非单调、音视频时长差异或帧/packet 大小尖峰时输出 warning/error。
+27. 使用“分析 / 协议结构对比”对比：
     - `G:\AVScope\samples\sample.mp4`
     - `G:\AVScope\samples\sample_changed.mp4`
-27. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记；按 `F4` 或使用“分析 / 下一个二进制差异”确认可跳转高亮下一个差异窗口。
-28. 使用“分析 / 帧级对比”对比两个 AAC/H.264/H.265 等可提取帧列表的样例文件，确认预览区显示新增帧、删除帧和 size/PTS/DTS/duration/type/keyframe 差异，并可保存 JSON。
-29. 使用“文件 / 保存工程”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径、Raw 参数和可选用户备注。
-30. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，并打开 `G:\AVScope\dist\AVScope-release-manifest.json` 确认安装包、绿色版、源码包和内置 FFmpeg/插件文件均记录 size 与 SHA256。
-31. 打开 `G:\AVScope\dist\sample-reports\sample_wav_report.html` 和 `G:\AVScope\dist\sample-reports\sample_mp4_report.json`，确认交付目录包含示例分析报告。
-32. 打开 `G:\AVScope\dist\AVScope-validation-report.md`，确认一键验证通过项和关键产物大小已写入测试报告。
-33. 导出 HTML/JSON/CSV 报告并打开检查，确认可选用户备注会写入报告；HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含音频波形图、结构化统计摘要表、帧/packet 大小图和“帧列表”章节；CSV 应包含 `media`、`notes`、`frame_stats`、`packet_stats`、`frame`、`node`、`field` 等 section。
-34. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
+28. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记；按 `F4` 或使用“分析 / 下一个二进制差异”确认可跳转高亮下一个差异窗口。
+29. 使用“分析 / 帧级对比”对比两个 AAC/H.264/H.265 等可提取帧列表的样例文件，确认预览区显示新增帧、删除帧和 size/PTS/DTS/duration/type/keyframe 差异，并可保存 JSON。
+30. 使用“文件 / 保存工程”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径、Raw 参数和可选用户备注。
+31. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，并打开 `G:\AVScope\dist\AVScope-release-manifest.json` 确认安装包、绿色版、源码包和内置 FFmpeg/插件文件均记录 size 与 SHA256。
+32. 打开 `G:\AVScope\dist\sample-reports\sample_wav_report.html` 和 `G:\AVScope\dist\sample-reports\sample_mp4_report.json`，确认交付目录包含示例分析报告。
+33. 打开 `G:\AVScope\dist\AVScope-validation-report.md`，确认一键验证通过项和关键产物大小已写入测试报告。
+34. 导出 HTML/JSON/CSV 报告并打开检查，确认可选用户备注会写入报告；HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含音频波形图、结构化统计摘要表、帧/packet 大小图和“帧列表”章节；CSV 应包含 `media`、`notes`、`frame_stats`、`packet_stats`、`frame`、`node`、`field` 等 section。
+35. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
 
 ## 当前已知边界
 

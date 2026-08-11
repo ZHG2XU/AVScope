@@ -32,6 +32,7 @@ from avscope.analyzer import Analyzer, build_probe_diagnostics, build_timeline_d
 from avscope.byte_source import ByteSource
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare, format_protocol_compare
+from avscope.extract import build_extract_command, extract_media_stream
 from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, png_dimensions, preview_output_path
 from avscope.frame_stats import build_frame_stats
 from avscope.models import FieldInfo, FrameInfo, ParseNode, Severity
@@ -940,6 +941,37 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(result["width"], 320)
         self.assertEqual(result["height"], 180)
         self.assertTrue(Path(result["path"]).exists())
+
+    def test_extract_media_stream_helpers(self):
+        source = write(ROOT / "extract_source.mp4", b"media")
+        target = ROOT / "extract" / "audio.aac"
+        audio_command = build_extract_command("ffmpeg", source, target, "audio")
+        self.assertIn("0:a:0", audio_command)
+        self.assertIn("-c", audio_command)
+        keyframe_command = build_extract_command("ffmpeg", source, target.with_suffix(".png"), "keyframe")
+        self.assertIn("-skip_frame", keyframe_command)
+        self.assertIn("-frames:v", keyframe_command)
+
+        def fake_run(command, capture_output, text, timeout, check):
+            output = Path(command[-1])
+            write(output, b"stream")
+
+            class Completed:
+                returncode = 0
+                stderr = ""
+
+            return Completed()
+
+        with patch("avscope.extract.find_ffmpeg", return_value="ffmpeg"), patch("avscope.extract.subprocess.run", side_effect=fake_run):
+            result = extract_media_stream(source, target, "audio")
+        self.assertTrue(result["available"])
+        self.assertEqual(result["size"], 6)
+        self.assertTrue(target.exists())
+
+        with patch("avscope.extract.find_ffmpeg", return_value=None):
+            missing = extract_media_stream(source, target, "audio")
+        self.assertFalse(missing["available"])
+        self.assertEqual(missing["error"], "ffmpeg not found")
 
     def test_yuv_preview_helpers(self):
         self.assertEqual(yuv_frame_size(2, 2, "yuv420p"), 6)

@@ -13,6 +13,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 from avscope.analyzer import Analyzer
 from avscope.byte_source import ByteSource
 from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare, format_protocol_compare
+from avscope.extract import extract_media_stream
 from avscope.ffmpeg_preview import build_video_preview
 from avscope.hexview import format_hex, parse_offset
 from avscope.models import CompareResult, FieldInfo, FrameInfo, ParseNode, ParseResult, Severity
@@ -437,6 +438,10 @@ class AVScopeApp(tk.Tk):
 
         analysis_menu = tk.Menu(menu, tearoff=False)
         analysis_menu.add_command(label="自动识别", command=self.reload_file)
+        analysis_menu.add_command(label="提取音频", command=lambda: self.extract_current_media("audio"))
+        analysis_menu.add_command(label="提取视频", command=lambda: self.extract_current_media("video"))
+        analysis_menu.add_command(label="提取首个关键帧", command=lambda: self.extract_current_media("keyframe"))
+        analysis_menu.add_separator()
         analysis_menu.add_command(label="二进制对比", command=self.compare_files)
         analysis_menu.add_command(label="下一个二进制差异", command=self.jump_next_binary_diff, accelerator="F4")
         analysis_menu.add_command(label="协议结构对比", command=self.compare_protocol_files)
@@ -1487,6 +1492,28 @@ class AVScopeApp(tk.Tk):
         self._mark_binary_compare_diffs(text, result)
         self.tabs.select(self.preview)
         self.status.set(f"二进制对比完成: 差异窗口 {len(result.chunks)}")
+
+    def extract_current_media(self, kind: str) -> None:
+        if not self.current_file:
+            messagebox.showinfo("提取媒体", "请先打开一个媒体文件。")
+            return
+        labels = {
+            "audio": ("提取音频", ".aac", [("AAC/Audio", "*.aac *.m4a *.mp3"), ("All files", "*.*")]),
+            "video": ("提取视频", ".h264", [("Video", "*.h264 *.h265 *.mp4"), ("All files", "*.*")]),
+            "keyframe": ("提取首个关键帧", ".png", [("PNG", "*.png"), ("All files", "*.*")]),
+        }
+        title, extension, filetypes = labels.get(kind, labels["audio"])
+        path = filedialog.asksaveasfilename(title=title, defaultextension=extension, filetypes=filetypes)
+        if not path:
+            return
+        self.status.set(f"正在{title}...")
+        self.update_idletasks()
+        result = extract_media_stream(self.current_file, path, kind)
+        if result.get("error"):
+            messagebox.showerror(title, str(result["error"]))
+            self.status.set(f"{title}失败")
+            return
+        self.status.set(f"{title}完成: {result.get('output')} ({result.get('size', 0)} bytes)")
 
     def compare_protocol_files(self) -> None:
         left = filedialog.askopenfilename(title="选择左侧文件")
