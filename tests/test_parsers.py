@@ -35,6 +35,7 @@ from avscope.report import export_csv, export_html, export_json, export_project
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
+from scripts.release_manifest import build_release_manifest, write_release_manifest
 from avscope.timeline_viz import timeline_chart_items
 from avscope.waveform import build_waveform_preview
 from avscope.yuv_preview import build_yuv_preview, yuv_frame_size, yuv_to_rgb
@@ -731,6 +732,20 @@ class ParserTests(unittest.TestCase):
         frame_compare = json.loads(frame_compare_path.read_text(encoding="utf-8"))
         self.assertEqual(frame_compare["left_frames"], frame_compare["right_frames"])
         self.assertEqual(frame_compare["changed"], [])
+
+    def test_release_manifest(self):
+        manifest_root = ROOT / "manifest_root"
+        artifact = write(manifest_root / "dist" / "AVScope-Setup.exe", b"setup")
+        manifest = build_release_manifest(manifest_root, ["dist/AVScope-Setup.exe"])
+        self.assertEqual(manifest["manifest_type"], "AVScope Release Manifest")
+        self.assertEqual(manifest["root"], str(manifest_root))
+        self.assertEqual(manifest["artifacts"][0]["path"], str(artifact))
+        self.assertEqual(manifest["artifacts"][0]["size"], 5)
+        self.assertEqual(len(manifest["artifacts"][0]["sha256"]), 64)
+        output = manifest_root / "dist" / "manifest.json"
+        written = write_release_manifest(manifest_root, output, ["dist/AVScope-Setup.exe"])
+        self.assertEqual(len(written["artifacts"]), 1)
+        self.assertTrue(output.exists())
 
     def test_ui_text_is_not_mojibake(self):
         bad_fragments = ["锛", "鎵", "鏃", "鍗", "璇", "濯", "鈥", "鈹", "�"]

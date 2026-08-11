@@ -9,6 +9,7 @@ $ffmpeg = "G:\AVScope\dist\AVScope\_internal\ffmpeg.exe"
 $pluginTemplate = "G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json"
 $portableZip = "G:\AVScope\dist\AVScope-portable-win-x64.zip"
 $sourceZip = "G:\AVScope\dist\AVScope-portable-source.zip"
+$manifestPath = "G:\AVScope\dist\AVScope-release-manifest.json"
 $installDir = "G:\AVScopeInstalled\ValidationSmoke-$([DateTime]::Now.ToString('yyyyMMddHHmmss'))"
 
 $env:PYTHONPATH = $root
@@ -22,7 +23,7 @@ Write-Host "== Unit tests =="
 & $python -m unittest discover -s "$root\tests" -v
 
 Write-Host "== Required artifacts =="
-$artifacts = @($appExe, $ffprobe, $ffmpeg, $pluginTemplate, $setup, $portableZip, $sourceZip)
+$artifacts = @($appExe, $ffprobe, $ffmpeg, $pluginTemplate, $setup, $portableZip, $sourceZip, $manifestPath)
 foreach ($artifact in $artifacts) {
     if (-not (Test-Path $artifact)) {
         throw "Missing artifact: $artifact"
@@ -33,6 +34,42 @@ foreach ($artifact in $artifacts) {
     }
     Write-Host "$($item.FullName) $($item.Length) bytes"
 }
+
+Write-Host "== Release manifest =="
+$manifest = Get-Content -Path $manifestPath -Raw | ConvertFrom-Json
+if ($manifest.manifest_type -ne "AVScope Release Manifest") {
+    throw "Unexpected manifest type: $($manifest.manifest_type)"
+}
+$expectedManifestEntries = @(
+    "dist\AVScope\AVScope.exe",
+    "dist\AVScope\_internal\ffprobe.exe",
+    "dist\AVScope\_internal\ffmpeg.exe",
+    "dist\AVScope\_internal\plugins\demo_magic.json",
+    "dist\AVScope-Setup.exe",
+    "dist\AVScope-portable-win-x64.zip",
+    "dist\AVScope-portable-source.zip"
+)
+$manifestEntries = @($manifest.artifacts | ForEach-Object { [string]$_.relative_path })
+foreach ($entry in $expectedManifestEntries) {
+    if ($manifestEntries -notcontains $entry) {
+        throw "Manifest missing expected artifact: $entry"
+    }
+}
+foreach ($artifact in $manifest.artifacts) {
+    $path = [string]$artifact.path
+    if (-not (Test-Path $path)) {
+        throw "Manifest artifact missing: $path"
+    }
+    $item = Get-Item $path
+    if ($item.Length -ne [Int64]$artifact.size) {
+        throw "Manifest size mismatch: $path"
+    }
+    $hash = (Get-FileHash -Algorithm SHA256 -Path $path).Hash.ToLowerInvariant()
+    if ($hash -ne [string]$artifact.sha256) {
+        throw "Manifest hash mismatch: $path"
+    }
+}
+Write-Host "Release manifest OK"
 
 Write-Host "== Mojibake scan =="
 $bad = @(

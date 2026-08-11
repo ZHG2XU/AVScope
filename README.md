@@ -40,6 +40,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 支持两个文件的二进制差异扫描，并输出 offset 对齐的左右 Hex/ASCII 并排差异表。
 - 支持两个文件的帧级对比，按 frame index 汇总新增、删除和 size/PTS/DTS/duration/type/keyframe 差异，并可从 GUI 或 CLI 导出 JSON。
 - 预留声明式插件模板机制，可在 `plugins\*.json` 中按魔数扩展私有格式识别和字段展示。
+- 发布构建会生成 `G:\AVScope\dist\AVScope-release-manifest.json`，记录安装包、绿色版、源码包和内置 FFmpeg/插件文件的大小与 SHA256。
 - 深色/浅色主题。
 
 ## 运行
@@ -145,6 +146,13 @@ E:\DevelopmentEnvironment\python\python.exe -m PyInstaller --noconfirm --clean -
 
 ```powershell
 E:\AVScopeTools\nsis_extract\nsis-3.12\makensis.exe G:\AVScope\packaging\AVScope.nsi
+```
+
+生成绿色版、源码包和发布产物清单：
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\make_portable_zip.ps1
+PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\make_release_manifest.ps1
 ```
 
 当前安装包默认安装到 `G:\AVScopeInstalled\AVScope`，不创建桌面或开始菜单快捷方式，避免向 `C:\` 写入文件。

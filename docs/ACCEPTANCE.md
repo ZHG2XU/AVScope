@@ -7,6 +7,7 @@
 - Windows 安装包：`G:\AVScope\dist\AVScope-Setup.exe`
 - 绿色版压缩包：`G:\AVScope\dist\AVScope-portable-win-x64.zip`
 - 源码压缩包：`G:\AVScope\dist\AVScope-portable-source.zip`
+- 发布产物清单：`G:\AVScope\dist\AVScope-release-manifest.json`
 - 示例报告：`G:\AVScope\samples\sample_wav_report.html`
 - 工具安装记录：`G:\AVScope\INSTALLATIONS.md`
 - E 盘工具清单：`E:\AVScopeTools\INSTALL_MANIFEST.txt`
@@ -23,6 +24,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 - 128MB+ 大文件只读随机访问测试
 - 损坏 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 文件、MP4 chunk offset 异常、ffprobe 探测失败与帧/packet 大小尖峰 warning 的诊断回归测试
 - 关键产物存在性检查
+- 发布产物清单 SHA256/size 校验
 - UI/报告源码乱码扫描
 - C 盘写入目标扫描
 - 绿色版 GUI 启动冒烟测试
@@ -59,7 +61,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 25. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记。
 26. 使用“分析 / 帧级对比”对比两个 AAC/H.264/H.265 等可提取帧列表的样例文件，确认预览区显示新增帧、删除帧和 size/PTS/DTS/duration/type/keyframe 差异，并可保存 JSON。
 27. 使用“文件 / 保存工程”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径、Raw 参数和可选用户备注。
-28. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，确认声明式插件模板随产物交付。
+28. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，并打开 `G:\AVScope\dist\AVScope-release-manifest.json` 确认安装包、绿色版、源码包和内置 FFmpeg/插件文件均记录 size 与 SHA256。
 29. 导出 HTML/JSON/CSV 报告并打开检查，确认可选用户备注会写入报告；HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含音频波形图、结构化统计摘要表、帧/packet 大小图和“帧列表”章节；CSV 应包含 `media`、`notes`、`frame_stats`、`packet_stats`、`frame`、`node`、`field` 等 section。
 30. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
 
