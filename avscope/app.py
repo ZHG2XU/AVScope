@@ -15,7 +15,7 @@ from avscope.audio_preview import build_audio_preview_clip, play_audio_preview_c
 from avscope.byte_source import ByteSource
 from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare, format_protocol_compare
 from avscope.extract import extract_media_stream
-from avscope.ffmpeg_preview import build_video_preview
+from avscope.ffmpeg_preview import build_video_preview, find_video_keyframe_time
 from avscope.hexview import format_hex, parse_offset
 from avscope.models import CompareResult, FieldInfo, FrameInfo, ParseNode, ParseResult, Severity
 from avscope.plugins import DEFAULT_PLUGIN_DIR, write_plugin_template
@@ -488,6 +488,8 @@ class AVScopeApp(tk.Tk):
         analysis_menu.add_command(label="上一预览帧", command=lambda: self.step_video_preview(-VIDEO_PREVIEW_STEP_SECONDS))
         analysis_menu.add_command(label="下一预览帧", command=lambda: self.step_video_preview(VIDEO_PREVIEW_STEP_SECONDS))
         analysis_menu.add_command(label="跳转预览时间", command=self.jump_video_preview_time)
+        analysis_menu.add_command(label="上一关键帧预览", command=lambda: self.jump_video_preview_keyframe(-1))
+        analysis_menu.add_command(label="下一关键帧预览", command=lambda: self.jump_video_preview_keyframe(1))
         analysis_menu.add_command(label="上一 YUV 帧", command=lambda: self.step_yuv_preview(-YUV_PREVIEW_STEP_FRAMES))
         analysis_menu.add_command(label="下一 YUV 帧", command=lambda: self.step_yuv_preview(YUV_PREVIEW_STEP_FRAMES))
         analysis_menu.add_separator()
@@ -1433,6 +1435,48 @@ class AVScopeApp(tk.Tk):
             self.status.set(f"视频预览帧生成失败: {preview.get('error')}")
         else:
             self.status.set(f"已跳转视频预览帧 {format_seconds_timecode(self._video_preview_position_seconds)}")
+
+    def jump_video_preview_keyframe(self, direction: int) -> None:
+        if not self.current_file or not self.result:
+            messagebox.showinfo("视频预览", "请先打开含视频流的媒体文件。")
+            return
+        streams = self.result.media.summary.get("ffprobe", {}).get("streams", [])
+        if not any(stream.get("codec_type") == "video" for stream in streams):
+            messagebox.showinfo("视频预览", "当前文件未发现可预览的视频流。")
+            return
+        current = float(self.result.media.summary.get("video_preview", {}).get("position_seconds") or self._video_preview_position_seconds)
+        label = "下一关键帧" if direction >= 0 else "上一关键帧"
+        self.status.set(f"正在查找{label}...")
+        self.update_idletasks()
+        match = find_video_keyframe_time(
+            self.current_file,
+            start_seconds=current,
+            direction=direction,
+            packet_timeline=self.result.media.summary.get("packet_timeline", {}),
+        )
+        if not match.get("available"):
+            messagebox.showinfo("视频预览", f"{label}定位不可用: {match.get('error')}")
+            self.status.set(f"{label}定位不可用: {match.get('error')}")
+            return
+        if match.get("error"):
+            messagebox.showinfo("视频预览", f"未找到{label}: {match.get('error')}")
+            self.status.set(f"未找到{label}: {match.get('error')}")
+            return
+        target = max(0.0, float(match.get("position_seconds") or 0.0))
+        duration = self._video_preview_duration_seconds()
+        if duration is not None:
+            target = min(target, max(0.0, duration - 0.001))
+        self._video_preview_position_seconds = target
+        self.status.set(f"正在生成{label}预览 {format_seconds_timecode(target)}...")
+        self.update_idletasks()
+        preview = build_video_preview(self.current_file, position_seconds=target)
+        self.result.media.summary["video_preview"] = preview
+        self._render_result()
+        self.tabs.select(self.preview)
+        if preview.get("error"):
+            self.status.set(f"{label}预览生成失败: {preview.get('error')}")
+        else:
+            self.status.set(f"已跳转到{label} {format_seconds_timecode(target)}")
 
     def _video_preview_duration_seconds(self) -> float | None:
         if not self.result:

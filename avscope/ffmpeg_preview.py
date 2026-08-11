@@ -140,6 +140,82 @@ def probe_video_frame_info(path: str | Path, position_seconds: float = 0.0, time
     }
 
 
+def find_video_keyframe_time(
+    path: str | Path,
+    start_seconds: float = 0.0,
+    direction: int = 1,
+    packet_timeline: dict | None = None,
+    window_seconds: float = 30.0,
+    timeout: int = 8,
+) -> dict[str, Any]:
+    position = max(0.0, float(start_seconds or 0.0))
+    step = 1 if direction >= 0 else -1
+    packet_match = _keyframe_from_packet_timeline(packet_timeline or {}, position, step)
+    if packet_match:
+        return packet_match
+
+    exe = find_ffprobe()
+    if not exe:
+        return {"available": False, "error": "ffprobe not found", "position_seconds": position}
+
+    window = max(0.5, float(window_seconds or 30.0))
+    if step > 0:
+        interval_start = position + 0.001
+        interval_duration = window
+    else:
+        interval_start = max(0.0, position - window)
+        interval_duration = max(0.5, position - interval_start)
+    command = [
+        exe,
+        "-v",
+        "error",
+        "-skip_frame",
+        "nokey",
+        "-select_streams",
+        "v:0",
+        "-read_intervals",
+        f"{_format_seek(interval_start)}%+{_format_seek(interval_duration)}",
+        "-show_frames",
+        "-show_entries",
+        "frame=best_effort_timestamp_time,pts_time,pkt_dts_time,pict_type,key_frame",
+        "-of",
+        "json",
+        str(path),
+    ]
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=False)
+    except Exception as exc:
+        return {"available": True, "error": str(exc), "position_seconds": position}
+    if completed.returncode != 0:
+        return {"available": True, "error": completed.stderr.strip() or f"ffprobe exited {completed.returncode}", "position_seconds": position}
+    try:
+        data = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        return {"available": True, "error": f"invalid ffprobe json: {exc}", "position_seconds": position}
+    frames = [
+        frame
+        for frame in data.get("frames", [])
+        if str(frame.get("key_frame", "1")) == "1" and _frame_time(frame) is not None
+    ]
+    if step > 0:
+        candidates = [(float(_frame_time(frame)), frame) for frame in frames if float(_frame_time(frame)) > position + 0.0005]
+        selected = min(candidates, default=None, key=lambda item: item[0])
+    else:
+        candidates = [(float(_frame_time(frame)), frame) for frame in frames if float(_frame_time(frame)) < max(0.0, position - 0.0005)]
+        selected = max(candidates, default=None, key=lambda item: item[0])
+    if not selected:
+        label = "next" if step > 0 else "previous"
+        return {"available": True, "error": f"no {label} keyframe in {window:.3f}s window", "position_seconds": position}
+    target, frame = selected
+    return {
+        "available": True,
+        "position_seconds": target,
+        "source": "ffprobe",
+        "frame_type": str(frame.get("pict_type") or ""),
+        "keyframe": True,
+    }
+
+
 def preview_output_path(source: Path, output_dir: Path, position_seconds: float = 0.0) -> Path:
     try:
         stat = source.stat()
@@ -181,3 +257,37 @@ def _int_or_none(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _frame_time(frame: dict[str, Any]) -> float | None:
+    return _float_or_none(frame.get("best_effort_timestamp_time") or frame.get("pts_time") or frame.get("pkt_dts_time"))
+
+
+def _packet_time(packet: dict[str, Any]) -> float | None:
+    return _float_or_none(packet.get("pts") if packet.get("pts") is not None else packet.get("dts"))
+
+
+def _keyframe_from_packet_timeline(packet_timeline: dict, position: float, direction: int) -> dict[str, Any] | None:
+    packets = []
+    for packet in packet_timeline.get("packets", []):
+        if packet.get("codec_type") not in {"", "video"}:
+            continue
+        if not packet.get("keyframe"):
+            continue
+        packet_time = _packet_time(packet)
+        if packet_time is None:
+            continue
+        if direction > 0 and packet_time > position + 0.0005:
+            packets.append((packet_time, packet))
+        elif direction < 0 and packet_time < max(0.0, position - 0.0005):
+            packets.append((packet_time, packet))
+    if not packets:
+        return None
+    target, packet = (min if direction > 0 else max)(packets, key=lambda item: item[0])
+    return {
+        "available": True,
+        "position_seconds": target,
+        "source": "packet_timeline",
+        "packet_index": packet.get("index"),
+        "keyframe": True,
+    }

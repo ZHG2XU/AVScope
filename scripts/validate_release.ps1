@@ -188,11 +188,11 @@ Write-Host "== Video preview smoke =="
 $previewSmokeDir = "G:\AVScope\tmp\preview-smoke-validation"
 New-Item -ItemType Directory -Force -Path $previewSmokeDir | Out-Null
 $previewSource = "$previewSmokeDir\source.mp4"
-& $ffmpeg -hide_banner -v error -y -f lavfi -i "testsrc=size=160x90:rate=1:duration=2" -pix_fmt yuv420p $previewSource
+& $ffmpeg -hide_banner -v error -y -f lavfi -i "testsrc=size=160x90:rate=1:duration=2" -pix_fmt yuv420p -g 1 $previewSource
 $env:AVSCOPE_FFMPEG = $ffmpeg
 $previewCheck = @'
 from pathlib import Path
-from avscope.ffmpeg_preview import build_video_preview
+from avscope.ffmpeg_preview import build_video_preview, find_video_keyframe_time
 source = Path("G:/AVScope/tmp/preview-smoke-validation/source.mp4")
 outputs = [
     build_video_preview(source, output_dir=Path("G:/AVScope/tmp/preview-smoke-validation"), position_seconds=0),
@@ -209,6 +209,9 @@ for result in outputs:
         raise SystemExit(f"Video preview frame info missing: {result}")
 if outputs[0].get("path") == outputs[1].get("path"):
     raise SystemExit("Preview seek did not produce a distinct cache path")
+keyframe = find_video_keyframe_time(source, start_seconds=0, direction=1, window_seconds=2)
+if not keyframe.get("available") or keyframe.get("error") or keyframe.get("position_seconds", 0) <= 0:
+    raise SystemExit(f"Video keyframe seek failed: {keyframe}")
 '@
 $previewCheck | & $python -
 Remove-Item Env:\AVSCOPE_FFMPEG -ErrorAction SilentlyContinue

@@ -39,7 +39,7 @@ from avscope.byte_source import ByteSource
 from avscope.cli import main as cli_main
 from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare, format_protocol_compare
 from avscope.extract import build_extract_command, extract_media_stream
-from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, png_dimensions, preview_output_path, probe_video_frame_info
+from avscope.ffmpeg_preview import build_video_preview, find_ffmpeg, find_video_keyframe_time, png_dimensions, preview_output_path, probe_video_frame_info
 from avscope.frame_stats import build_frame_stats
 from avscope.models import FieldInfo, FrameInfo, MediaInfo, ParseNode, ParseResult, Severity
 from avscope.packet_stats import build_packet_stats
@@ -1193,6 +1193,51 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(info["pts"], 2.5)
         self.assertEqual(info["frame_type"], "P")
         self.assertFalse(info["keyframe"])
+
+    def test_video_keyframe_time_from_packet_timeline(self):
+        timeline = {
+            "packets": [
+                {"index": 0, "codec_type": "video", "pts": 0.0, "keyframe": True},
+                {"index": 1, "codec_type": "video", "pts": 1.0, "keyframe": False},
+                {"index": 2, "codec_type": "video", "pts": 2.0, "keyframe": True},
+                {"index": 3, "codec_type": "audio", "pts": 2.5, "keyframe": True},
+                {"index": 4, "codec_type": "video", "pts": 4.0, "keyframe": True},
+            ]
+        }
+        next_match = find_video_keyframe_time(ROOT / "unused.mp4", start_seconds=1.5, direction=1, packet_timeline=timeline)
+        previous_match = find_video_keyframe_time(ROOT / "unused.mp4", start_seconds=3.0, direction=-1, packet_timeline=timeline)
+        self.assertEqual(next_match["position_seconds"], 2.0)
+        self.assertEqual(next_match["packet_index"], 2)
+        self.assertEqual(next_match["source"], "packet_timeline")
+        self.assertEqual(previous_match["position_seconds"], 2.0)
+
+    def test_video_keyframe_time_falls_back_to_ffprobe(self):
+        source = write(ROOT / "keyframe-probe.mp4", b"mock")
+
+        def fake_run(command, capture_output, text, timeout, check):
+            self.assertIn("-skip_frame", command)
+            self.assertIn("nokey", command)
+            self.assertIn("1.001%+30.000", command)
+
+            class Completed:
+                returncode = 0
+                stderr = ""
+                stdout = json.dumps(
+                    {
+                        "frames": [
+                            {"best_effort_timestamp_time": "0.5", "pict_type": "I", "key_frame": 1},
+                            {"best_effort_timestamp_time": "2.25", "pict_type": "I", "key_frame": 1},
+                        ]
+                    }
+                )
+
+            return Completed()
+
+        with patch("avscope.ffmpeg_preview.find_ffprobe", return_value="ffprobe"), patch("avscope.ffmpeg_preview.subprocess.run", side_effect=fake_run):
+            match = find_video_keyframe_time(source, start_seconds=1.0, direction=1)
+        self.assertTrue(match["available"])
+        self.assertEqual(match["position_seconds"], 2.25)
+        self.assertEqual(match["source"], "ffprobe")
 
     def test_extract_media_stream_helpers(self):
         source = write(ROOT / "extract_source.mp4", b"media")
