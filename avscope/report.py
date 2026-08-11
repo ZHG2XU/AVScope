@@ -239,6 +239,32 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     }}
     h1 {{ margin: 0; font-size: 28px; letter-spacing: 0; }}
     .meta {{ margin-top: 6px; color: #a9b7c4; font-size: 13px; }}
+    .hero-summary {{
+      max-width: 1180px;
+      margin: 22px auto 0;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }}
+    .hero-stat {{
+      min-width: 0;
+      border: 1px solid #294153;
+      background: #132232;
+      padding: 10px 12px;
+      border-radius: 8px;
+    }}
+    .hero-stat .label {{
+      color: #94a8b8;
+      font-size: 12px;
+    }}
+    .hero-stat .value {{
+      margin-top: 3px;
+      color: #f5f8fb;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
     main {{ max-width: 1180px; margin: 0 auto; padding: 26px 24px 42px; }}
     section {{
       background: var(--panel);
@@ -341,6 +367,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     @media (max-width: 720px) {{
       header {{ padding: 24px 18px; }}
       .header-inner {{ align-items: flex-start; }}
+      .hero-summary {{ grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }}
       main {{ padding: 18px 14px 30px; }}
       section {{ padding: 16px; }}
       h1 {{ font-size: 22px; }}
@@ -357,6 +384,12 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
         <h1>AVScope 分析报告</h1>
         <div class="meta">生成时间：{generated_at}，工具版本：{html.escape(doc["tool_version"])}</div>
       </div>
+    </div>
+    <div class="hero-summary" aria-label="报告摘要">
+      <div class="hero-stat"><div class="label">识别格式</div><div class="value">{html.escape(media["format_name"])}</div></div>
+      <div class="hero-stat"><div class="label">文件大小</div><div class="value">{_format_size(media["size"])}</div></div>
+      <div class="hero-stat"><div class="label">诊断状态</div><div class="value">{health_text}</div></div>
+      <div class="hero-stat"><div class="label">Warning / Error</div><div class="value">{issue_counts["warning"]} / {issue_counts["error"]}</div></div>
     </div>
   </header>
   <main>
