@@ -505,6 +505,9 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(html_path.exists())
         self.assertTrue(json_path.exists())
         self.assertTrue(csv_path.exists())
+        html_text = html_path.read_text(encoding="utf-8")
+        self.assertIn('class="waveform-chart"', html_text)
+        self.assertIn("音频波形图", html_text)
         pcm_json = ROOT / "cli_pcm_report.json"
         exit_code = cli_main(
             [

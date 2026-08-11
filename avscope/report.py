@@ -109,11 +109,7 @@ def export_html(result: ParseResult, path: str | Path) -> None:
     health_class, health_text = _health(issue_counts)
     nodes = _node_html(result.root)
     waveform = result.media.summary.get("waveform", {})
-    waveform_html = (
-        f"<pre class=\"waveform\">{html.escape(waveform.get('ascii', ''))}</pre>"
-        if waveform.get("available")
-        else "<p class=\"empty\">暂无可展示的音频波形摘要。</p>"
-    )
+    waveform_html = _waveform_html(waveform)
     timeline_html = _timeline_html(result.media.summary.get("packet_timeline", {}).get("packets", [])[:100])
     frame_html = _frame_html(doc["frames"][:200])
     stream_html = _stream_html(result.media.summary.get("ffprobe", {}).get("streams", []))
@@ -238,7 +234,13 @@ def export_html(result: ParseResult, path: str | Path) -> None:
     .warning {{ color: var(--warn); }}
     .error {{ color: var(--err); }}
     .empty {{ color: var(--muted); margin: 0; }}
-    .waveform {{ white-space: pre; line-height: 1.1; }}
+    .waveform-chart {{ width: 100%; height: 180px; display: block; margin: 2px 0 14px; }}
+    .waveform-chart .bg {{ fill: var(--panel-soft); }}
+    .waveform-chart .grid {{ stroke: #d9e3ec; stroke-width: 1; }}
+    .waveform-chart .axis {{ stroke: #a5b4c3; stroke-width: 1.2; }}
+    .waveform-chart .bar {{ stroke: var(--accent); stroke-width: 2.2; stroke-linecap: round; }}
+    .waveform-chart .rms {{ stroke: var(--ok); stroke-width: 1.1; stroke-linecap: round; opacity: 0.72; }}
+    .waveform {{ white-space: pre; line-height: 1.1; margin-top: 10px; }}
     @media (max-width: 720px) {{
       header {{ padding: 24px 18px; }}
       .header-inner {{ align-items: flex-start; }}
@@ -383,6 +385,75 @@ def _issue_item(issue: dict) -> str:
     offset = issue.get("offset")
     suffix = "" if offset is None else f" offset=0x{int(offset):X}"
     return f"<li class=\"{severity}\">[{severity}] {message}{suffix}</li>"
+
+
+def _waveform_html(waveform: dict) -> str:
+    if not waveform.get("available"):
+        return "<p class=\"empty\">暂无可展示的音频波形摘要。</p>"
+    peaks = waveform.get("peaks", [])
+    if not peaks:
+        return "<p class=\"empty\">音频波形摘要为空。</p>"
+
+    width = 720
+    height = 160
+    left = 12
+    right = width - 12
+    top = 12
+    bottom = height - 12
+    mid = (top + bottom) / 2
+    sampled = _sample_peaks(peaks, 260)
+    plot_width = max(1, right - left)
+    denom = max(1, len(sampled) - 1)
+    peak_lines = []
+    rms_lines = []
+    for index, peak in enumerate(sampled):
+        x = left + plot_width * index / denom
+        lo = _waveform_y(float(peak.get("min", 0.0)), top, bottom)
+        hi = _waveform_y(float(peak.get("max", 0.0)), top, bottom)
+        rms = max(0.0, min(1.0, float(peak.get("rms", 0.0))))
+        rms_y = rms * (bottom - top) / 2.0
+        peak_lines.append(f'<line class="bar" x1="{x:.2f}" y1="{hi:.2f}" x2="{x:.2f}" y2="{lo:.2f}" />')
+        rms_lines.append(f'<line class="rms" x1="{x:.2f}" y1="{mid - rms_y:.2f}" x2="{x:.2f}" y2="{mid + rms_y:.2f}" />')
+    grid_lines = "\n".join(
+        [
+            f'<line class="grid" x1="{left}" y1="{top + (bottom - top) * 0.25:.2f}" x2="{right}" y2="{top + (bottom - top) * 0.25:.2f}" />',
+            f'<line class="axis" x1="{left}" y1="{mid:.2f}" x2="{right}" y2="{mid:.2f}" />',
+            f'<line class="grid" x1="{left}" y1="{top + (bottom - top) * 0.75:.2f}" x2="{right}" y2="{top + (bottom - top) * 0.75:.2f}" />',
+        ]
+    )
+    ascii_block = html.escape(waveform.get("ascii", ""))
+    return (
+        f'<svg class="waveform-chart" viewBox="0 0 {width} {height}" role="img" aria-label="音频波形图">'
+        f'<rect class="bg" x="0" y="0" width="{width}" height="{height}" rx="8" />'
+        f"{grid_lines}"
+        f"{''.join(peak_lines)}"
+        f"{''.join(rms_lines)}"
+        "</svg>"
+        f'<pre class="waveform">{ascii_block}</pre>'
+    )
+
+
+def _sample_peaks(peaks: list[dict], max_points: int) -> list[dict]:
+    if len(peaks) <= max_points:
+        return peaks
+    sampled = []
+    for index in range(max_points):
+        start = index * len(peaks) // max_points
+        end = max(start + 1, (index + 1) * len(peaks) // max_points)
+        bucket = peaks[start:end]
+        sampled.append(
+            {
+                "min": min(float(peak.get("min", 0.0)) for peak in bucket),
+                "max": max(float(peak.get("max", 0.0)) for peak in bucket),
+                "rms": max(float(peak.get("rms", 0.0)) for peak in bucket),
+            }
+        )
+    return sampled
+
+
+def _waveform_y(value: float, top: int, bottom: int) -> float:
+    clamped = max(-1.0, min(1.0, value))
+    return top + (1.0 - clamped) * (bottom - top) / 2.0
 
 
 def _stream_html(streams: list[dict]) -> str:
