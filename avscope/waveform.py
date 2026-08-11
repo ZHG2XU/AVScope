@@ -132,11 +132,13 @@ def _wav_summary(path: str | Path, points: int) -> dict:
         scan_frames = min(total_frames, MAX_FRAMES_TO_SCAN)
         frames_per_bucket = max(1, math.ceil(scan_frames / points))
         peaks = []
+        energy = _energy_state()
         scanned = 0
         while scanned < scan_frames:
             want = min(frames_per_bucket, scan_frames - scanned)
             data = wav.readframes(want)
             samples = list(_decode_samples(data, sample_width, channels))
+            _update_energy(energy, samples)
             peaks.append(_bucket(samples))
             scanned += want
     return {
@@ -149,6 +151,7 @@ def _wav_summary(path: str | Path, points: int) -> dict:
         "scanned_frames": scan_frames,
         "duration_seconds": total_frames / sample_rate if sample_rate else None,
         "peaks": peaks,
+        "energy": _finish_energy(energy),
         "ascii": ascii_waveform(peaks),
     }
 
@@ -168,6 +171,7 @@ def _pcm_summary(path: str | Path, media_summary: dict, points: int) -> dict:
     scan_frames = min(total_frames, MAX_FRAMES_TO_SCAN)
     frames_per_bucket = max(1, math.ceil(scan_frames / points))
     peaks = []
+    energy = _energy_state()
     with Path(path).open("rb") as fh:
         for _ in range(points):
             if len(peaks) * frames_per_bucket >= scan_frames:
@@ -175,6 +179,7 @@ def _pcm_summary(path: str | Path, media_summary: dict, points: int) -> dict:
             want = min(frames_per_bucket, scan_frames - len(peaks) * frames_per_bucket)
             data = fh.read(want * frame_size)
             samples = list(_decode_samples(data, sample_width, channels, endian=endian, signed=signed))
+            _update_energy(energy, samples)
             peaks.append(_bucket(samples))
     return {
         "available": True,
@@ -188,6 +193,7 @@ def _pcm_summary(path: str | Path, media_summary: dict, points: int) -> dict:
         "scanned_frames": scan_frames,
         "duration_seconds": total_frames / sample_rate if sample_rate else None,
         "peaks": peaks,
+        "energy": _finish_energy(energy),
         "ascii": ascii_waveform(peaks),
     }
 
@@ -224,6 +230,41 @@ def _bucket(samples: list[float]) -> dict:
     hi = max(samples)
     rms = math.sqrt(sum(sample * sample for sample in samples) / len(samples))
     return {"min": round(lo, 4), "max": round(hi, 4), "rms": round(rms, 4)}
+
+
+def _energy_state() -> dict:
+    return {"samples": 0, "sum_squares": 0.0, "peak": 0.0, "clipped_samples": 0}
+
+
+def _update_energy(state: dict, samples: list[float]) -> None:
+    for sample in samples:
+        value = max(-1.0, min(1.0, float(sample)))
+        absolute = abs(value)
+        state["samples"] += 1
+        state["sum_squares"] += value * value
+        state["peak"] = max(state["peak"], absolute)
+        if absolute >= 0.999:
+            state["clipped_samples"] += 1
+
+
+def _finish_energy(state: dict) -> dict:
+    samples = int(state.get("samples", 0))
+    peak = float(state.get("peak", 0.0))
+    rms = math.sqrt(float(state.get("sum_squares", 0.0)) / samples) if samples else 0.0
+    return {
+        "sample_count": samples,
+        "peak_level": round(peak, 6),
+        "rms_level": round(rms, 6),
+        "peak_dbfs": _dbfs(peak),
+        "rms_dbfs": _dbfs(rms),
+        "clipped_samples": int(state.get("clipped_samples", 0)),
+    }
+
+
+def _dbfs(value: float) -> float | None:
+    if value <= 0:
+        return None
+    return round(20 * math.log10(value), 2)
 
 
 def _amp_to_row(value: float, height: int) -> int:

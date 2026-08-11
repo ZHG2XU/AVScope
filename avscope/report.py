@@ -495,7 +495,10 @@ def _waveform_html(waveform: dict) -> str:
         ]
     )
     ascii_block = html.escape(waveform.get("ascii", ""))
+    energy_html = _waveform_energy_html(waveform.get("energy", {}))
     return (
+        energy_html
+        +
         f'<svg class="waveform-chart" viewBox="0 0 {width} {height}" role="img" aria-label="音频波形图">'
         f'<rect class="bg" x="0" y="0" width="{width}" height="{height}" rx="8" />'
         f"{grid_lines}"
@@ -504,6 +507,28 @@ def _waveform_html(waveform: dict) -> str:
         "</svg>"
         f'<pre class="waveform">{ascii_block}</pre>'
     )
+
+
+def _waveform_energy_html(energy: dict) -> str:
+    if not energy:
+        return ""
+    rows = [
+        ("Peak", _format_dbfs(energy.get("peak_dbfs"))),
+        ("RMS", _format_dbfs(energy.get("rms_dbfs"))),
+        ("裁剪样本", str(energy.get("clipped_samples", 0))),
+        ("扫描样本", str(energy.get("sample_count", 0))),
+    ]
+    body = "".join(f"<tr><th>{html.escape(label)}</th><td>{html.escape(value)}</td></tr>" for label, value in rows)
+    return f"<h3>音频能量</h3><table>{body}</table>"
+
+
+def _format_dbfs(value) -> str:
+    if value is None:
+        return "-inf dBFS"
+    try:
+        return f"{float(value):.2f} dBFS"
+    except (TypeError, ValueError):
+        return "-inf dBFS"
 
 
 def _sample_peaks(peaks: list[dict], max_points: int) -> list[dict]:

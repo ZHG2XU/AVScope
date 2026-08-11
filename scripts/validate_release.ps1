@@ -140,6 +140,10 @@ from avscope.analyzer import Analyzer
 from avscope.waveform import build_waveform_preview
 source = Path("G:/AVScope/samples/sample.wav")
 analysis = Analyzer().analyze(source)
+energy = analysis.media.summary.get("waveform", {}).get("energy", {})
+print(energy)
+if "peak_level" not in energy or "rms_level" not in energy:
+    raise SystemExit(f"Waveform energy stats missing: {energy}")
 result = build_waveform_preview(source, analysis.media.format_name, analysis.media.summary, output_dir=Path("G:/AVScope/tmp/waveform-preview-validation"))
 print(result)
 if not result.get("available") or not result.get("path"):

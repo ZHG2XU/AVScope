@@ -1193,6 +1193,14 @@ class AVScopeApp(tk.Tk):
                 f"  sample_rate={waveform.get('sample_rate')} channels={waveform.get('channels')} "
                 f"duration={self._fmt(waveform.get('duration_seconds'))}"
             )
+            energy = waveform.get("energy", {})
+            if energy:
+                lines.append(
+                    "  "
+                    f"peak={_format_dbfs(energy.get('peak_dbfs'))} "
+                    f"rms={_format_dbfs(energy.get('rms_dbfs'))} "
+                    f"clipped={energy.get('clipped_samples', 0)} samples"
+                )
             lines.append(waveform.get("ascii", ""))
             lines.append("")
         waveform_preview = self.result.media.summary.get("waveform_preview", {})
@@ -1984,6 +1992,15 @@ def format_seconds_timecode(seconds: int | float) -> str:
     minute = total_minutes % 60
     hour = total_minutes // 60
     return f"{sign}{hour:02d}:{minute:02d}:{second:02d}.{ms:03d}"
+
+
+def _format_dbfs(value) -> str:
+    if value is None:
+        return "-inf dBFS"
+    try:
+        return f"{float(value):.2f} dBFS"
+    except (TypeError, ValueError):
+        return "-inf dBFS"
 
 
 def issue_summary_state(errors: int, warnings: int) -> tuple[str, str]:

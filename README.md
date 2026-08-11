@@ -33,7 +33,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 对 ffprobe packet 时间线生成 packet 统计摘要，包含 stream 数、packet 数、关键包数、平均/最大 packet 大小和 PTS 跨度。
 - 对含视频流的文件使用现有 FFmpeg 生成 PNG 预览帧，支持在 GUI 中按 1 秒步进生成上一/下一预览帧，预览缓存写入 `G:\AVScope\tmp\previews`。
 - 分析菜单可使用现有 FFmpeg 提取当前文件的首路音频、首路视频或首个关键帧 PNG。
-- 为 WAV/PCM 生成抽样波形摘要，并在预览页显示波形图；GUI 可播放 WAV、Raw PCM 或含音频流文件的短片段，并可指定起始时间和时长。
+- 为 WAV/PCM 生成抽样波形摘要，并在预览页显示波形图、Peak/RMS 音频能量和裁剪样本数；GUI 可播放 WAV、Raw PCM 或含音频流文件的短片段，并可指定起始时间和时长。
 - 桌面端提供深色/浅色专业工作台主题、品牌图标、关键指标摘要条和空状态，导出 HTML 报告带结构化视觉样式。
 - 视图菜单可快速切换 Hex、字段、帧列表、时间线、预览和诊断面板，底部日志会记录打开、搜索、对比、导出等操作状态。
 - 输出基础诊断 warning/error，ffprobe 媒体流或 packet 时间线探测失败会转为可读 warning，并基于解析结构/packet 时间线提示 MP4 chunk offset 异常、PTS/DTS 非单调、音视频时长差异和帧/packet 大小尖峰。

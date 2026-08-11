@@ -90,6 +90,8 @@ class ParserTests(unittest.TestCase):
         self.assertIn("ffprobe", result.media.summary)
         self.assertIn("packet_timeline", result.media.summary)
         self.assertTrue(result.media.summary["waveform"]["available"])
+        self.assertEqual(result.media.summary["waveform"]["energy"]["peak_level"], 0.0)
+        self.assertIsNone(result.media.summary["waveform"]["energy"]["peak_dbfs"])
         preview = build_waveform_preview(ROOT / "ok.wav", "WAV", result.media.summary, output_dir=ROOT / "waveform-previews", width=320, height=120)
         self.assertTrue(preview["available"])
         self.assertEqual(preview["width"], 320)
@@ -113,6 +115,8 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(waveform["peaks"][0]["min"], -1.0)
         self.assertEqual(waveform["peaks"][1]["max"], 0.0)
         self.assertEqual(waveform["peaks"][2]["max"], 1.0)
+        self.assertEqual(waveform["energy"]["peak_level"], 1.0)
+        self.assertGreaterEqual(waveform["energy"]["clipped_samples"], 2)
 
     def test_audio_preview_clip_helpers(self):
         wav_path = ROOT / "preview_audio.wav"
@@ -805,6 +809,7 @@ class ParserTests(unittest.TestCase):
         html_text = html_path.read_text(encoding="utf-8")
         self.assertIn('class="waveform-chart"', html_text)
         self.assertIn("音频波形图", html_text)
+        self.assertIn("音频能量", html_text)
         self.assertIn('class="timeline-chart"', html_text)
         self.assertIn("帧/Packet 大小图", html_text)
         self.assertIn("Packet 统计", html_text)
