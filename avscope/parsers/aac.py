@@ -114,22 +114,22 @@ class AacAdtsParser(FormatParser):
             node = root.add_child(ParseNode(f"Frame[{index}]", "aac_frame", offset, frame_length))
             node.fields.extend(
                 [
-                    FieldInfo("syncword", "0xFFF", offset, 2, "FF F?", description="ADTS 同步字"),
-                    FieldInfo("mpeg_version_id", mpeg_version_id, offset + 1, 1, description="0=MPEG-4, 1=MPEG-2"),
-                    FieldInfo("layer", layer, offset + 1, 1, description="固定为 0"),
-                    FieldInfo("protection_absent", protection_absent, offset + 1, 1, description="1=无 CRC"),
-                    FieldInfo("profile", audio_object_type, offset + 2, 1, description=AAC_PROFILE_NAMES.get(audio_object_type, "reserved")),
-                    FieldInfo("sampling_frequency_index", sf_index, offset + 2, 1, description=str(sample_rate or "reserved")),
-                    FieldInfo("sample_rate", sample_rate, offset + 2, 1, description="由 sampling_frequency_index 推导"),
-                    FieldInfo("private_bit", private_bit, offset + 2, 1),
-                    FieldInfo("channel_configuration", channels, offset + 2, 2, description=CHANNEL_CONFIGS.get(channels, "reserved")),
-                    FieldInfo("original_copy", original_copy, offset + 3, 1),
-                    FieldInfo("home", home, offset + 3, 1),
-                    FieldInfo("frame_length", frame_length, offset + 3, 3, description="ADTS header + raw data 长度"),
+                    _adts_field(offset, "syncword", "0xFFF", 0, 12, 0, 2, "FF F?", "ADTS 同步字"),
+                    _adts_field(offset, "mpeg_version_id", mpeg_version_id, 12, 1, 1, 1, description="0=MPEG-4, 1=MPEG-2"),
+                    _adts_field(offset, "layer", layer, 13, 2, 1, 1, description="固定为 0"),
+                    _adts_field(offset, "protection_absent", protection_absent, 15, 1, 1, 1, description="1=无 CRC"),
+                    _adts_field(offset, "profile", audio_object_type, 16, 2, 2, 1, description=AAC_PROFILE_NAMES.get(audio_object_type, "reserved")),
+                    _adts_field(offset, "sampling_frequency_index", sf_index, 18, 4, 2, 1, description=str(sample_rate or "reserved")),
+                    _adts_field(offset, "sample_rate", sample_rate, 18, 4, 2, 1, description="由 sampling_frequency_index 推导"),
+                    _adts_field(offset, "private_bit", private_bit, 22, 1, 2, 1),
+                    _adts_field(offset, "channel_configuration", channels, 23, 3, 2, 2, description=CHANNEL_CONFIGS.get(channels, "reserved")),
+                    _adts_field(offset, "original_copy", original_copy, 26, 1, 3, 1),
+                    _adts_field(offset, "home", home, 27, 1, 3, 1),
+                    _adts_field(offset, "frame_length", frame_length, 30, 13, 3, 3, description="ADTS header + raw data 长度"),
                     FieldInfo("payload_bytes", payload_bytes, offset + header_size, payload_bytes),
-                    FieldInfo("adts_buffer_fullness", fullness, offset + 5, 2),
-                    FieldInfo("number_of_raw_data_blocks", blocks, offset + 6, 1),
-                    FieldInfo("samples_per_frame", samples_per_frame, offset + 6, 1),
+                    _adts_field(offset, "adts_buffer_fullness", fullness, 43, 11, 5, 2),
+                    _adts_field(offset, "number_of_raw_data_blocks", blocks, 54, 2, 6, 1),
+                    _adts_field(offset, "samples_per_frame", samples_per_frame, 54, 2, 6, 1),
                     FieldInfo("duration_seconds", duration, offset + 6, 0),
                 ]
             )
@@ -162,3 +162,26 @@ class AacAdtsParser(FormatParser):
             "payload_bytes": total_payload_bytes,
         }
         return ParseResult(media_info(source, self.name, **summary), root, frames, diagnostics)
+
+
+def _adts_field(
+    frame_offset: int,
+    name: str,
+    value,
+    bit_offset: int,
+    bit_length: int,
+    byte_offset: int,
+    byte_size: int,
+    hex_value: str = "",
+    description: str = "",
+) -> FieldInfo:
+    return FieldInfo(
+        name,
+        value,
+        frame_offset + byte_offset,
+        byte_size,
+        hex_value,
+        bit_offset=frame_offset * 8 + bit_offset,
+        bit_length=bit_length,
+        description=description,
+    )

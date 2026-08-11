@@ -72,6 +72,14 @@ class ParserTests(unittest.TestCase):
         fields = {field.name: field.value for field in result.root.children[0].fields}
         self.assertEqual(fields["samples_per_frame"], 1024)
         self.assertIn("duration_seconds", fields)
+        first_frame_bits = {field.name: (field.bit_offset, field.bit_length) for field in result.root.children[0].fields}
+        self.assertEqual(first_frame_bits["syncword"], (0, 12))
+        self.assertEqual(first_frame_bits["profile"], (16, 2))
+        self.assertEqual(first_frame_bits["sampling_frequency_index"], (18, 4))
+        self.assertEqual(first_frame_bits["channel_configuration"], (23, 3))
+        self.assertEqual(first_frame_bits["frame_length"], (30, 13))
+        second_frame_bits = {field.name: (field.bit_offset, field.bit_length) for field in result.root.children[1].fields}
+        self.assertEqual(second_frame_bits["syncword"], (96, 12))
 
     def test_h264_parser(self):
         data = b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(640, 480) + b"\x00\x00\x01\x68" + make_h264_pps() + b"\x00\x00\x01\x65\x88"
