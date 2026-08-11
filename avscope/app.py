@@ -247,6 +247,7 @@ class AVScopeApp(tk.Tk):
         self.log_panel_visible = tk.BooleanVar(value=True)
         self.hex_endian = tk.StringVar(value="little")
         self.issue_filter = tk.BooleanVar(value=False)
+        self.timeline_anomaly_filter = tk.BooleanVar(value=False)
         self._build_ui()
         self._bind_shortcuts()
         self._apply_theme("dark")
@@ -394,8 +395,19 @@ class AVScopeApp(tk.Tk):
         self.frames.bind("<<TreeviewSelect>>", self.on_frame_select)
 
         self.timeline_page = ttk.Frame(self.tabs, style="Panel.TFrame")
+        timeline_toolbar = ttk.Frame(self.timeline_page, style="Toolbar.TFrame")
+        timeline_toolbar.pack(fill=tk.X, padx=8, pady=(8, 0))
+        ttk.Checkbutton(
+            timeline_toolbar,
+            text="只看时间异常",
+            variable=self.timeline_anomaly_filter,
+            command=self.toggle_timeline_anomaly_filter,
+            style="Panel.TCheckbutton",
+        ).pack(side=tk.LEFT)
+        self.timeline_filter_label = ttk.Label(timeline_toolbar, text="", style="Toolbar.TLabel")
+        self.timeline_filter_label.pack(side=tk.LEFT, padx=(10, 0))
         self.timeline_canvas = tk.Canvas(self.timeline_page, height=118, highlightthickness=0, borderwidth=0)
-        self.timeline_canvas.pack(fill=tk.X, padx=8, pady=(8, 4))
+        self.timeline_canvas.pack(fill=tk.X, padx=8, pady=(6, 4))
         self.timeline_canvas.bind("<Configure>", lambda _event: self._render_timeline_chart())
         self.timeline = ttk.Treeview(
             self.timeline_page,
@@ -975,7 +987,15 @@ class AVScopeApp(tk.Tk):
         if not self.result:
             return
         self.timeline.delete(*self.timeline.get_children())
+        summary = self.result.media.summary.get("timeline_summary", {})
+        anomaly_orders = timeline_anomaly_item_orders(summary)
+        filter_anomalies = self.timeline_anomaly_filter.get()
+        row_order = 0
+        rendered_rows = 0
         for frame in self.result.frames[:5000]:
+            if filter_anomalies and row_order not in anomaly_orders:
+                row_order += 1
+                continue
             tag = "normal"
             self.timeline.insert(
                 "",
@@ -993,8 +1013,14 @@ class AVScopeApp(tk.Tk):
                 ),
                 tags=(tag,),
             )
+            row_order += 1
+            rendered_rows += 1
+        row_order = len(self.result.frames)
         packet_timeline = self.result.media.summary.get("packet_timeline", {})
         for packet in packet_timeline.get("packets", [])[:1000]:
+            if filter_anomalies and row_order not in anomaly_orders:
+                row_order += 1
+                continue
             self.timeline.insert(
                 "",
                 tk.END,
@@ -1011,6 +1037,14 @@ class AVScopeApp(tk.Tk):
                 ),
                 tags=("normal",),
             )
+            row_order += 1
+            rendered_rows += 1
+        if hasattr(self, "timeline_filter_label"):
+            total_rows = min(len(self.result.frames), 5000) + min(len(packet_timeline.get("packets", [])), 1000)
+            if filter_anomalies:
+                self.timeline_filter_label.configure(text=f"显示 {rendered_rows}/{total_rows} 个异常时间点")
+            else:
+                self.timeline_filter_label.configure(text=f"时间异常 {len(anomaly_orders)} 处")
         self._render_timeline_chart()
 
     def _render_timeline_chart(self) -> None:
@@ -1904,6 +1938,11 @@ class AVScopeApp(tk.Tk):
         mode = "只看异常" if self.issue_filter.get() else "显示全部节点"
         self.status.set(f"协议树已切换为: {mode}")
 
+    def toggle_timeline_anomaly_filter(self) -> None:
+        self._render_timeline()
+        mode = "只看时间异常" if self.timeline_anomaly_filter.get() else "显示全部时间线"
+        self.status.set(f"时间线已切换为 {mode}")
+
     def _highlight_hex_range(self, offset: int, size: int) -> None:
         self.hex_text.tag_remove("search_hit", "1.0", tk.END)
         if size <= 0:
@@ -2503,6 +2542,16 @@ def format_timeline_summary_lines(timeline_summary: dict | None = None) -> list[
             f"max_interval={_fmt_seconds(first_pid.get('max_interval'))}"
         )
     return lines
+
+
+def timeline_anomaly_item_orders(timeline_summary: dict | None = None) -> set[int]:
+    orders = set()
+    for anomaly in (timeline_summary or {}).get("timestamp_anomalies", []):
+        try:
+            orders.add(int(anomaly.get("item_order", 0) or 0))
+        except (TypeError, ValueError):
+            continue
+    return orders
 
 
 def _fmt_seconds(value) -> str:

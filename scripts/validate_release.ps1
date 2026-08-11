@@ -264,6 +264,7 @@ Write-Host "== Timeline summary smoke =="
 $timelineSummaryCheck = @'
 from pathlib import Path
 from avscope.analyzer import Analyzer
+from avscope.app import timeline_anomaly_item_orders
 from avscope.models import FrameInfo, MediaInfo, ParseNode, ParseResult
 from avscope.report import export_csv, export_html, export_json
 from avscope.timeline_viz import build_timeline_summary
@@ -291,6 +292,8 @@ synthetic = ParseResult(
     frames=frames,
 )
 synthetic.media.summary["timeline_summary"] = build_timeline_summary(frames, [], bucket_seconds=0.04)
+if timeline_anomaly_item_orders(synthetic.media.summary["timeline_summary"]) != {2}:
+    raise SystemExit("Timeline anomaly filter helper failed")
 export_html(synthetic, html_path)
 export_json(synthetic, json_path)
 export_csv(synthetic, csv_path)
