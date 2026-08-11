@@ -35,6 +35,10 @@ Write-Host "== Unit tests =="
 Write-Host "== Sample reports =="
 PowerShell -ExecutionPolicy Bypass -File "$root\scripts\make_sample_reports.ps1"
 PowerShell -ExecutionPolicy Bypass -File "$root\scripts\make_release_manifest.ps1"
+$sampleHtmlText = [System.IO.File]::ReadAllText($sampleWavHtml, [System.Text.Encoding]::UTF8)
+if (-not $sampleHtmlText.Contains("overflow-x: auto") -or -not $sampleHtmlText.Contains("min-width: 620px")) {
+    throw "Responsive report table CSS missing"
+}
 Write-Host "Sample reports OK"
 
 Write-Host "== Required artifacts =="

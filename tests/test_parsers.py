@@ -860,6 +860,8 @@ class ParserTests(unittest.TestCase):
         self.assertIn("音频波形图", html_text)
         self.assertIn("音频能量", html_text)
         self.assertIn('class="timeline-chart"', html_text)
+        self.assertIn("overflow-x: auto", html_text)
+        self.assertIn("min-width: 620px", html_text)
         self.assertIn("帧/Packet 大小图", html_text)
         self.assertIn("Packet 统计", html_text)
         self.assertIn("统计摘要", html_text)

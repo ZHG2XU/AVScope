@@ -234,6 +234,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
       border-radius: 8px;
       margin-bottom: 18px;
       padding: 20px 22px;
+      overflow-x: auto;
     }}
     h2 {{ margin: 0 0 14px; font-size: 17px; color: var(--head); }}
     h3 {{ margin: 16px 0 8px; font-size: 14px; color: var(--head); }}
@@ -279,7 +280,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     .pill.warning {{ color: var(--warn); border-color: #ead59b; background: #fff8e5; }}
     .pill.error {{ color: var(--err); border-color: #efb8b0; background: #fff0ee; }}
     ul {{ margin: 0; padding-left: 20px; }}
-    table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+    table {{ width: 100%; min-width: 620px; border-collapse: collapse; font-size: 13px; }}
     th, td {{ border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }}
     th {{ color: var(--muted); background: var(--panel-soft); font-weight: 600; }}
     tr:hover td {{ background: #f8fbfd; }}
@@ -330,6 +331,8 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
       main {{ padding: 18px 14px 30px; }}
       section {{ padding: 16px; }}
       h1 {{ font-size: 22px; }}
+      table {{ font-size: 12px; }}
+      th, td {{ padding: 7px 8px; }}
     }}
   </style>
 </head>
