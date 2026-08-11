@@ -411,7 +411,7 @@ class AVScopeApp(tk.Tk):
         self.timeline_canvas.bind("<Configure>", lambda _event: self._render_timeline_chart())
         self.timeline = ttk.Treeview(
             self.timeline_page,
-            columns=("index", "stream", "pts", "dts", "pos", "size", "type", "duration", "key"),
+            columns=("index", "stream", "pts", "dts", "pos", "size", "type", "duration", "key", "issue"),
             show="headings",
             style="Data.Treeview",
         )
@@ -425,6 +425,7 @@ class AVScopeApp(tk.Tk):
             ("type", "类型", 120, tk.W),
             ("duration", "Duration", 96, tk.E),
             ("key", "Key", 64, tk.CENTER),
+            ("issue", "Issue", 170, tk.W),
         ]:
             self.timeline.heading(col, text=title)
             self.timeline.column(col, width=width, anchor=anchor)
@@ -989,6 +990,7 @@ class AVScopeApp(tk.Tk):
         self.timeline.delete(*self.timeline.get_children())
         summary = self.result.media.summary.get("timeline_summary", {})
         issue_orders = timeline_issue_item_orders(summary)
+        issue_labels = timeline_issue_labels(summary)
         filter_anomalies = self.timeline_anomaly_filter.get()
         row_order = 0
         rendered_rows = 0
@@ -1010,6 +1012,7 @@ class AVScopeApp(tk.Tk):
                     frame.frame_type,
                     self._fmt(frame.duration),
                     "yes" if frame.keyframe else "",
+                    issue_labels.get(row_order, ""),
                 ),
                 tags=(tag,),
             )
@@ -1035,6 +1038,7 @@ class AVScopeApp(tk.Tk):
                     packet.get("codec_type", "packet"),
                     self._fmt(packet.get("duration")),
                     "yes" if packet.get("keyframe") else "",
+                    issue_labels.get(row_order, ""),
                 ),
                 tags=(tag,),
             )
@@ -2557,16 +2561,32 @@ def timeline_anomaly_item_orders(timeline_summary: dict | None = None) -> set[in
 
 def timeline_issue_item_orders(timeline_summary: dict | None = None) -> set[int]:
     summary = timeline_summary or {}
-    orders = timeline_anomaly_item_orders(summary)
-    for group_name in ("rtp_sequence", "pcr"):
-        for warning in summary.get(group_name, {}).get("warnings", []):
-            if warning.get("item_order") in (None, ""):
-                continue
-            try:
-                orders.add(int(warning.get("item_order")))
-            except (TypeError, ValueError):
-                continue
-    return orders
+    return set(timeline_issue_labels(summary))
+
+
+def timeline_issue_labels(timeline_summary: dict | None = None) -> dict[int, str]:
+    summary = timeline_summary or {}
+    labels: dict[int, list[str]] = {}
+
+    def add_label(value, label: str) -> None:
+        if value in (None, ""):
+            return
+        try:
+            order = int(value)
+        except (TypeError, ValueError):
+            return
+        labels.setdefault(order, [])
+        if label not in labels[order]:
+            labels[order].append(label)
+
+    for anomaly in summary.get("timestamp_anomalies", []):
+        kind = str(anomaly.get("kind") or "timestamp").upper()
+        add_label(anomaly.get("item_order"), f"{kind} 回退")
+    for warning in summary.get("rtp_sequence", {}).get("warnings", []):
+        add_label(warning.get("item_order"), "RTP seq 跳变")
+    for warning in summary.get("pcr", {}).get("warnings", []):
+        add_label(warning.get("item_order"), "PCR 回退")
+    return {order: " / ".join(parts) for order, parts in labels.items()}
 
 
 def timeline_item_row_tag(item_order: int, anomaly_orders: set[int]) -> str:

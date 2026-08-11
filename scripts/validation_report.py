@@ -25,7 +25,7 @@ DEFAULT_ARTIFACTS = [
 ]
 
 VALIDATED_CHECKS = [
-    "Timeline issue filter and row highlight helper smoke test",
+    "Timeline issue filter, row highlight and reason label helper smoke test",
     "HTML timeline issue table smoke test",
     "Responsive report table CSS smoke test",
     "Timeline chart legend rendering smoke test",
