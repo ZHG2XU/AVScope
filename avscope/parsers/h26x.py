@@ -46,6 +46,36 @@ class H264SpsInfo:
     height: int
 
 
+@dataclass(slots=True)
+class H265VpsInfo:
+    video_parameter_set_id: int
+    max_layers_minus1: int
+    max_sub_layers_minus1: int
+    temporal_id_nesting_flag: int
+    profile_idc: int
+    level_idc: int
+
+
+@dataclass(slots=True)
+class H265SpsInfo:
+    video_parameter_set_id: int
+    max_sub_layers_minus1: int
+    temporal_id_nesting_flag: int
+    seq_parameter_set_id: int
+    chroma_format_idc: int
+    bit_depth_luma: int
+    bit_depth_chroma: int
+    width: int
+    height: int
+    conformance_window_flag: int
+    conf_win_left_offset: int
+    conf_win_right_offset: int
+    conf_win_top_offset: int
+    conf_win_bottom_offset: int
+    profile_idc: int
+    level_idc: int
+
+
 class BitReader:
     def __init__(self, data: bytes):
         self.data = data
@@ -221,6 +251,70 @@ class H265AnnexBParser(_AnnexBParser):
     def _nal_type(self, header: bytes) -> int:
         return (header[0] >> 1) & 0x3F
 
+    def _parse_nalu_payload(self, source: ByteSource, node: ParseNode, nal_type: int, payload_offset: int, nalu_size: int, summary: dict, diagnostics: list) -> None:
+        if nalu_size <= 2:
+            return
+        payload = source.read_at(payload_offset + 2, min(nalu_size - 2, 4096))
+        if nal_type == 32:
+            try:
+                vps = parse_h265_vps(payload)
+            except ValueError as exc:
+                node.severity = Severity.WARNING
+                diagnostics.append(warn(f"H.265 VPS parse failed: {exc}", payload_offset, self.name))
+                return
+            node.fields.extend(
+                [
+                    FieldInfo("vps_video_parameter_set_id", vps.video_parameter_set_id, payload_offset + 2, 0),
+                    FieldInfo("vps_max_layers_minus1", vps.max_layers_minus1, payload_offset + 2, 0),
+                    FieldInfo("vps_max_sub_layers_minus1", vps.max_sub_layers_minus1, payload_offset + 2, 0),
+                    FieldInfo("vps_temporal_id_nesting_flag", vps.temporal_id_nesting_flag, payload_offset + 2, 0),
+                    FieldInfo("general_profile_idc", vps.profile_idc, payload_offset + 2, 0),
+                    FieldInfo("general_level_idc", vps.level_idc, payload_offset + 2, 0),
+                ]
+            )
+            summary["vps_id"] = vps.video_parameter_set_id
+            summary["max_layers"] = vps.max_layers_minus1 + 1
+            summary["max_sub_layers"] = vps.max_sub_layers_minus1 + 1
+            summary["profile_idc"] = vps.profile_idc
+            summary["level_idc"] = vps.level_idc
+            return
+        if nal_type != 33:
+            return
+        try:
+            sps = parse_h265_sps(payload)
+        except ValueError as exc:
+            node.severity = Severity.WARNING
+            diagnostics.append(warn(f"H.265 SPS parse failed: {exc}", payload_offset, self.name))
+            return
+        node.fields.extend(
+            [
+                FieldInfo("sps_video_parameter_set_id", sps.video_parameter_set_id, payload_offset + 2, 0),
+                FieldInfo("sps_max_sub_layers_minus1", sps.max_sub_layers_minus1, payload_offset + 2, 0),
+                FieldInfo("sps_temporal_id_nesting_flag", sps.temporal_id_nesting_flag, payload_offset + 2, 0),
+                FieldInfo("sps_seq_parameter_set_id", sps.seq_parameter_set_id, payload_offset + 2, 0),
+                FieldInfo("chroma_format_idc", sps.chroma_format_idc, payload_offset + 2, 0),
+                FieldInfo("bit_depth_luma", sps.bit_depth_luma, payload_offset + 2, 0),
+                FieldInfo("bit_depth_chroma", sps.bit_depth_chroma, payload_offset + 2, 0),
+                FieldInfo("conformance_window_flag", sps.conformance_window_flag, payload_offset + 2, 0),
+                FieldInfo("conf_win_left_offset", sps.conf_win_left_offset, payload_offset + 2, 0),
+                FieldInfo("conf_win_right_offset", sps.conf_win_right_offset, payload_offset + 2, 0),
+                FieldInfo("conf_win_top_offset", sps.conf_win_top_offset, payload_offset + 2, 0),
+                FieldInfo("conf_win_bottom_offset", sps.conf_win_bottom_offset, payload_offset + 2, 0),
+                FieldInfo("derived_width", sps.width, payload_offset + 2, 0, description="derived from SPS luma samples"),
+                FieldInfo("derived_height", sps.height, payload_offset + 2, 0, description="derived from SPS luma samples"),
+                FieldInfo("general_profile_idc", sps.profile_idc, payload_offset + 2, 0),
+                FieldInfo("general_level_idc", sps.level_idc, payload_offset + 2, 0),
+            ]
+        )
+        summary["width"] = sps.width
+        summary["height"] = sps.height
+        summary["chroma_format_idc"] = sps.chroma_format_idc
+        summary["bit_depth_luma"] = sps.bit_depth_luma
+        summary["bit_depth_chroma"] = sps.bit_depth_chroma
+        summary["sps_id"] = sps.seq_parameter_set_id
+        summary["profile_idc"] = sps.profile_idc
+        summary["level_idc"] = sps.level_idc
+
     def _has_required_parameter_sets(self, seen: set[int]) -> bool:
         return 32 in seen and 33 in seen and 34 in seen
 
@@ -313,6 +407,125 @@ def parse_h264_sps(payload: bytes) -> H264SpsInfo:
     )
 
 
+def parse_h265_vps(payload: bytes) -> H265VpsInfo:
+    rbsp = remove_emulation_prevention_bytes(payload)
+    reader = BitReader(rbsp)
+    video_parameter_set_id = reader.read_bits(4)
+    reader.read_bit()
+    reader.read_bit()
+    max_layers_minus1 = reader.read_bits(6)
+    max_sub_layers_minus1 = reader.read_bits(3)
+    temporal_id_nesting_flag = reader.read_bit()
+    reader.read_bits(16)
+    profile_idc, level_idc = _skip_h265_profile_tier_level(reader, max_sub_layers_minus1)
+    return H265VpsInfo(
+        video_parameter_set_id=video_parameter_set_id,
+        max_layers_minus1=max_layers_minus1,
+        max_sub_layers_minus1=max_sub_layers_minus1,
+        temporal_id_nesting_flag=temporal_id_nesting_flag,
+        profile_idc=profile_idc,
+        level_idc=level_idc,
+    )
+
+
+def parse_h265_sps(payload: bytes) -> H265SpsInfo:
+    rbsp = remove_emulation_prevention_bytes(payload)
+    reader = BitReader(rbsp)
+    video_parameter_set_id = reader.read_bits(4)
+    max_sub_layers_minus1 = reader.read_bits(3)
+    temporal_id_nesting_flag = reader.read_bit()
+    profile_idc, level_idc = _skip_h265_profile_tier_level(reader, max_sub_layers_minus1)
+    seq_parameter_set_id = reader.read_ue()
+    chroma_format_idc = reader.read_ue()
+    separate_colour_plane_flag = 0
+    if chroma_format_idc == 3:
+        separate_colour_plane_flag = reader.read_bit()
+    pic_width_in_luma_samples = reader.read_ue()
+    pic_height_in_luma_samples = reader.read_ue()
+    conformance_window_flag = reader.read_bit()
+    conf_win_left_offset = 0
+    conf_win_right_offset = 0
+    conf_win_top_offset = 0
+    conf_win_bottom_offset = 0
+    if conformance_window_flag:
+        conf_win_left_offset = reader.read_ue()
+        conf_win_right_offset = reader.read_ue()
+        conf_win_top_offset = reader.read_ue()
+        conf_win_bottom_offset = reader.read_ue()
+    bit_depth_luma_minus8 = reader.read_ue()
+    bit_depth_chroma_minus8 = reader.read_ue()
+    reader.read_ue()
+    ordering_info_present_flag = reader.read_bit()
+    start = 0 if ordering_info_present_flag else max_sub_layers_minus1
+    for _ in range(start, max_sub_layers_minus1 + 1):
+        reader.read_ue()
+        reader.read_ue()
+        reader.read_ue()
+    width, height = _derive_h265_dimensions(
+        chroma_format_idc,
+        separate_colour_plane_flag,
+        pic_width_in_luma_samples,
+        pic_height_in_luma_samples,
+        conf_win_left_offset,
+        conf_win_right_offset,
+        conf_win_top_offset,
+        conf_win_bottom_offset,
+    )
+    return H265SpsInfo(
+        video_parameter_set_id=video_parameter_set_id,
+        max_sub_layers_minus1=max_sub_layers_minus1,
+        temporal_id_nesting_flag=temporal_id_nesting_flag,
+        seq_parameter_set_id=seq_parameter_set_id,
+        chroma_format_idc=chroma_format_idc,
+        bit_depth_luma=bit_depth_luma_minus8 + 8,
+        bit_depth_chroma=bit_depth_chroma_minus8 + 8,
+        width=width,
+        height=height,
+        conformance_window_flag=conformance_window_flag,
+        conf_win_left_offset=conf_win_left_offset,
+        conf_win_right_offset=conf_win_right_offset,
+        conf_win_top_offset=conf_win_top_offset,
+        conf_win_bottom_offset=conf_win_bottom_offset,
+        profile_idc=profile_idc,
+        level_idc=level_idc,
+    )
+
+
+def _skip_h265_profile_tier_level(reader: BitReader, max_sub_layers_minus1: int) -> tuple[int, int]:
+    reader.read_bits(2)
+    reader.read_bit()
+    profile_idc = reader.read_bits(5)
+    reader.read_bits(32)
+    reader.read_bits(1)
+    reader.read_bits(1)
+    reader.read_bits(1)
+    reader.read_bits(1)
+    reader.read_bits(44)
+    level_idc = reader.read_bits(8)
+    sub_layer_profile_present = []
+    sub_layer_level_present = []
+    for _ in range(max_sub_layers_minus1):
+        sub_layer_profile_present.append(reader.read_bit())
+        sub_layer_level_present.append(reader.read_bit())
+    if max_sub_layers_minus1 > 0:
+        for _ in range(max_sub_layers_minus1, 8):
+            reader.read_bits(2)
+    for index in range(max_sub_layers_minus1):
+        if sub_layer_profile_present[index]:
+            reader.read_bits(2)
+            reader.read_bit()
+            reader.read_bits(5)
+            reader.read_bits(32)
+            reader.read_bits(1)
+            reader.read_bits(1)
+            reader.read_bits(1)
+            reader.read_bits(1)
+            reader.read_bits(44)
+        if sub_layer_level_present[index]:
+            reader.read_bits(8)
+    return profile_idc, level_idc
+
+
 def remove_emulation_prevention_bytes(payload: bytes) -> bytes:
     output = bytearray()
     zeros = 0
@@ -352,6 +565,33 @@ def _derive_h264_dimensions(
         crop_unit_y = 2 - frame_mbs_only_flag
     width -= (frame_crop_left_offset + frame_crop_right_offset) * crop_unit_x
     height -= (frame_crop_top_offset + frame_crop_bottom_offset) * crop_unit_y
+    return width, height
+
+
+def _derive_h265_dimensions(
+    chroma_format_idc: int,
+    separate_colour_plane_flag: int,
+    pic_width_in_luma_samples: int,
+    pic_height_in_luma_samples: int,
+    conf_win_left_offset: int,
+    conf_win_right_offset: int,
+    conf_win_top_offset: int,
+    conf_win_bottom_offset: int,
+) -> tuple[int, int]:
+    if chroma_format_idc == 1:
+        sub_width_c = 2
+        sub_height_c = 2
+    elif chroma_format_idc == 2:
+        sub_width_c = 2
+        sub_height_c = 1
+    else:
+        sub_width_c = 1
+        sub_height_c = 1
+    if separate_colour_plane_flag:
+        sub_width_c = 1
+        sub_height_c = 1
+    width = pic_width_in_luma_samples - (conf_win_left_offset + conf_win_right_offset) * sub_width_c
+    height = pic_height_in_luma_samples - (conf_win_top_offset + conf_win_bottom_offset) * sub_height_c
     return width, height
 
 

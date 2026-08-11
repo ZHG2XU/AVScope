@@ -72,6 +72,22 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(sps_fields["profile_idc"], 66)
         self.assertEqual(sps_fields["level_idc"], 30)
 
+    def test_h265_parser(self):
+        sample_dir = ROOT / "h265_sample"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample.h265")
+        self.assertEqual(result.media.format_name, "H.265 Annex-B")
+        self.assertGreaterEqual(result.media.summary["nalu_count"], 4)
+        self.assertEqual(result.media.summary["width"], 640)
+        self.assertEqual(result.media.summary["height"], 360)
+        self.assertEqual(result.media.summary["profile_idc"], 1)
+        self.assertEqual(result.media.summary["level_idc"], 120)
+        vps_fields = {field.name: field.value for field in result.root.children[0].fields}
+        self.assertEqual(vps_fields["vps_video_parameter_set_id"], 0)
+        sps_fields = {field.name: field.value for field in result.root.children[1].fields}
+        self.assertEqual(sps_fields["derived_width"], 640)
+        self.assertEqual(sps_fields["bit_depth_luma"], 8)
+
     def test_mp4_parser_and_reports(self):
         ftyp_payload = b"isom" + struct.pack(">I", 0) + b"isomiso2"
         ftyp = struct.pack(">I4s", len(ftyp_payload) + 8, b"ftyp") + ftyp_payload

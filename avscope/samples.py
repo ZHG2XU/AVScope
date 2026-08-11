@@ -11,6 +11,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample.wav", _wav_sample()),
         _write(target / "sample.aac", _aac_sample()),
         _write(target / "sample.h264", _h264_sample()),
+        _write(target / "sample.h265", _h265_sample()),
         _write(target / "sample.mp4", _mp4_sample()),
         _write(target / "sample_changed.mp4", _mp4_sample(extra_free=True)),
         _write(target / "sample.avi", _avi_sample()),
@@ -46,6 +47,15 @@ def _h264_sample() -> bytes:
     )
 
 
+def _h265_sample() -> bytes:
+    return (
+        _h265_nalu(32, make_h265_vps())
+        + _h265_nalu(33, make_h265_sps(width=640, height=360))
+        + _h265_nalu(34, b"\x80")
+        + _h265_nalu(19, b"\x80")
+    )
+
+
 def make_h264_baseline_sps(width: int = 640, height: int = 480, profile_idc: int = 66, level_idc: int = 30) -> bytes:
     if width % 16 or height % 16:
         raise ValueError("synthetic SPS helper expects dimensions divisible by 16")
@@ -66,6 +76,64 @@ def make_h264_baseline_sps(width: int = 640, height: int = 480, profile_idc: int
     writer.write_bit(0)
     writer.write_bit(0)
     return writer.finish()
+
+
+def make_h265_vps(profile_idc: int = 1, level_idc: int = 120) -> bytes:
+    writer = _BitWriter()
+    writer.write_bits(0, 4)
+    writer.write_bit(1)
+    writer.write_bit(1)
+    writer.write_bits(0, 6)
+    writer.write_bits(0, 3)
+    writer.write_bit(1)
+    writer.write_bits(0xFFFF, 16)
+    _write_h265_profile_tier_level(writer, profile_idc, level_idc)
+    writer.write_bit(1)
+    writer.write_ue(0)
+    writer.write_ue(0)
+    writer.write_ue(0)
+    writer.write_bits(0, 6)
+    writer.write_ue(0)
+    return writer.finish()
+
+
+def make_h265_sps(width: int = 640, height: int = 360, profile_idc: int = 1, level_idc: int = 120) -> bytes:
+    writer = _BitWriter()
+    writer.write_bits(0, 4)
+    writer.write_bits(0, 3)
+    writer.write_bit(1)
+    _write_h265_profile_tier_level(writer, profile_idc, level_idc)
+    writer.write_ue(0)
+    writer.write_ue(1)
+    writer.write_ue(width)
+    writer.write_ue(height)
+    writer.write_bit(0)
+    writer.write_ue(0)
+    writer.write_ue(0)
+    writer.write_ue(4)
+    writer.write_bit(1)
+    writer.write_ue(0)
+    writer.write_ue(0)
+    writer.write_ue(0)
+    return writer.finish()
+
+
+def _write_h265_profile_tier_level(writer: "_BitWriter", profile_idc: int, level_idc: int) -> None:
+    writer.write_bits(0, 2)
+    writer.write_bit(0)
+    writer.write_bits(profile_idc, 5)
+    writer.write_bits(0, 32)
+    writer.write_bit(1)
+    writer.write_bit(0)
+    writer.write_bit(0)
+    writer.write_bit(1)
+    writer.write_bits(0, 44)
+    writer.write_bits(level_idc, 8)
+
+
+def _h265_nalu(nal_type: int, rbsp: bytes) -> bytes:
+    header = bytes([((nal_type & 0x3F) << 1) & 0x7E, 0x01])
+    return b"\x00\x00\x00\x01" + header + rbsp
 
 
 class _BitWriter:
