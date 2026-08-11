@@ -8,6 +8,7 @@ from .matroska import MatroskaParser
 from .mpegps import MpegPsParser
 from .mpegts import MpegTsParser
 from .mp4 import Mp4Parser
+from .pcap import PcapRtpParser
 from .raw import RawPcmParser, RawYuvParser
 from .wav import WavParser
 
@@ -19,6 +20,7 @@ DEFAULT_PARSERS = [
     MatroskaParser(),
     MpegPsParser(),
     MpegTsParser(),
+    PcapRtpParser(),
     WavParser(),
     AacAdtsParser(),
     H264AnnexBParser(),

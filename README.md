@@ -9,7 +9,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 支持协议树节点搜索，以及只显示 warning/error 异常节点的过滤视图。
 - 支持 Ctrl+O、Ctrl+R、Ctrl+F、F3 等快捷键，以及 Hex 右键菜单复制当前 offset、选中字节、ASCII 并按大小端解释整数/浮点。
 - 工具菜单提供时间戳计算器和码率计算器，便于换算 PTS/time_base、帧序号/FPS 和文件码率。
-- 自动识别 MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、WAV、AAC ADTS、H.264 Annex-B、H.265 Annex-B、raw PCM、raw YUV。
+- 自动识别 MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、PCAP/RTP、WAV、AAC ADTS、H.264 Annex-B、H.265 Annex-B、raw PCM、raw YUV。
 - 大文件路径使用 `ByteSource` 只读随机访问，测试覆盖 128MB+ 文件头部、中部、尾部窗口读取。
 - H.264 SPS/PPS 可解析 profile、level、SPS/PPS id、PPS 引用关系和推导宽高。
 - H.265 VPS/SPS/PPS 可解析 profile、level、VPS/SPS/PPS id、PPS 引用关系、位深和推导宽高。
@@ -21,6 +21,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - Matroska/WebM 可解析 EBML header、Segment/Info/Tracks/Cluster、DocType、时长、轨道、视频宽高和 SimpleBlock 帧。
 - MPEG-PS 可解析 pack header、system header、PES stream id、packet length、PTS/DTS 和 payload offset。
 - MPEG-TS 可解析 188 字节 packet、PID、payload start、adaptation control 和 continuity counter，统计 PID 分布，并诊断 continuity counter 跳变。
+- PCAP/RTP 可解析 PCAP global header、packet record、Ethernet/IPv4/UDP/RTP 字段、payload type、sequence、timestamp、SSRC，并诊断 RTP sequence 跳变。
 - AAC ADTS 可解析 profile、采样率、声道布局、帧时长、平均码率，并在字段表和 HTML 报告中显示 header 字段 bit offset/bit length。
 - WAV 可解析 PCM 格式参数、data 字节数、帧数、时长，并校验 byte_rate/block_align。
 - Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、宽高、像素格式和帧率。
@@ -30,7 +31,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 为 WAV/PCM 生成抽样波形摘要。
 - 桌面端提供深色/浅色专业工作台主题、品牌图标、关键指标摘要条和空状态，导出 HTML 报告带结构化视觉样式。
 - 输出基础诊断 warning/error，ffprobe 媒体流或 packet 时间线探测失败会转为可读 warning，并基于 packet 时间线提示 PTS/DTS 非单调和音视频时长差异。
-- 单元测试覆盖 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS 典型损坏文件，验证解析失败不会导致程序崩溃并会输出诊断。
+- 单元测试覆盖 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 典型损坏文件，验证解析失败不会导致程序崩溃并会输出诊断。
 - 支持保存 `.avscope.json` 工程快照，记录当前分析结果、源文件路径和 Raw 参数。
 - 导出独立 HTML、JSON、CSV 报告，HTML 报告包含帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、诊断、帧、packet、节点和字段。
 - 支持两个文件的二进制差异扫描，并输出 offset 对齐的左右 Hex/ASCII 并排差异表。

@@ -21,6 +21,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample.flv", _flv_sample()),
         _write(target / "sample.mkv", _matroska_sample()),
         _write(target / "sample.ps", _mpegps_sample()),
+        _write(target / "sample.pcap", _pcap_rtp_sample()),
         _write(target / "sample.ts", _mpegts_sample()),
         _write(target / "sample.pcm", b"\x00\x00\x10\x00\xf0\xff" * 64),
         _write(target / "sample.yuv", b"\x10" * (64 * 48) + b"\x80" * (64 * 48 // 2)),
@@ -80,6 +81,45 @@ def _mpegps_sample() -> bytes:
     audio_payload = _pes_header(pts_90k=90000) + b"\x11\x22\x33\x44"
     audio_pes = b"\x00\x00\x01\xC0" + struct.pack(">H", len(audio_payload)) + audio_payload
     return pack + system + video_pes + audio_pes
+
+
+def _pcap_rtp_sample() -> bytes:
+    global_header = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
+    packets = [
+        _pcap_packet(0, _ethernet_ipv4_udp_rtp(sequence=100, timestamp=90000, marker=False, payload=b"\x65\x88\x84")),
+        _pcap_packet(1, _ethernet_ipv4_udp_rtp(sequence=101, timestamp=93000, marker=True, payload=b"\x41\x9A\x22")),
+    ]
+    return global_header + b"".join(packets)
+
+
+def _pcap_packet(ts_sec: int, payload: bytes) -> bytes:
+    return struct.pack("<IIII", ts_sec, 0, len(payload), len(payload)) + payload
+
+
+def _ethernet_ipv4_udp_rtp(sequence: int, timestamp: int, marker: bool, payload: bytes) -> bytes:
+    ethernet = b"\xAA\xBB\xCC\xDD\xEE\xFF" + b"\x11\x22\x33\x44\x55\x66" + b"\x08\x00"
+    rtp = bytes([0x80, (0x80 if marker else 0x00) | 96]) + struct.pack(">HII", sequence, timestamp, 0x12345678) + payload
+    udp_length = 8 + len(rtp)
+    udp = struct.pack(">HHHH", 5004, 5004, udp_length, 0)
+    ip_total_length = 20 + udp_length
+    ip_header = bytearray(
+        b"\x45\x00"
+        + struct.pack(">H", ip_total_length)
+        + b"\x00\x01\x00\x00\x40\x11\x00\x00"
+        + bytes([192, 168, 1, 10])
+        + bytes([239, 1, 1, 1])
+    )
+    checksum = _ipv4_checksum(bytes(ip_header))
+    ip_header[10:12] = struct.pack(">H", checksum)
+    return ethernet + bytes(ip_header) + udp + rtp
+
+
+def _ipv4_checksum(header: bytes) -> int:
+    total = 0
+    for offset in range(0, len(header), 2):
+        total += int.from_bytes(header[offset : offset + 2], "big")
+        total = (total & 0xFFFF) + (total >> 16)
+    return (~total) & 0xFFFF
 
 
 def _pes_header(pts_90k: int) -> bytes:

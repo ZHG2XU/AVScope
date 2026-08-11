@@ -259,6 +259,37 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(fields["stream_id"], "0xE0")
         self.assertEqual(fields["pts_seconds"], 1.0)
 
+    def test_pcap_rtp_parser(self):
+        sample_dir = ROOT / "pcap_sample"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample.pcap")
+        self.assertEqual(result.media.format_name, "PCAP/RTP")
+        self.assertEqual(result.media.summary["packets"], 2)
+        self.assertEqual(result.media.summary["rtp_packets"], 2)
+        self.assertEqual(result.media.summary["payload_type_counts"]["96"], 2)
+        self.assertEqual(result.frames[0].pts, 1.0)
+        self.assertEqual(result.frames[0].frame_type, "RTP PT=96")
+        self.assertFalse(result.frames[0].keyframe)
+        self.assertTrue(result.frames[1].keyframe)
+        fields = {field.name: field.value for field in result.root.children[0].fields}
+        self.assertEqual(fields["src_ip"], "192.168.1.10")
+        self.assertEqual(fields["dst_ip"], "239.1.1.1")
+        self.assertEqual(fields["rtp_sequence"], 100)
+        self.assertEqual(fields["rtp_ssrc"], "0x12345678")
+
+    def test_pcap_rtp_sequence_diagnostic(self):
+        sample_dir = ROOT / "pcap_jump_sample"
+        generate_samples(sample_dir)
+        data = (sample_dir / "sample.pcap").read_bytes()
+        sequence_offset = 24 + 16 + 14 + 20 + 8 + 2
+        changed = bytearray(data)
+        second_sequence_offset = sequence_offset + 16 + int.from_bytes(data[24 + 8 : 24 + 12], "little")
+        changed[second_sequence_offset : second_sequence_offset + 2] = (105).to_bytes(2, "big")
+        result = self.analyzer.analyze(write(ROOT / "sequence_jump.pcap", bytes(changed)))
+        self.assertEqual(result.media.format_name, "PCAP/RTP")
+        self.assertEqual(result.media.summary["sequence_warnings"], 1)
+        self.assertTrue(any("RTP sequence 跳变" in issue.message for issue in diagnostics_with(result, "warning")))
+
     def test_flv_parser(self):
         sample_dir = ROOT / "flv_sample"
         generate_samples(sample_dir)
@@ -340,6 +371,11 @@ class ParserTests(unittest.TestCase):
         truncated_ps = write(ROOT / "truncated.ps", b"\x00\x00\x01\xBA\x44\x00")
         result = self.analyzer.analyze(truncated_ps)
         self.assertEqual(result.media.format_name, "MPEG-PS")
+        self.assertTrue(diagnostics_with(result, "error"))
+
+        truncated_pcap = write(ROOT / "truncated.pcap", b"\xD4\xC3\xB2\xA1")
+        result = self.analyzer.analyze(truncated_pcap)
+        self.assertEqual(result.media.format_name, "PCAP/RTP")
         self.assertTrue(diagnostics_with(result, "error"))
 
         truncated_flv = write(ROOT / "truncated.flv", b"FLV\x01\x05\x00\x00\x00\x09\x00\x00\x00\x00\x09\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00")
