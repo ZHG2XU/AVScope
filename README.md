@@ -36,7 +36,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 输出基础诊断 warning/error，ffprobe 媒体流或 packet 时间线探测失败会转为可读 warning，并基于解析结构/packet 时间线提示 MP4 chunk offset 异常、PTS/DTS 非单调、音视频时长差异和帧/packet 大小尖峰。
 - 单元测试覆盖 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 典型损坏文件，验证解析失败不会导致程序崩溃并会输出诊断。
 - 支持保存 `.avscope.json` 工程快照，记录当前分析结果、源文件路径和 Raw 参数。
-- 导出独立 HTML、JSON、CSV 报告，HTML 报告包含音频波形图、结构化统计摘要、帧/packet 大小图、帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、诊断、帧统计、packet 统计、帧、packet、节点和字段。
+- 导出独立 HTML、JSON、CSV 报告，支持写入用户备注；HTML 报告包含音频波形图、结构化统计摘要、帧/packet 大小图、帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、备注、诊断、帧统计、packet 统计、帧、packet、节点和字段。
 - 支持两个文件的二进制差异扫描，并输出 offset 对齐的左右 Hex/ASCII 并排差异表。
 - 支持两个文件的帧级对比，按 frame index 汇总新增、删除和 size/PTS/DTS/duration/type/keyframe 差异，并可从 GUI 或 CLI 导出 JSON。
 - 预留声明式插件模板机制，可在 `plugins\*.json` 中按魔数扩展私有格式识别和字段展示。
@@ -73,6 +73,7 @@ E:\DevelopmentEnvironment\python\python.exe -m avscope make-samples --out G:\AVS
 E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.wav --html G:\AVScope\samples\sample_report.html --json G:\AVScope\samples\sample_report.json --csv G:\AVScope\samples\sample_report.csv
 E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.pcm --sample-rate 8000 --channels 1 --bits-per-sample 16 --endian little --json G:\AVScope\samples\sample_pcm_report.json
 E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.yuv --width 64 --height 48 --pixel-format yuv420p --fps 30 --json G:\AVScope\samples\sample_yuv_report.json
+E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.wav --note "现场备注：客户样例" --json G:\AVScope\samples\sample_note_report.json
 ```
 
 协议结构对比：

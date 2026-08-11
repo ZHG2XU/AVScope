@@ -182,18 +182,27 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(len(result.root.children), 2)
         html_path = ROOT / "report.html"
         json_path = ROOT / "report.json"
-        export_html(result, html_path)
-        export_json(result, json_path)
+        report_notes = "现场备注：客户样例，关注 moov/mdat 结构。"
+        export_html(result, html_path, notes=report_notes)
+        export_json(result, json_path, notes=report_notes)
         project_path = ROOT / "project.avscope.json"
-        export_project(result, project_path, {"sample_rate": 8000})
+        csv_path = ROOT / "report.csv"
+        export_csv(result, csv_path, notes=report_notes)
+        export_project(result, project_path, {"sample_rate": 8000}, notes=report_notes)
         self.assertIn("AVScope", html_path.read_text(encoding="utf-8"))
         self.assertIn("媒体摘要", html_path.read_text(encoding="utf-8"))
+        self.assertIn("用户备注", html_path.read_text(encoding="utf-8"))
+        self.assertIn(report_notes, html_path.read_text(encoding="utf-8"))
         self.assertIn("MP4/MOV", json_path.read_text(encoding="utf-8"))
+        self.assertEqual(json.loads(json_path.read_text(encoding="utf-8"))["user_notes"], report_notes)
+        self.assertIn("notes", csv_path.read_text(encoding="utf-8-sig"))
         project = json.loads(project_path.read_text(encoding="utf-8"))
         self.assertEqual(project["project_type"], "AVScope Project")
         self.assertEqual(project["schema_version"], 1)
         self.assertEqual(project["raw_options"]["sample_rate"], 8000)
+        self.assertEqual(project["user_notes"], report_notes)
         self.assertEqual(project["analysis"]["media"]["format_name"], "MP4/MOV")
+        self.assertEqual(project["analysis"]["user_notes"], report_notes)
 
     def test_mp4_mvhd_parser(self):
         sample_dir = ROOT / "mp4_sample"
@@ -646,6 +655,10 @@ class ParserTests(unittest.TestCase):
         self.assertIn("统计摘要", html_text)
         self.assertIn("<th>Stream</th>", html_text)
         self.assertIn("packet_stats", csv_path.read_text(encoding="utf-8-sig"))
+        note_json = ROOT / "cli_note_report.json"
+        exit_code = cli_main(["analyze", str(sample_dir / "sample.wav"), "--note", "CLI 备注", "--json", str(note_json)])
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(json.loads(note_json.read_text(encoding="utf-8"))["user_notes"], "CLI 备注")
         pcm_json = ROOT / "cli_pcm_report.json"
         exit_code = cli_main(
             [

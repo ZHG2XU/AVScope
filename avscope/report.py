@@ -13,12 +13,12 @@ from avscope.models import ParseNode, ParseResult
 from avscope.timeline_viz import timeline_chart_items
 
 
-def export_json(result: ParseResult, path: str | Path) -> None:
-    document = _document(result)
+def export_json(result: ParseResult, path: str | Path, notes: str | None = None) -> None:
+    document = _document(result, notes)
     Path(path).write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def export_csv(result: ParseResult, path: str | Path) -> None:
+def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) -> None:
     with Path(path).open("w", encoding="utf-8-sig", newline="") as fh:
         writer = csv.DictWriter(
             fh,
@@ -38,6 +38,7 @@ def export_csv(result: ParseResult, path: str | Path) -> None:
             ],
         )
         writer.writeheader()
+        clean_notes = _clean_notes(notes)
         writer.writerow(
             {
                 "section": "media",
@@ -48,6 +49,15 @@ def export_csv(result: ParseResult, path: str | Path) -> None:
                 "value": json.dumps(result.media.summary, ensure_ascii=False, default=str),
             }
         )
+        if clean_notes:
+            writer.writerow(
+                {
+                    "section": "notes",
+                    "name": "user_notes",
+                    "type": "text",
+                    "value": clean_notes,
+                }
+            )
         for issue in result.diagnostics:
             writer.writerow(
                 {
@@ -110,7 +120,8 @@ def export_csv(result: ParseResult, path: str | Path) -> None:
             writer.writerow(row)
 
 
-def export_project(result: ParseResult, path: str | Path, raw_options: dict | None = None) -> None:
+def export_project(result: ParseResult, path: str | Path, raw_options: dict | None = None, notes: str | None = None) -> None:
+    clean_notes = _clean_notes(notes)
     document = {
         "project_type": "AVScope Project",
         "schema_version": 1,
@@ -118,13 +129,15 @@ def export_project(result: ParseResult, path: str | Path, raw_options: dict | No
         "tool_version": __version__,
         "source_path": result.media.path,
         "raw_options": raw_options or {},
-        "analysis": _document(result),
+        "analysis": _document(result, clean_notes),
     }
+    if clean_notes:
+        document["user_notes"] = clean_notes
     Path(path).write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def export_html(result: ParseResult, path: str | Path) -> None:
-    doc = _document(result)
+def export_html(result: ParseResult, path: str | Path, notes: str | None = None) -> None:
+    doc = _document(result, notes)
     media = doc["media"]
     summary_json = html.escape(json.dumps(media.get("summary", {}), ensure_ascii=False, indent=2))
     issue_counts = _issue_counts(doc["diagnostics"])
@@ -141,6 +154,7 @@ def export_html(result: ParseResult, path: str | Path) -> None:
     timeline_html = _timeline_html(packets[:100])
     frame_html = _frame_html(doc["frames"][:200])
     stream_html = _stream_html(result.media.summary.get("ffprobe", {}).get("streams", []))
+    notes_html = _notes_html(doc.get("user_notes", ""))
     generated_at = html.escape(doc["generated_at"])
     body = f"""<!doctype html>
 <html lang="zh-CN">
@@ -324,6 +338,7 @@ def export_html(result: ParseResult, path: str | Path) -> None:
       {stream_html}
       <pre>{summary_json}</pre>
     </section>
+    {notes_html}
     <section>
       <h2>统计摘要</h2>
       {stats_summary_html}
@@ -352,8 +367,8 @@ def export_html(result: ParseResult, path: str | Path) -> None:
     Path(path).write_text(body, encoding="utf-8")
 
 
-def _document(result: ParseResult) -> dict[str, Any]:
-    return {
+def _document(result: ParseResult, notes: str | None = None) -> dict[str, Any]:
+    document = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "tool_version": __version__,
         "media": _plain(result.media),
@@ -361,6 +376,14 @@ def _document(result: ParseResult) -> dict[str, Any]:
         "frames": [_plain(f) for f in result.frames[:5000]],
         "root": _plain(result.root),
     }
+    clean_notes = _clean_notes(notes)
+    if clean_notes:
+        document["user_notes"] = clean_notes
+    return document
+
+
+def _clean_notes(notes: str | None) -> str:
+    return "" if notes is None else str(notes).strip()
 
 
 def _plain(value: Any) -> Any:
@@ -428,6 +451,13 @@ def _issue_item(issue: dict) -> str:
     offset = issue.get("offset")
     suffix = "" if offset is None else f" offset=0x{int(offset):X}"
     return f"<li class=\"{severity}\">[{severity}] {message}{suffix}</li>"
+
+
+def _notes_html(notes: str) -> str:
+    if not notes:
+        return ""
+    escaped = html.escape(notes)
+    return f"<section><h2>用户备注</h2><pre>{escaped}</pre></section>"
 
 
 def _waveform_html(waveform: dict) -> str:

@@ -19,6 +19,8 @@ def main(argv: list[str] | None = None) -> int:
     analyze.add_argument("--html")
     analyze.add_argument("--json")
     analyze.add_argument("--csv")
+    analyze.add_argument("--note", action="append", default=[], help="User note to include in exported reports")
+    analyze.add_argument("--notes-file", help="UTF-8 text file with user notes to include in exported reports")
     analyze.add_argument("--sample-rate", type=int, help="Raw PCM sample rate")
     analyze.add_argument("--channels", type=int, help="Raw PCM channel count")
     analyze.add_argument("--bits-per-sample", type=int, help="Raw PCM bits per sample")
@@ -50,12 +52,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "analyze":
         result = Analyzer().analyze(args.file, _analyze_options(args))
+        notes = _report_notes(args)
         if args.html:
-            export_html(result, args.html)
+            export_html(result, args.html, notes=notes)
         if args.json:
-            export_json(result, args.json)
+            export_json(result, args.json, notes=notes)
         if args.csv:
-            export_csv(result, args.csv)
+            export_csv(result, args.csv, notes=notes)
         print(json.dumps({"format": result.media.format_name, "size": result.media.size, "diagnostics": len(result.diagnostics)}, ensure_ascii=False))
         return 0
     if args.command == "compare-binary":
@@ -112,6 +115,14 @@ def _analyze_options(args: argparse.Namespace) -> dict:
         "fps": args.fps,
     }
     return {key: value for key, value in mapping.items() if value is not None}
+
+
+def _report_notes(args: argparse.Namespace) -> str:
+    notes = [str(note).strip() for note in getattr(args, "note", []) if str(note).strip()]
+    notes_file = getattr(args, "notes_file", None)
+    if notes_file:
+        notes.append(Path(notes_file).read_text(encoding="utf-8").strip())
+    return "\n".join(note for note in notes if note)
 
 
 if __name__ == "__main__":

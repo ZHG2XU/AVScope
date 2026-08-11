@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-12T03:19:44",
+  "generated_at": "2026-08-12T03:44:13",
   "tool_version": "0.1.0",
   "media": {
     "path": "G:\\AVScope\\samples\\sample.wav",
@@ -743,5 +743,6 @@
     ],
     "severity": "normal",
     "description": ""
-  }
+  },
+  "user_notes": "样例备注：WAV 音频波形与报告备注演示。"
 }

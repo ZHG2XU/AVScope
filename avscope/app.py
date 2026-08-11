@@ -1214,21 +1214,21 @@ class AVScopeApp(tk.Tk):
             return
         path = filedialog.asksaveasfilename(defaultextension=".html", filetypes=[("HTML", "*.html")])
         if path:
-            export_html(self.result, path)
+            export_html(self.result, path, notes=self._ask_report_notes())
 
     def export_json_report(self) -> None:
         if not self.result:
             return
         path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON", "*.json")])
         if path:
-            export_json(self.result, path)
+            export_json(self.result, path, notes=self._ask_report_notes())
 
     def export_csv_report(self) -> None:
         if not self.result:
             return
         path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV", "*.csv")])
         if path:
-            export_csv(self.result, path)
+            export_csv(self.result, path, notes=self._ask_report_notes())
 
     def save_project_snapshot(self) -> None:
         if not self.result:
@@ -1241,8 +1241,12 @@ class AVScopeApp(tk.Tk):
             raw_options = {}
             if self.current_file:
                 raw_options = self.raw_options_by_path.get(str(self.current_file), {})
-            export_project(self.result, path, raw_options)
+            export_project(self.result, path, raw_options, notes=self._ask_report_notes())
             self.status.set(f"工程已保存: {path}")
+
+    def _ask_report_notes(self) -> str:
+        note = simpledialog.askstring("报告备注", "用户备注（可留空）", parent=self)
+        return "" if note is None else note.strip()
 
     def compare_files(self) -> None:
         left = filedialog.askopenfilename(title="选择左侧文件")
