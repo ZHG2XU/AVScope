@@ -28,6 +28,7 @@ from avscope.app import (
     format_shortcuts_help,
     format_seconds_timecode,
     timeline_anomaly_item_orders,
+    timeline_issue_item_orders,
     timeline_item_row_tag,
     first_loadable_drop_path,
     hex_bytes_to_ascii,
@@ -1106,6 +1107,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(summary["timestamp_anomalies"][0]["kind"], "pts")
         self.assertEqual(summary["timestamp_anomalies"][0]["index"], 2)
         self.assertEqual(timeline_anomaly_item_orders(summary), {2})
+        self.assertEqual(timeline_issue_item_orders(summary), {2})
         self.assertEqual(timeline_item_row_tag(1, {2}), "normal")
         self.assertEqual(timeline_item_row_tag(2, {2}), "warning")
         issue_rows = timeline_issue_rows(summary)
@@ -1130,12 +1132,43 @@ class ParserTests(unittest.TestCase):
                         }
                     ]
                 },
-                "pcr": {"warnings": [{"pid": "0x0100", "kind": "non_monotonic", "count": 2}]},
+                "pcr": {
+                    "warnings": [
+                        {
+                            "pid": "0x0100",
+                            "kind": "non_monotonic",
+                            "count": 1,
+                            "item_order": 6,
+                            "index": 3,
+                            "previous_order": 5,
+                            "previous": 1.0,
+                            "current": 0.5,
+                        }
+                    ]
+                },
             }
         )
         self.assertEqual([row["source"] for row in rows], ["RTP", "PCR"])
         self.assertIn("expected=101", rows[0]["detail"])
-        self.assertIn("count=2", rows[1]["detail"])
+        self.assertIn("current=0.5", rows[1]["detail"])
+        self.assertEqual(
+            timeline_issue_item_orders(
+                {
+                    "rtp_sequence": {"warnings": [{"item_order": 4}]},
+                    "pcr": {"warnings": [{"item_order": 6}, {"pid": "0x0200", "count": 1}]},
+                }
+            ),
+            {4, 6},
+        )
+        pcr_summary = build_timeline_summary(
+            [
+                FrameInfo(index=0, offset=0, size=188, metadata={"pcr_pid": "0x0100", "pcr_seconds": 1.0}),
+                FrameInfo(index=1, offset=188, size=188, metadata={"pcr_pid": "0x0100", "pcr_seconds": 0.5}),
+            ],
+            [],
+        )
+        self.assertEqual(pcr_summary["pcr"]["warnings"][0]["item_order"], 1)
+        self.assertEqual(timeline_issue_item_orders(pcr_summary), {1})
 
     def test_timeline_summary_from_packets_and_reports(self):
         packets = [

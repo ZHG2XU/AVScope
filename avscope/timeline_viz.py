@@ -387,7 +387,24 @@ def _pcr_summary(items: list[dict]) -> dict:
         intervals = [round(seconds[index] - seconds[index - 1], 9) for index in range(1, len(seconds))]
         non_monotonic = sum(1 for interval in intervals if interval < 0)
         if non_monotonic:
-            warnings.append({"pid": pid, "kind": "non_monotonic", "count": non_monotonic})
+            for index, interval in enumerate(intervals, start=1):
+                if interval >= 0:
+                    continue
+                previous_order, previous_item = pid_items[index - 1]
+                current_order, current_item = pid_items[index]
+                warnings.append(
+                    {
+                        "pid": pid,
+                        "kind": "non_monotonic",
+                        "count": 1,
+                        "item_order": current_order,
+                        "index": current_item.get("index"),
+                        "previous_order": previous_order,
+                        "previous_index": previous_item.get("index"),
+                        "previous": round(seconds[index - 1], 9),
+                        "current": round(seconds[index], 9),
+                    }
+                )
         summary = {
             "points": len(pid_items),
             "first": round(seconds[0], 9),

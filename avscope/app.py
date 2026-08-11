@@ -399,7 +399,7 @@ class AVScopeApp(tk.Tk):
         timeline_toolbar.pack(fill=tk.X, padx=8, pady=(8, 0))
         ttk.Checkbutton(
             timeline_toolbar,
-            text="只看时间异常",
+            text="只看时间线异常",
             variable=self.timeline_anomaly_filter,
             command=self.toggle_timeline_anomaly_filter,
             style="Panel.TCheckbutton",
@@ -988,15 +988,15 @@ class AVScopeApp(tk.Tk):
             return
         self.timeline.delete(*self.timeline.get_children())
         summary = self.result.media.summary.get("timeline_summary", {})
-        anomaly_orders = timeline_anomaly_item_orders(summary)
+        issue_orders = timeline_issue_item_orders(summary)
         filter_anomalies = self.timeline_anomaly_filter.get()
         row_order = 0
         rendered_rows = 0
         for frame in self.result.frames[:5000]:
-            if filter_anomalies and row_order not in anomaly_orders:
+            if filter_anomalies and row_order not in issue_orders:
                 row_order += 1
                 continue
-            tag = timeline_item_row_tag(row_order, anomaly_orders)
+            tag = timeline_item_row_tag(row_order, issue_orders)
             self.timeline.insert(
                 "",
                 tk.END,
@@ -1018,10 +1018,10 @@ class AVScopeApp(tk.Tk):
         row_order = len(self.result.frames)
         packet_timeline = self.result.media.summary.get("packet_timeline", {})
         for packet in packet_timeline.get("packets", [])[:1000]:
-            if filter_anomalies and row_order not in anomaly_orders:
+            if filter_anomalies and row_order not in issue_orders:
                 row_order += 1
                 continue
-            tag = timeline_item_row_tag(row_order, anomaly_orders)
+            tag = timeline_item_row_tag(row_order, issue_orders)
             self.timeline.insert(
                 "",
                 tk.END,
@@ -1043,9 +1043,9 @@ class AVScopeApp(tk.Tk):
         if hasattr(self, "timeline_filter_label"):
             total_rows = min(len(self.result.frames), 5000) + min(len(packet_timeline.get("packets", [])), 1000)
             if filter_anomalies:
-                self.timeline_filter_label.configure(text=f"显示 {rendered_rows}/{total_rows} 个异常时间点")
+                self.timeline_filter_label.configure(text=f"显示 {rendered_rows}/{total_rows} 个时间线异常点")
             else:
-                self.timeline_filter_label.configure(text=f"时间异常 {len(anomaly_orders)} 处")
+                self.timeline_filter_label.configure(text=f"时间线异常 {len(issue_orders)} 处")
         self._render_timeline_chart()
 
     def _render_timeline_chart(self) -> None:
@@ -2552,6 +2552,20 @@ def timeline_anomaly_item_orders(timeline_summary: dict | None = None) -> set[in
             orders.add(int(anomaly.get("item_order", 0) or 0))
         except (TypeError, ValueError):
             continue
+    return orders
+
+
+def timeline_issue_item_orders(timeline_summary: dict | None = None) -> set[int]:
+    summary = timeline_summary or {}
+    orders = timeline_anomaly_item_orders(summary)
+    for group_name in ("rtp_sequence", "pcr"):
+        for warning in summary.get(group_name, {}).get("warnings", []):
+            if warning.get("item_order") in (None, ""):
+                continue
+            try:
+                orders.add(int(warning.get("item_order")))
+            except (TypeError, ValueError):
+                continue
     return orders
 
 

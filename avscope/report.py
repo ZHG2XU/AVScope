@@ -721,11 +721,23 @@ def timeline_issue_rows(timeline_summary: dict | None = None) -> list[dict[str, 
     pcr = summary.get("pcr", {})
     for warning in pcr.get("warnings", [])[:100]:
         kind = str(warning.get("kind") or "warning")
-        detail = f"count={warning.get('count', '')}" if "count" in warning else json.dumps(warning, ensure_ascii=False)
+        if warning.get("item_order") not in (None, ""):
+            position = f"item {warning.get('item_order', '')}, index {warning.get('index', '')}, PID {warning.get('pid', '-')}"
+        else:
+            position = f"PID {warning.get('pid', '-')}"
+        if "previous" in warning or "current" in warning:
+            detail = (
+                f"previous={warning.get('previous', '')} at item {warning.get('previous_order', '')}; "
+                f"current={warning.get('current', '')}; count={warning.get('count', '')}"
+            )
+        elif "count" in warning:
+            detail = f"count={warning.get('count', '')}"
+        else:
+            detail = json.dumps(warning, ensure_ascii=False)
         rows.append(
             {
                 "source": "PCR",
-                "position": f"PID {warning.get('pid', '-')}",
+                "position": position,
                 "kind": kind,
                 "detail": detail,
             }
