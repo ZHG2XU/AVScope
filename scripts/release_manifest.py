@@ -31,6 +31,9 @@ DEFAULT_ARTIFACTS = [
     "dist/sample-reports/sample_sip_sdp_report.html",
     "dist/sample-reports/sample_sip_sdp_report.json",
     "dist/sample-reports/sample_sip_sdp_report.csv",
+    "dist/sample-reports/sample_rtcp_feedback_report.html",
+    "dist/sample-reports/sample_rtcp_feedback_report.json",
+    "dist/sample-reports/sample_rtcp_feedback_report.csv",
     "dist/sample-reports/sample_protocol_compare.json",
     "dist/sample-reports/sample_frame_compare.json",
 ]

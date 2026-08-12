@@ -150,7 +150,8 @@ def format_sample_files_help() -> str:
             "6. sample.pcm / sample.yuv：检查 Raw 参数输入、波形和 YUV 逐帧预览。",
             "7. sample.pcap / sample_rtp_anomalies.pcap：检查 RTP/RTCP 字段、会话关联、丢包、重复和乱序。",
             "8. sample_rtp_video.pcap：检查 H.264/H.265 RTP 聚合包、分片重组、NALU 类型和缺失起始包。",
-            "9. sample_sip_sdp.pcap：检查 SIP Call-ID、SDP 媒体协商、动态 PT 映射及音视频 Clock Rate。",
+              "9. sample_sip_sdp.pcap：检查 SIP Call-ID、SDP 媒体协商、动态 PT 映射及音视频 Clock Rate。",
+              "10. sample_rtcp_feedback.pcap：检查 RTCP SDES、BYE、NACK、PLI、FIR 与 RTP 会话关联。",
             "",
             "完整验收清单：G:\\AVScope\\docs\\ACCEPTANCE.md",
         ]

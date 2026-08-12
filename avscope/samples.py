@@ -28,6 +28,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample_rtp_anomalies.pcap", _pcap_rtp_anomaly_sample()),
         _write(target / "sample_rtp_video.pcap", _pcap_rtp_video_sample()),
         _write(target / "sample_sip_sdp.pcap", _pcap_sip_sdp_sample()),
+        _write(target / "sample_rtcp_feedback.pcap", _pcap_rtcp_feedback_sample()),
         _write(target / "sample.ts", _mpegts_sample()),
         _write(target / "sample.pcm", _pcm_sample()),
         _write(target / "sample.yuv", _yuv420p_color_bars()),
@@ -200,6 +201,16 @@ def _pcap_rtp_anomaly_sample() -> bytes:
     return global_header + b"".join(packets)
 
 
+def _pcap_rtcp_feedback_sample() -> bytes:
+    global_header = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
+    packets = [
+        _pcap_packet(0, _ethernet_ipv4_udp_rtp(100, 90000, False, b"\x65\x88\x84")),
+        _pcap_packet(1, _ethernet_ipv4_udp_rtp(104, 93000, True, b"\x41\x9A\x22")),
+        _pcap_packet(2, _ethernet_ipv4_udp(_rtcp_feedback_compound_sample(), src_port=5005, dst_port=5005)),
+    ]
+    return global_header + b"".join(packets)
+
+
 def _pcap_rtp_video_sample() -> bytes:
     global_header = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
     h264_sps = b"\x67" + make_h264_baseline_sps(width=640, height=480)
@@ -356,6 +367,31 @@ def _rtcp_compound_sample() -> bytes:
     sender_report = bytes([0x81, 200]) + struct.pack(">H", 12) + sender_info + report_block
     receiver_report = bytes([0x81, 201]) + struct.pack(">H", 7) + struct.pack(">I", 0x87654321) + report_block
     return sender_report + receiver_report
+
+
+def _rtcp_feedback_compound_sample() -> bytes:
+    media_ssrc = 0x12345678
+    controller_ssrc = 0x87654321
+    cname = b"camera-01@example"
+    sdes_body = struct.pack(">I", media_ssrc) + bytes([1, len(cname)]) + cname + b"\x00"
+    sdes_body += b"\x00" * ((-len(sdes_body)) % 4)
+    sdes = bytes([0x81, 202]) + struct.pack(">H", len(sdes_body) // 4) + sdes_body
+
+    nack_fci = struct.pack(">HH", 101, 0x000A)
+    nack_body = struct.pack(">II", controller_ssrc, media_ssrc) + nack_fci
+    nack = bytes([0x81, 205]) + struct.pack(">H", len(nack_body) // 4) + nack_body
+
+    pli_body = struct.pack(">II", controller_ssrc, media_ssrc)
+    pli = bytes([0x81, 206]) + struct.pack(">H", len(pli_body) // 4) + pli_body
+
+    fir_body = struct.pack(">II", controller_ssrc, media_ssrc) + struct.pack(">IB3s", media_ssrc, 7, b"\x00\x00\x00")
+    fir = bytes([0x84, 206]) + struct.pack(">H", len(fir_body) // 4) + fir_body
+
+    reason = b"stream ended"
+    bye_body = struct.pack(">I", media_ssrc) + bytes([len(reason)]) + reason
+    bye_body += b"\x00" * ((-len(bye_body)) % 4)
+    bye = bytes([0x81, 203]) + struct.pack(">H", len(bye_body) // 4) + bye_body
+    return sdes + nack + pli + fir + bye
 
 
 def _ipv4_checksum(header: bytes) -> int:

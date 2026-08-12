@@ -521,6 +521,49 @@ QWidget *MainWindow::buildWorkspace()
     signalingSplitter->setSizes({260, 300});
     signalingLayout->addWidget(signalingSplitter, 1);
     m_transportDetails->addTab(signalingPanel, tr("信令协商"));
+
+    auto *feedbackPanel = new QWidget;
+    auto *feedbackLayout = new QVBoxLayout(feedbackPanel);
+    feedbackLayout->setContentsMargins(8, 8, 8, 8);
+    feedbackLayout->setSpacing(7);
+    m_rtcpFeedbackSummary = new QLabel(tr("当前文件没有 RTCP 控制反馈"));
+    m_rtcpFeedbackSummary->setObjectName("sectionHint");
+    m_rtcpFeedbackSummary->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    feedbackLayout->addWidget(m_rtcpFeedbackSummary);
+    auto *feedbackSplitter = new QSplitter(Qt::Vertical);
+    m_rtcpFeedbackTable = new QTableWidget;
+    m_rtcpFeedbackTable->setColumnCount(6);
+    m_rtcpFeedbackTable->setHorizontalHeaderLabels({tr("类型"), tr("发送者 SSRC"), tr("媒体 SSRC"), tr("详情"), "FMT", "Offset"});
+    m_rtcpFeedbackTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_rtcpFeedbackTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_rtcpFeedbackTable->setAlternatingRowColors(true);
+    m_rtcpFeedbackTable->verticalHeader()->hide();
+    m_rtcpFeedbackTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_rtcpFeedbackTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    connect(m_rtcpFeedbackTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 16); m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("RTCP 控制反馈  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    feedbackSplitter->addWidget(m_rtcpFeedbackTable);
+    m_rtcpMetadataTable = new QTableWidget;
+    m_rtcpMetadataTable->setColumnCount(4);
+    m_rtcpMetadataTable->setHorizontalHeaderLabels({tr("类型"), "SSRC", tr("CNAME / 结束原因"), "Offset"});
+    m_rtcpMetadataTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_rtcpMetadataTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_rtcpMetadataTable->setAlternatingRowColors(true);
+    m_rtcpMetadataTable->verticalHeader()->hide();
+    m_rtcpMetadataTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_rtcpMetadataTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    connect(m_rtcpMetadataTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 16); m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("RTCP 会话事件  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    feedbackSplitter->addWidget(m_rtcpMetadataTable);
+    feedbackSplitter->setSizes({340, 190});
+    feedbackLayout->addWidget(feedbackSplitter, 1);
+    m_transportDetails->addTab(feedbackPanel, tr("控制反馈"));
     transportLayout->addWidget(m_transportDetails, 1);
     m_tabs->addTab(transportPanel, tr("传输会话"));
 
@@ -1168,6 +1211,7 @@ void MainWindow::loadDocument(const QJsonDocument &document)
     populateTransportSessions(media.value("summary").toObject().value("transport_sessions").toObject());
     populateRtpVideo(media.value("summary").toObject().value("rtp_video").toObject());
     populateSipSdp(media.value("summary").toObject().value("sip_sdp").toObject());
+    populateRtcpFeedback(media.value("summary").toObject().value("rtcp").toObject());
     populateCodecHealth(media.value("summary").toObject().value("codec_health").toObject());
     populateDiagnostics(diagnostics, media);
     m_timeline->setData(frames, media.value("summary").toObject().value("timeline_summary").toObject());
@@ -1383,9 +1427,12 @@ void MainWindow::populateTransportSessions(const QJsonObject &transport)
         const QString sequenceRange = tr("%1 -> %2")
             .arg(jsonInteger(session.value("first_sequence")))
             .arg(jsonInteger(session.value("last_sequence")));
-        const QString rtcp = tr("SR %1 / RB %2")
+        const QString rtcp = tr("SR %1 / RB %2 / N %3 / P %4 / F %5")
             .arg(jsonInteger(session.value("rtcp_sender_reports")))
-            .arg(jsonInteger(session.value("rtcp_report_blocks")));
+            .arg(jsonInteger(session.value("rtcp_report_blocks")))
+            .arg(jsonInteger(session.value("rtcp_nack_events")))
+            .arg(jsonInteger(session.value("rtcp_pli_events")))
+            .arg(jsonInteger(session.value("rtcp_fir_events")));
         const double bitrate = session.value("payload_bitrate_kbps").toDouble(-1.0);
         const QStringList values = {
             status == "warning" ? tr("警告") : tr("正常"),
@@ -1424,14 +1471,15 @@ void MainWindow::populateTransportSessions(const QJsonObject &transport)
     const int count = jsonInteger(transport.value("session_count"));
     const int warnings = jsonInteger(transport.value("warning_sessions"));
     m_transportSummary->setText(
-        tr("会话 %1  |  RTP %2 包  |  Payload %3  |  估算丢失 %4  |  重复 %5  |  乱序 %6  |  RTCP 关联 %7  |  SDP 关联 %8")
+        tr("会话 %1  |  RTP %2 包  |  丢失/重复/乱序 %3/%4/%5  |  RTCP %6  |  反馈 %7  |  结束 %8  |  SDP %9")
             .arg(count)
             .arg(jsonInteger(transport.value("total_rtp_packets")))
-            .arg(formatSize(jsonInteger(transport.value("total_payload_bytes"))))
             .arg(jsonInteger(transport.value("estimated_lost_packets")))
             .arg(jsonInteger(transport.value("duplicate_packets")))
             .arg(jsonInteger(transport.value("reordered_packets")))
             .arg(jsonInteger(transport.value("rtcp_linked_sessions")))
+            .arg(jsonInteger(transport.value("rtcp_feedback_sessions")))
+            .arg(jsonInteger(transport.value("rtcp_ended_sessions")))
             .arg(jsonInteger(transport.value("sdp_linked_sessions"))));
     m_transportIssuesOnly->setEnabled(warnings > 0);
     if (!qEnvironmentVariableIsEmpty("AVSCOPE_TRANSPORT_ISSUES_ONLY"))
@@ -1607,6 +1655,94 @@ void MainWindow::populateSipSdp(const QJsonObject &signaling)
                           {"issues", signaling.value("issue_count")}};
         QFile file(statePath);
         QDir().mkpath(QFileInfo(statePath).absolutePath());
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+    }
+}
+
+void MainWindow::populateRtcpFeedback(const QJsonObject &rtcp)
+{
+    if (!m_rtcpFeedbackTable || !m_rtcpMetadataTable || !m_rtcpFeedbackSummary) return;
+    const auto feedback = rtcp.value("feedback_events").toArray();
+    const auto sdes = rtcp.value("sdes_chunks").toArray();
+    const auto bye = rtcp.value("bye_events").toArray();
+    m_rtcpFeedbackTable->setRowCount(feedback.size());
+    for (int row = 0; row < feedback.size(); ++row) {
+        const auto event = feedback.at(row).toObject();
+        const QString kind = event.value("kind").toString();
+        const qint64 offset = jsonInteger(event.value("offset"));
+        QString detail;
+        if (kind == "NACK") {
+            QStringList sequences;
+            for (const auto &value : event.value("lost_sequences").toArray()) sequences << displayValue(value);
+            detail = tr("丢失序号 %1").arg(sequences.join(", "));
+        } else if (kind == "FIR") {
+            detail = tr("FIR sequence %1").arg(displayValue(event.value("fir_sequence")));
+        } else {
+            detail = tr("请求立即生成完整图像");
+        }
+        const QStringList values = {
+            kind, QString("0x%1").arg(jsonInteger(event.value("sender_ssrc")), 8, 16, QLatin1Char('0')).toUpper(),
+            QString("0x%1").arg(jsonInteger(event.value("media_ssrc")), 8, 16, QLatin1Char('0')).toUpper(), detail,
+            displayValue(event.value("fmt")), QString("0x%1").arg(offset, 0, 16).toUpper(),
+        };
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setData(OffsetRole, offset);
+            cell->setToolTip(detail);
+            if (column == 0) {
+                if (kind == "NACK") cell->setForeground(QColor(m_dark ? "#F5C76B" : "#8A5A00"));
+                else if (kind == "PLI") cell->setForeground(QColor(m_dark ? "#FF8A92" : "#B4232F"));
+                else cell->setForeground(QColor(m_dark ? "#C4A7F5" : "#6941A5"));
+            } else if (column == 2) {
+                cell->setForeground(QColor(m_dark ? "#7CC9F3" : "#176A99"));
+            }
+            m_rtcpFeedbackTable->setItem(row, column, cell);
+        }
+    }
+
+    m_rtcpMetadataTable->setRowCount(sdes.size() + bye.size());
+    int row = 0;
+    for (const auto &value : sdes) {
+        const auto item = value.toObject();
+        const qint64 offset = jsonInteger(item.value("offset"));
+        const QStringList values = {"SDES", QString("0x%1").arg(jsonInteger(item.value("ssrc")), 8, 16, QLatin1Char('0')).toUpper(),
+                                    item.value("cname").toString("--"), QString("0x%1").arg(offset, 0, 16).toUpper()};
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column)); cell->setData(OffsetRole, offset);
+            if (column == 0) cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
+            m_rtcpMetadataTable->setItem(row, column, cell);
+        }
+        ++row;
+    }
+    for (const auto &value : bye) {
+        const auto item = value.toObject();
+        const qint64 offset = jsonInteger(item.value("offset"));
+        QStringList ssrcs;
+        for (const auto &ssrc : item.value("ssrcs").toArray())
+            ssrcs << QString("0x%1").arg(jsonInteger(ssrc), 8, 16, QLatin1Char('0')).toUpper();
+        const QStringList values = {"BYE", ssrcs.join(", "), item.value("reason").toString("--"),
+                                    QString("0x%1").arg(offset, 0, 16).toUpper()};
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column)); cell->setData(OffsetRole, offset);
+            if (column == 0) cell->setForeground(QColor(m_dark ? "#94A3B2" : "#536574"));
+            m_rtcpMetadataTable->setItem(row, column, cell);
+        }
+        ++row;
+    }
+    m_rtcpFeedbackSummary->setText(
+        feedback.isEmpty() && sdes.isEmpty() && bye.isEmpty() ? tr("当前文件没有 RTCP 控制反馈")
+        : tr("NACK %1  |  丢失序号 %2  |  PLI %3  |  FIR %4  |  SDES %5  |  BYE %6")
+              .arg(jsonInteger(rtcp.value("nack_events"))).arg(jsonInteger(rtcp.value("nack_lost_sequences")))
+              .arg(jsonInteger(rtcp.value("pli_events"))).arg(jsonInteger(rtcp.value("fir_events")))
+              .arg(sdes.size()).arg(bye.size()));
+
+    const QString statePath = qEnvironmentVariable("AVSCOPE_RTCP_FEEDBACK_STATE");
+    if (!statePath.isEmpty()) {
+        QJsonObject state{{"feedback", feedback.size()}, {"nack", rtcp.value("nack_events")},
+                          {"lost_sequences", rtcp.value("nack_lost_sequences")}, {"pli", rtcp.value("pli_events")},
+                          {"fir", rtcp.value("fir_events")}, {"sdes", sdes.size()}, {"bye", bye.size()}};
+        QFile file(statePath); QDir().mkpath(QFileInfo(statePath).absolutePath());
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
             file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
     }

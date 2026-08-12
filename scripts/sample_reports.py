@@ -21,6 +21,9 @@ DEFAULT_OUTPUTS = [
     "sample_sip_sdp_report.html",
     "sample_sip_sdp_report.json",
     "sample_sip_sdp_report.csv",
+    "sample_rtcp_feedback_report.html",
+    "sample_rtcp_feedback_report.json",
+    "sample_rtcp_feedback_report.csv",
     "sample_protocol_compare.json",
     "sample_frame_compare.json",
 ]
@@ -56,6 +59,13 @@ def build_sample_reports(root: str | Path, output_dir: str | Path) -> list[Path]
     export_html(sip_sdp_result, output_path / "sample_sip_sdp_report.html", notes=sip_note)
     export_json(sip_sdp_result, output_path / "sample_sip_sdp_report.json", notes=sip_note)
     export_csv(sip_sdp_result, output_path / "sample_sip_sdp_report.csv", notes=sip_note)
+
+    rtcp_feedback = root_path / "samples" / "sample_rtcp_feedback.pcap"
+    rtcp_feedback_result = analyzer.analyze(rtcp_feedback)
+    rtcp_note = "AVScope 交付示例报告：RTCP NACK/PLI/FIR 控制反馈、SDES 与 BYE 会话事件。"
+    export_html(rtcp_feedback_result, output_path / "sample_rtcp_feedback_report.html", notes=rtcp_note)
+    export_json(rtcp_feedback_result, output_path / "sample_rtcp_feedback_report.json", notes=rtcp_note)
+    export_csv(rtcp_feedback_result, output_path / "sample_rtcp_feedback_report.csv", notes=rtcp_note)
 
     changed_mp4 = root_path / "samples" / "sample_changed.mp4"
     protocol_compare = compare_protocol(mp4, changed_mp4)

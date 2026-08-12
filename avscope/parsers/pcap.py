@@ -488,6 +488,14 @@ def _parse_rtcp_compound(
             _parse_sender_report(source, node, cursor, packet_size, report_count, diagnostics, stats)
         elif packet_type == 201:
             _parse_receiver_report(source, node, cursor, packet_size, report_count, diagnostics, stats)
+        elif packet_type == 202:
+            _parse_rtcp_sdes(source, node, cursor, packet_size, report_count, diagnostics, stats)
+        elif packet_type == 203:
+            _parse_rtcp_bye(source, node, cursor, packet_size, report_count, diagnostics, stats)
+        elif packet_type == 205:
+            _parse_rtcp_rtpfb(source, node, cursor, packet_size, report_count, diagnostics, stats)
+        elif packet_type == 206:
+            _parse_rtcp_psfb(source, node, cursor, packet_size, report_count, diagnostics, stats)
         elif packet_size > 4:
             payload = source.read_at(cursor + 4, packet_size - 4)
             node.fields.append(FieldInfo("payload", _hex_bytes(payload), cursor + 4, len(payload), _hex_bytes(payload)))
@@ -632,6 +640,182 @@ def _mark_truncated_report(node: ParseNode, diagnostics: list, offset: int, name
     node.description = message
 
 
+def _parse_rtcp_sdes(source: ByteSource, node: ParseNode, offset: int, size: int, chunk_count: int, diagnostics: list, stats: dict) -> None:
+    item_names = {1: "cname", 2: "name", 3: "email", 4: "phone", 5: "location", 6: "tool", 7: "note", 8: "private"}
+    cursor = offset + 4
+    packet_end = offset + size
+    for chunk_index in range(chunk_count):
+        if cursor + 4 > packet_end:
+            _mark_truncated_report(node, diagnostics, cursor, f"SDES chunk[{chunk_index}]", 4, max(0, packet_end - cursor))
+            break
+        chunk_offset = cursor
+        ssrc_data = source.read_at(cursor, 4)
+        ssrc = int.from_bytes(ssrc_data, "big")
+        stats["ssrcs"].add(ssrc)
+        cursor += 4
+        chunk = node.add_child(ParseNode(f"SDES Chunk[{chunk_index}]", "rtcp_sdes_chunk", chunk_offset, 4))
+        chunk.fields.append(FieldInfo("ssrc", f"0x{ssrc:08X}", chunk_offset, 4, _hex_bytes(ssrc_data)))
+        record = {"ssrc": ssrc, "offset": chunk_offset}
+        item_index = 0
+        while cursor < packet_end:
+            item_type = source.read_at(cursor, 1)[0]
+            if item_type == 0:
+                chunk.fields.append(FieldInfo("end", 0, cursor, 1, "00", description="END"))
+                cursor += 1
+                break
+            if cursor + 2 > packet_end:
+                _mark_truncated_report(chunk, diagnostics, cursor, "SDES item header", 2, packet_end - cursor)
+                cursor = packet_end
+                break
+            item_length = source.read_at(cursor + 1, 1)[0]
+            available = packet_end - cursor - 2
+            if item_length > available:
+                _mark_truncated_report(chunk, diagnostics, cursor, "SDES item", item_length, available)
+                cursor = packet_end
+                break
+            raw = source.read_at(cursor + 2, item_length)
+            value = raw.decode("utf-8", errors="replace")
+            name = item_names.get(item_type, f"item_{item_type}")
+            item = chunk.add_child(ParseNode(f"SDES {name.upper()}[{item_index}]", "rtcp_sdes_item", cursor, item_length + 2))
+            item.fields.extend([
+                FieldInfo("item_type", item_type, cursor, 1, _hex_bytes(bytes([item_type])), description=name),
+                FieldInfo("item_length", item_length, cursor + 1, 1, _hex_bytes(bytes([item_length]))),
+                FieldInfo("item_value", value, cursor + 2, item_length, _hex_bytes(raw)),
+            ])
+            record[name] = value
+            cursor += item_length + 2
+            item_index += 1
+        chunk_size = cursor - chunk_offset
+        cursor = min(packet_end, chunk_offset + ((chunk_size + 3) & ~3))
+        chunk.size = max(4, cursor - chunk_offset)
+        stats["sdes_chunks"].append(record)
+
+
+def _parse_rtcp_bye(source: ByteSource, node: ParseNode, offset: int, size: int, source_count: int, diagnostics: list, stats: dict) -> None:
+    cursor = offset + 4
+    packet_end = offset + size
+    required = source_count * 4
+    if cursor + required > packet_end:
+        _mark_truncated_report(node, diagnostics, cursor, "BYE SSRC list", required, packet_end - cursor)
+        return
+    ssrcs = []
+    for index in range(source_count):
+        raw = source.read_at(cursor, 4)
+        ssrc = int.from_bytes(raw, "big")
+        ssrcs.append(ssrc)
+        stats["ssrcs"].add(ssrc)
+        node.fields.append(FieldInfo(f"source_ssrc[{index}]", f"0x{ssrc:08X}", cursor, 4, _hex_bytes(raw)))
+        cursor += 4
+    reason = ""
+    if cursor < packet_end:
+        reason_length = source.read_at(cursor, 1)[0]
+        node.fields.append(FieldInfo("reason_length", reason_length, cursor, 1, _hex_bytes(bytes([reason_length]))))
+        cursor += 1
+        available = packet_end - cursor
+        if reason_length > available:
+            _mark_truncated_report(node, diagnostics, cursor, "BYE reason", reason_length, available)
+            reason_length = max(0, available)
+        raw = source.read_at(cursor, reason_length)
+        reason = raw.decode("utf-8", errors="replace")
+        node.fields.append(FieldInfo("reason", reason, cursor, reason_length, _hex_bytes(raw)))
+    stats["bye_events"].append({"ssrcs": ssrcs, "reason": reason, "offset": offset, "size": size})
+
+
+def _feedback_header(source: ByteSource, node: ParseNode, offset: int, size: int, diagnostics: list, name: str) -> tuple[int, int, int] | None:
+    if size < 12:
+        _mark_truncated_report(node, diagnostics, offset, name, 12, size)
+        return None
+    raw = source.read_at(offset + 4, 8)
+    sender_ssrc = int.from_bytes(raw[0:4], "big")
+    media_ssrc = int.from_bytes(raw[4:8], "big")
+    node.fields.extend([
+        FieldInfo("sender_ssrc", f"0x{sender_ssrc:08X}", offset + 4, 4, _hex_bytes(raw[0:4])),
+        FieldInfo("media_ssrc", f"0x{media_ssrc:08X}", offset + 8, 4, _hex_bytes(raw[4:8])),
+    ])
+    return sender_ssrc, media_ssrc, offset + 12
+
+
+def _parse_rtcp_rtpfb(source: ByteSource, node: ParseNode, offset: int, size: int, fmt: int, diagnostics: list, stats: dict) -> None:
+    header = _feedback_header(source, node, offset, size, diagnostics, "RTPFB")
+    if not header:
+        return
+    sender_ssrc, media_ssrc, cursor = header
+    stats["ssrcs"].update((sender_ssrc, media_ssrc))
+    first_byte = source.read_at(offset, 1)
+    node.fields.append(FieldInfo(
+        "feedback_message_type", fmt, offset, 1, _hex_bytes(first_byte),
+        description="Generic NACK" if fmt == 1 else "Unsupported RTPFB",
+        bit_offset=offset * 8 + 3, bit_length=5,
+    ))
+    if fmt != 1:
+        return
+    lost_sequences: list[int] = []
+    block_index = 0
+    packet_end = offset + size
+    while cursor + 4 <= packet_end:
+        raw = source.read_at(cursor, 4)
+        pid = int.from_bytes(raw[0:2], "big")
+        blp = int.from_bytes(raw[2:4], "big")
+        expanded = [pid] + [((pid + bit + 1) & 0xFFFF) for bit in range(16) if blp & (1 << bit)]
+        lost_sequences.extend(expanded)
+        block = node.add_child(ParseNode(f"Generic NACK[{block_index}]", "rtcp_nack", cursor, 4, severity=Severity.WARNING))
+        block.fields.extend([
+            FieldInfo("packet_id", pid, cursor, 2, _hex_bytes(raw[0:2])),
+            FieldInfo("bitmask_lost_packets", f"0x{blp:04X}", cursor + 2, 2, _hex_bytes(raw[2:4])),
+            FieldInfo("lost_sequences", expanded, cursor, 4),
+        ])
+        cursor += 4
+        block_index += 1
+    event = {"kind": "NACK", "packet_type": 205, "fmt": fmt, "sender_ssrc": sender_ssrc,
+             "media_ssrc": media_ssrc, "lost_sequences": lost_sequences, "offset": offset, "size": size}
+    stats["feedback_events"].append(event)
+    stats["nack_lost_sequences"] += len(lost_sequences)
+    message = f"RTCP Generic NACK 请求重传: media_ssrc=0x{media_ssrc:08X} lost={lost_sequences}"
+    diagnostics.append(warn(message, offset, "RTCP"))
+    node.severity = Severity.WARNING
+    node.description = message
+
+
+def _parse_rtcp_psfb(source: ByteSource, node: ParseNode, offset: int, size: int, fmt: int, diagnostics: list, stats: dict) -> None:
+    header = _feedback_header(source, node, offset, size, diagnostics, "PSFB")
+    if not header:
+        return
+    sender_ssrc, media_ssrc, cursor = header
+    stats["ssrcs"].update((sender_ssrc, media_ssrc))
+    kind = "PLI" if fmt == 1 else "FIR" if fmt == 4 else f"PSFB-{fmt}"
+    first_byte = source.read_at(offset, 1)
+    node.fields.append(FieldInfo(
+        "feedback_message_type", fmt, offset, 1, _hex_bytes(first_byte), description=kind,
+        bit_offset=offset * 8 + 3, bit_length=5,
+    ))
+    event = {"kind": kind, "packet_type": 206, "fmt": fmt, "sender_ssrc": sender_ssrc,
+             "media_ssrc": media_ssrc, "offset": offset, "size": size}
+    if fmt == 4:
+        entries = []
+        packet_end = offset + size
+        while cursor + 8 <= packet_end:
+            raw = source.read_at(cursor, 8)
+            target_ssrc = int.from_bytes(raw[0:4], "big")
+            sequence = raw[4]
+            entry = node.add_child(ParseNode(f"FIR Entry[{len(entries)}]", "rtcp_fir", cursor, 8, severity=Severity.WARNING))
+            entry.fields.extend([
+                FieldInfo("target_ssrc", f"0x{target_ssrc:08X}", cursor, 4, _hex_bytes(raw[0:4])),
+                FieldInfo("fir_sequence", sequence, cursor + 4, 1, _hex_bytes(raw[4:5])),
+                FieldInfo("reserved", _hex_bytes(raw[5:8]), cursor + 5, 3, _hex_bytes(raw[5:8])),
+            ])
+            stats["ssrcs"].add(target_ssrc)
+            entries.append({"target_ssrc": target_ssrc, "fir_sequence": sequence})
+            cursor += 8
+        event["fir_entries"] = entries
+        event["fir_sequence"] = entries[0]["fir_sequence"] if entries else None
+    if fmt in (1, 4):
+        stats["feedback_events"].append(event)
+        message = f"RTCP {kind} 视频刷新请求: media_ssrc=0x{media_ssrc:08X}"
+        diagnostics.append(warn(message, offset, "RTCP"))
+        node.severity = Severity.WARNING
+        node.description = message
+
+
 def _new_rtcp_stats() -> dict:
     return {
         "datagrams": 0,
@@ -647,6 +831,10 @@ def _new_rtcp_stats() -> dict:
         "max_delay_since_last_sr_seconds": 0.0,
         "report_records": [],
         "sender_report_records": [],
+        "feedback_events": [],
+        "sdes_chunks": [],
+        "bye_events": [],
+        "nack_lost_sequences": 0,
     }
 
 
@@ -666,6 +854,16 @@ def _finalize_rtcp_stats(stats: dict) -> dict:
         "max_cumulative_packets_lost": stats["max_cumulative_packets_lost"],
         "max_interarrival_jitter": stats["max_interarrival_jitter"],
         "max_delay_since_last_sr_seconds": round(stats["max_delay_since_last_sr_seconds"], 6),
+        "feedback_events": stats["feedback_events"],
+        "feedback_event_count": len(stats["feedback_events"]),
+        "nack_events": sum(item["kind"] == "NACK" for item in stats["feedback_events"]),
+        "nack_lost_sequences": stats["nack_lost_sequences"],
+        "pli_events": sum(item["kind"] == "PLI" for item in stats["feedback_events"]),
+        "fir_events": sum(item["kind"] == "FIR" for item in stats["feedback_events"]),
+        "sdes_chunks": stats["sdes_chunks"],
+        "sdes_count": len(stats["sdes_chunks"]),
+        "bye_events": stats["bye_events"],
+        "bye_count": len(stats["bye_events"]),
     }
 
 

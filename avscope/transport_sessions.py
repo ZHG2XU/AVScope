@@ -96,6 +96,9 @@ class _Session:
     last_capture_time: float | None = None
     rtcp_reports: list[dict[str, Any]] = field(default_factory=list)
     rtcp_sender_reports: list[dict[str, Any]] = field(default_factory=list)
+    rtcp_feedback: list[dict[str, Any]] = field(default_factory=list)
+    rtcp_sdes: list[dict[str, Any]] = field(default_factory=list)
+    rtcp_bye_events: list[dict[str, Any]] = field(default_factory=list)
 
     def add_rtp(self, packet: dict[str, Any]) -> dict[str, int | str] | None:
         self.packets += 1
@@ -118,6 +121,9 @@ class _Session:
         bitrate = self.payload_bytes * 8 / duration / 1000 if duration > 0 else None
         reports = self.rtcp_reports
         sender_reports = self.rtcp_sender_reports
+        feedback = self.rtcp_feedback
+        sdes = self.rtcp_sdes
+        bye_events = self.rtcp_bye_events
         max_fraction = max((int(item.get("fraction_lost", 0)) for item in reports), default=0)
         max_cumulative = max((int(item.get("cumulative_packets_lost", 0)) for item in reports), default=0)
         max_jitter = max((int(item.get("interarrival_jitter", 0)) for item in reports), default=0)
@@ -128,7 +134,11 @@ class _Session:
             + sequence["reordered_packets"]
         )
         rtcp_loss = max_fraction > 0 or max_cumulative > 0
-        status = "warning" if anomalies or rtcp_loss else "normal"
+        nack_events = [item for item in feedback if item.get("kind") == "NACK"]
+        pli_events = [item for item in feedback if item.get("kind") == "PLI"]
+        fir_events = [item for item in feedback if item.get("kind") == "FIR"]
+        nack_sequences = [int(value) for item in nack_events for value in item.get("lost_sequences", [])]
+        status = "warning" if anomalies or rtcp_loss or feedback else "normal"
         endpoint = f"{source_ip}:{source_port} -> {destination_ip}:{destination_port}"
         return {
             "index": index,
@@ -158,6 +168,17 @@ class _Session:
             "rtcp_max_cumulative_packets_lost": max_cumulative,
             "rtcp_max_interarrival_jitter": max_jitter,
             "rtcp_max_delay_since_last_sr_seconds": round(max_dlsr, 6),
+            "rtcp_nack_events": len(nack_events),
+            "rtcp_nack_lost_sequences": len(nack_sequences),
+            "rtcp_nack_sequences": nack_sequences,
+            "rtcp_pli_events": len(pli_events),
+            "rtcp_fir_events": len(fir_events),
+            "rtcp_feedback_events": feedback,
+            "rtcp_cname": next((str(item.get("cname", "")) for item in sdes if item.get("cname")), ""),
+            "rtcp_sdes": sdes,
+            "rtcp_bye": bool(bye_events),
+            "rtcp_bye_reason": next((str(item.get("reason", "")) for item in reversed(bye_events) if item.get("reason")), ""),
+            "rtcp_bye_events": bye_events,
             "status": status,
         }
 
@@ -187,6 +208,20 @@ class TransportSessionTracker:
         for report in rtcp_stats.get("sender_report_records", []):
             for session in by_ssrc.get(int(report.get("sender_ssrc", -1)), []):
                 session.rtcp_sender_reports.append(report)
+        for event in rtcp_stats.get("feedback_events", []):
+            target_ssrcs = {int(event.get("media_ssrc", -1))}
+            target_ssrcs.update(int(item.get("target_ssrc", -1)) for item in event.get("fir_entries", []))
+            for target_ssrc in target_ssrcs:
+                for session in by_ssrc.get(target_ssrc, []):
+                    if event not in session.rtcp_feedback:
+                        session.rtcp_feedback.append(event)
+        for chunk in rtcp_stats.get("sdes_chunks", []):
+            for session in by_ssrc.get(int(chunk.get("ssrc", -1)), []):
+                session.rtcp_sdes.append(chunk)
+        for event in rtcp_stats.get("bye_events", []):
+            for ssrc in event.get("ssrcs", []):
+                for session in by_ssrc.get(int(ssrc), []):
+                    session.rtcp_bye_events.append(event)
 
     def summary(self) -> dict[str, Any]:
         sessions = [session.to_dict(index) for index, session in enumerate(self._sessions.values())]
@@ -201,7 +236,13 @@ class TransportSessionTracker:
             "estimated_lost_packets": sum(int(item["estimated_lost_packets"]) for item in sessions),
             "duplicate_packets": sum(int(item["duplicate_packets"]) for item in sessions),
             "reordered_packets": sum(int(item["reordered_packets"]) for item in sessions),
-            "rtcp_linked_sessions": sum(int(item["rtcp_report_blocks"]) > 0 or int(item["rtcp_sender_reports"]) > 0 for item in sessions),
+            "rtcp_linked_sessions": sum(
+                int(item["rtcp_report_blocks"]) > 0 or int(item["rtcp_sender_reports"]) > 0
+                or bool(item["rtcp_feedback_events"]) or bool(item["rtcp_sdes"]) or bool(item["rtcp_bye_events"])
+                for item in sessions
+            ),
+            "rtcp_feedback_sessions": sum(bool(item["rtcp_feedback_events"]) for item in sessions),
+            "rtcp_ended_sessions": sum(bool(item["rtcp_bye_events"]) for item in sessions),
         }
 
 

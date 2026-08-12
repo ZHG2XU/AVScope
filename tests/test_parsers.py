@@ -665,6 +665,57 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(rtp_sequence["warnings"][0]["current"], 105)
         self.assertTrue(any("RTP sequence 跳变" in issue.message for issue in diagnostics_with(result, "warning")))
 
+    def test_pcap_rtcp_feedback_sdes_bye_and_session_link(self):
+        sample_dir = ROOT / "pcap_rtcp_feedback"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample_rtcp_feedback.pcap")
+        rtcp = result.media.summary["rtcp"]
+        self.assertEqual(rtcp["packets"], 5)
+        self.assertEqual(rtcp["packet_type_counts"], {"202": 1, "203": 1, "205": 1, "206": 2})
+        self.assertEqual(rtcp["nack_events"], 1)
+        self.assertEqual(rtcp["nack_lost_sequences"], 3)
+        self.assertEqual(rtcp["feedback_events"][0]["lost_sequences"], [101, 103, 105])
+        self.assertEqual(rtcp["pli_events"], 1)
+        self.assertEqual(rtcp["fir_events"], 1)
+        self.assertEqual(rtcp["feedback_events"][2]["fir_sequence"], 7)
+        self.assertEqual(rtcp["sdes_chunks"][0]["cname"], "camera-01@example")
+        self.assertEqual(rtcp["bye_events"][0]["reason"], "stream ended")
+
+        self.assertEqual(len(nodes_with_type(result.root, "rtcp_sdes_chunk")), 1)
+        self.assertEqual(len(nodes_with_type(result.root, "rtcp_sdes_item")), 1)
+        nack = nodes_with_type(result.root, "rtcp_nack")[0]
+        self.assertEqual(fields_by_name(nack)["lost_sequences"], [101, 103, 105])
+        fir = nodes_with_type(result.root, "rtcp_fir")[0]
+        self.assertEqual(fields_by_name(fir)["fir_sequence"], 7)
+        feedback_fields = fields_by_name(nodes_with_type(result.root, "rtcp_packet")[1])
+        self.assertEqual(feedback_fields["feedback_message_type"], 1)
+
+        transport = result.media.summary["transport_sessions"]
+        self.assertEqual(transport["rtcp_linked_sessions"], 1)
+        self.assertEqual(transport["rtcp_feedback_sessions"], 1)
+        self.assertEqual(transport["rtcp_ended_sessions"], 1)
+        session = transport["sessions"][0]
+        self.assertEqual(session["rtcp_nack_sequences"], [101, 103, 105])
+        self.assertEqual(session["rtcp_pli_events"], 1)
+        self.assertEqual(session["rtcp_fir_events"], 1)
+        self.assertEqual(session["rtcp_cname"], "camera-01@example")
+        self.assertTrue(session["rtcp_bye"])
+        self.assertEqual(session["rtcp_bye_reason"], "stream ended")
+        self.assertEqual(session["status"], "warning")
+
+        html_path = ROOT / "rtcp_feedback.html"
+        csv_path = ROOT / "rtcp_feedback.csv"
+        json_path = ROOT / "rtcp_feedback.json"
+        export_html(result, html_path)
+        export_csv(result, csv_path)
+        export_json(result, json_path)
+        self.assertIn("RTCP 控制反馈", html_path.read_text(encoding="utf-8"))
+        sections = csv_path.read_text(encoding="utf-8-sig")
+        self.assertIn("rtcp_feedback", sections)
+        self.assertIn("rtcp_sdes", sections)
+        self.assertIn("rtcp_bye", sections)
+        self.assertIn('"rtcp_cname": "camera-01@example"', json_path.read_text(encoding="utf-8"))
+
     def test_pcap_rtp_session_loss_duplicate_and_reorder(self):
         sample_dir = ROOT / "pcap_session_anomalies"
         generate_samples(sample_dir)
@@ -1165,6 +1216,7 @@ class ParserTests(unittest.TestCase):
         self.assertIn("sample_rtp_anomalies.pcap", samples)
         self.assertIn("sample_rtp_video.pcap", samples)
         self.assertIn("sample_sip_sdp.pcap", samples)
+        self.assertIn("sample_rtcp_feedback.pcap", samples)
         self.assertIn("sample_h264_issues.h264", samples)
         empty_state = format_empty_state_text()
         self.assertIn("工作区待命", empty_state)
@@ -1413,6 +1465,9 @@ class ParserTests(unittest.TestCase):
         self.assertIn("sample_sip_sdp_report.html", names)
         self.assertIn("sample_sip_sdp_report.json", names)
         self.assertIn("sample_sip_sdp_report.csv", names)
+        self.assertIn("sample_rtcp_feedback_report.html", names)
+        self.assertIn("sample_rtcp_feedback_report.json", names)
+        self.assertIn("sample_rtcp_feedback_report.csv", names)
         self.assertIn(
             "RTP H.264/H.265 视频负载",
             (report_root / "dist" / "sample-reports" / "sample_rtp_video_report.html").read_text(encoding="utf-8"),
@@ -1420,6 +1475,10 @@ class ParserTests(unittest.TestCase):
         self.assertIn(
             "SIP / SDP 信令协商",
             (report_root / "dist" / "sample-reports" / "sample_sip_sdp_report.html").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            "RTCP 控制反馈",
+            (report_root / "dist" / "sample-reports" / "sample_rtcp_feedback_report.html").read_text(encoding="utf-8"),
         )
         self.assertIn("sample_protocol_compare.json", names)
         for path in outputs:

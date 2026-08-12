@@ -102,6 +102,36 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                     "value": json.dumps(rtcp, ensure_ascii=False),
                 }
             )
+            for event in rtcp.get("feedback_events", []):
+                writer.writerow(
+                    {
+                        "section": "rtcp_feedback",
+                        "name": event.get("kind", ""),
+                        "type": event.get("fmt", ""),
+                        "offset": f"0x{int(event.get('offset', 0)):X}",
+                        "size": event.get("size", ""),
+                        "key": f"0x{int(event.get('media_ssrc', 0)):08X}",
+                        "value": json.dumps(event, ensure_ascii=False),
+                        "severity": "warning",
+                    }
+                )
+            for chunk in rtcp.get("sdes_chunks", []):
+                writer.writerow(
+                    {
+                        "section": "rtcp_sdes", "name": chunk.get("cname", ""), "type": "SDES",
+                        "offset": f"0x{int(chunk.get('offset', 0)):X}", "key": f"0x{int(chunk.get('ssrc', 0)):08X}",
+                        "value": json.dumps(chunk, ensure_ascii=False),
+                    }
+                )
+            for event in rtcp.get("bye_events", []):
+                writer.writerow(
+                    {
+                        "section": "rtcp_bye", "name": event.get("reason", ""), "type": "BYE",
+                        "offset": f"0x{int(event.get('offset', 0)):X}", "size": event.get("size", ""),
+                        "key": ",".join(f"0x{int(value):08X}" for value in event.get("ssrcs", [])),
+                        "value": json.dumps(event, ensure_ascii=False),
+                    }
+                )
         transport = result.media.summary.get("transport_sessions", {})
         for session in transport.get("sessions", []):
             writer.writerow(
@@ -312,6 +342,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
         timeline_summary = build_timeline_summary(result.frames, packets)
     stats_summary_html = _stats_summary_html(frame_stats, packet_stats)
     rtcp_summary_html = _rtcp_summary_html(result.media.summary.get("rtcp", {}))
+    rtcp_feedback_html = _rtcp_feedback_html(result.media.summary.get("rtcp", {}))
     transport_sessions_html = _transport_sessions_html(result.media.summary.get("transport_sessions", {}))
     codec_health_html = _codec_health_html(result.media.summary.get("codec_health", {}))
     rtp_video_html = _rtp_video_html(result.media.summary.get("rtp_video", {}))
@@ -567,6 +598,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
       {stats_summary_html}
     </section>
     {rtcp_summary_html}
+    {rtcp_feedback_html}
     {transport_sessions_html}
     {codec_health_html}
     {rtp_video_html}
@@ -711,6 +743,56 @@ def _rtcp_summary_html(rtcp: dict) -> str:
     return f'<section><h2>RTCP 会话质量</h2><div class="overview">{metrics}</div></section>'
 
 
+def _rtcp_feedback_html(rtcp: dict) -> str:
+    feedback = rtcp.get("feedback_events", [])
+    sdes = rtcp.get("sdes_chunks", [])
+    bye = rtcp.get("bye_events", [])
+    if not feedback and not sdes and not bye:
+        return ""
+    metrics = [
+        ("NACK / 丢失序号", f"{rtcp.get('nack_events', 0)} / {rtcp.get('nack_lost_sequences', 0)}"),
+        ("PLI", rtcp.get("pli_events", 0)),
+        ("FIR", rtcp.get("fir_events", 0)),
+        ("SDES", rtcp.get("sdes_count", 0)),
+        ("BYE", rtcp.get("bye_count", 0)),
+    ]
+    metric_html = "".join(
+        f'<div class="metric"><div class="label">{html.escape(str(label))}</div>'
+        f'<div class="value">{html.escape(str(value))}</div></div>' for label, value in metrics
+    )
+    feedback_rows = []
+    for event in feedback:
+        kind = str(event.get("kind", ""))
+        if kind == "NACK":
+            detail = "丢失序号 " + ", ".join(str(value) for value in event.get("lost_sequences", []))
+        elif kind == "FIR":
+            detail = f"FIR sequence {event.get('fir_sequence', '--')}"
+        else:
+            detail = "请求立即生成完整图像"
+        feedback_rows.append(
+            '<tr class="warning-row">'
+            f'<td>{html.escape(kind)}</td><td>0x{int(event.get("sender_ssrc", 0)):08X}</td>'
+            f'<td>0x{int(event.get("media_ssrc", 0)):08X}</td><td>{html.escape(detail)}</td>'
+            f'<td>0x{int(event.get("offset", 0)):X}</td></tr>'
+        )
+    metadata_rows = [
+        f'<tr><td>SDES</td><td>0x{int(item.get("ssrc", 0)):08X}</td><td>{html.escape(str(item.get("cname", "--")))}</td><td>0x{int(item.get("offset", 0)):X}</td></tr>'
+        for item in sdes
+    ] + [
+        f'<tr><td>BYE</td><td>{html.escape(", ".join(f"0x{int(value):08X}" for value in item.get("ssrcs", [])))}</td><td>{html.escape(str(item.get("reason", "--")))}</td><td>0x{int(item.get("offset", 0)):X}</td></tr>'
+        for item in bye
+    ]
+    feedback_table = (
+        '<h3>反馈事件</h3><table class="timeline-issues"><tr><th>类型</th><th>发送者 SSRC</th><th>媒体 SSRC</th><th>详情</th><th>Offset</th></tr>'
+        + ("".join(feedback_rows) or '<tr><td colspan="5">无反馈事件</td></tr>') + '</table>'
+    )
+    metadata_table = (
+        '<h3>源描述与结束事件</h3><table class="timeline-issues"><tr><th>类型</th><th>SSRC</th><th>CNAME / 原因</th><th>Offset</th></tr>'
+        + ("".join(metadata_rows) or '<tr><td colspan="4">无 SDES/BYE 事件</td></tr>') + '</table>'
+    )
+    return f'<section><h2>RTCP 控制反馈</h2><div class="overview">{metric_html}</div>{feedback_table}{metadata_table}</section>'
+
+
 def _transport_sessions_html(transport: dict) -> str:
     sessions = transport.get("sessions", [])
     if not sessions:
@@ -734,7 +816,11 @@ def _transport_sessions_html(transport: dict) -> str:
         warning = session.get("status") == "warning"
         row_class = ' class="warning-row"' if warning else ""
         pts = ", ".join(str(value) for value in session.get("payload_types", []))
-        rtcp = f"SR {session.get('rtcp_sender_reports', 0)} / RB {session.get('rtcp_report_blocks', 0)}"
+        rtcp = (
+            f"SR {session.get('rtcp_sender_reports', 0)} / RB {session.get('rtcp_report_blocks', 0)} / "
+            f"NACK {session.get('rtcp_nack_events', 0)} / PLI {session.get('rtcp_pli_events', 0)} / "
+            f"FIR {session.get('rtcp_fir_events', 0)}"
+        )
         bitrate = session.get("payload_bitrate_kbps")
         bitrate_text = "--" if bitrate is None else f"{float(bitrate):.3f} kbps"
         rows.append(
