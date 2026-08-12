@@ -365,7 +365,7 @@ export_csv(pcap, pcap_csv)
 pcap_html_text = pcap_html.read_text(encoding="utf-8")
 if "RTP Sequence" not in pcap_html_text:
     raise SystemExit("HTML RTP sequence summary missing")
-if "RTCP 会话质量" not in pcap_html_text:
+if "RTCP \u4f1a\u8bdd\u8d28\u91cf" not in pcap_html_text:
     raise SystemExit("HTML RTCP session quality summary missing")
 pcap_csv_text = pcap_csv.read_text(encoding="utf-8-sig")
 if "RTP seq=100" not in pcap_csv_text:
