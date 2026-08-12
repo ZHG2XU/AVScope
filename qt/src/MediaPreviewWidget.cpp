@@ -4,6 +4,8 @@
 #include <QJsonArray>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPushButton>
+#include <QResizeEvent>
 
 namespace {
 QColor blend(const QColor &left, const QColor &right, qreal amount)
@@ -27,6 +29,16 @@ MediaPreviewWidget::MediaPreviewWidget(QWidget *parent) : QWidget(parent)
 {
     setMinimumSize(480, 320);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_previous = new QPushButton("<", this);
+    m_next = new QPushButton(">", this);
+    for (auto *button : {m_previous, m_next}) {
+        button->setFixedSize(34, 30);
+        button->setVisible(false);
+    }
+    m_previous->setToolTip(tr("上一预览位置"));
+    m_next->setToolTip(tr("下一预览位置"));
+    connect(m_previous, &QPushButton::clicked, this, [this] { emit stepRequested(-1); });
+    connect(m_next, &QPushButton::clicked, this, [this] { emit stepRequested(1); });
 }
 
 void MediaPreviewWidget::setMedia(const QJsonObject &media)
@@ -34,6 +46,19 @@ void MediaPreviewWidget::setMedia(const QJsonObject &media)
     m_media = media;
     m_summary = media.value("summary").toObject();
     loadVisual();
+    const bool navigable = !m_image.isNull() && (m_summary.contains("yuv_preview") || m_summary.contains("video_preview"));
+    m_previous->setVisible(navigable);
+    m_next->setVisible(navigable);
+    if (m_summary.contains("yuv_preview")) {
+        const auto preview = m_summary.value("yuv_preview").toObject();
+        const int frame = preview.value("frame_index").toInt();
+        const int total = preview.value("total_frames").toInt();
+        m_previous->setEnabled(frame > 0);
+        m_next->setEnabled(frame + 1 < total);
+    } else {
+        m_previous->setEnabled(m_summary.value("video_preview").toObject().value("position_seconds").toDouble() > 0.0);
+        m_next->setEnabled(true);
+    }
     update();
 }
 
@@ -104,6 +129,14 @@ void MediaPreviewWidget::paintEvent(QPaintEvent *)
     const QRectF summaryArea(content.left(), visualArea.bottom() + 18, content.width(),
                              qMax<qreal>(72, content.bottom() - visualArea.bottom() - 18));
     drawSummary(painter, summaryArea);
+}
+
+void MediaPreviewWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    const int y = 18;
+    m_next->move(width() - 24 - m_next->width(), y);
+    m_previous->move(m_next->x() - 7 - m_previous->width(), y);
 }
 
 void MediaPreviewWidget::drawWaveform(QPainter &painter, const QRectF &area) const
@@ -185,8 +218,12 @@ QString MediaPreviewWidget::visualCaption() const
     if (!m_image.isNull()) {
         const auto preview = m_summary.value("video_preview").toObject().value("available").toBool()
             ? m_summary.value("video_preview").toObject() : m_summary.value("yuv_preview").toObject();
-        return tr("%1 × %2  %3").arg(preview.value("width").toInt()).arg(preview.value("height").toInt())
-            .arg(preview.value("pixel_format").toString());
+        QString detail = preview.value("pixel_format").toString();
+        if (m_summary.contains("yuv_preview"))
+            detail += tr("  帧 %1 / %2").arg(preview.value("frame_index").toInt() + 1).arg(preview.value("total_frames").toInt());
+        else
+            detail += tr("  %1 s").arg(preview.value("position_seconds").toDouble(), 0, 'f', 3);
+        return tr("%1 × %2  %3").arg(preview.value("width").toInt()).arg(preview.value("height").toInt()).arg(detail);
     }
     const auto waveform = m_summary.value("waveform").toObject();
     if (waveform.value("available").toBool())

@@ -51,7 +51,7 @@ def _pcm_sample(sample_rate: int = 8000, frequency: float = 440.0, duration: flo
     )
 
 
-def _yuv420p_color_bars(width: int = 64, height: int = 48) -> bytes:
+def _yuv420p_color_bars(width: int = 64, height: int = 48, frames: int = 3) -> bytes:
     bars = [
         (180, 128, 128),
         (162, 44, 142),
@@ -62,21 +62,25 @@ def _yuv420p_color_bars(width: int = 64, height: int = 48) -> bytes:
         (35, 212, 114),
         (16, 128, 128),
     ]
-    y_plane = bytearray(width * height)
+    output = bytearray()
     uv_width = (width + 1) // 2
     uv_height = (height + 1) // 2
-    u_plane = bytearray(uv_width * uv_height)
-    v_plane = bytearray(uv_width * uv_height)
-    for row in range(height):
-        for column in range(width):
-            bar = min(len(bars) - 1, column * len(bars) // width)
-            y_plane[row * width + column] = bars[bar][0]
-    for row in range(uv_height):
-        for column in range(uv_width):
-            bar = min(len(bars) - 1, column * 2 * len(bars) // width)
-            u_plane[row * uv_width + column] = bars[bar][1]
-            v_plane[row * uv_width + column] = bars[bar][2]
-    return bytes(y_plane + u_plane + v_plane)
+    for frame in range(max(1, frames)):
+        ordered = bars[frame % len(bars) :] + bars[: frame % len(bars)]
+        y_plane = bytearray(width * height)
+        u_plane = bytearray(uv_width * uv_height)
+        v_plane = bytearray(uv_width * uv_height)
+        for row in range(height):
+            for column in range(width):
+                bar = min(len(ordered) - 1, column * len(ordered) // width)
+                y_plane[row * width + column] = ordered[bar][0]
+        for row in range(uv_height):
+            for column in range(uv_width):
+                bar = min(len(ordered) - 1, column * 2 * len(ordered) // width)
+                u_plane[row * uv_width + column] = ordered[bar][1]
+                v_plane[row * uv_width + column] = ordered[bar][2]
+        output.extend(y_plane + u_plane + v_plane)
+    return bytes(output)
 
 
 def _aac_sample() -> bytes:

@@ -55,6 +55,7 @@ private slots:
     void compareProtocol();
     void compareFrames();
     void saveProjectSnapshot();
+    void stepMediaPreview(int direction);
     void setDarkTheme();
     void setLightTheme();
 
@@ -70,6 +71,7 @@ private:
     QWidget *makeMetricCard(const QString &label, QLabel **valueLabel, const QString &accent);
     void applyTheme(bool dark);
     void loadDocument(const QJsonDocument &document);
+    bool loadProjectSnapshot(const QString &path);
     void populateProtocolTree(const QJsonObject &node, QTreeWidgetItem *parent = nullptr);
     void populateFields(const QJsonObject &node);
     void populateFrames(const QJsonArray &frames);
@@ -101,12 +103,16 @@ private:
     bool m_dark = true;
     bool m_cancelRequested = false;
     bool m_autoCompareTriggered = false;
+    bool m_autoPreviewTriggered = false;
     QString m_taskKind;
     QString m_taskOutputPath;
     QString m_taskMode;
     QString m_taskOtherPath;
     QString m_currentPath;
+    QString m_currentProjectPath;
     QStringList m_currentRawOptions;
+    double m_previewPosition = 0.0;
+    int m_previewFrame = 0;
     QJsonDocument m_document;
     QProcess *m_process = nullptr;
     QSettings m_settings;

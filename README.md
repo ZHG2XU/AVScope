@@ -52,12 +52,13 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - Qt 工作台支持分析任务取消、最近文件、窗口/分栏/主题状态持久化、协议树实时搜索、只看异常、展开/折叠、节点与字段详情、字段/帧联动 Hex，以及复制当前值和 Offset；状态文件固定写入 `G:\AVScope\data\qt-settings.ini`。
 - Qt 工作台在打开 `.pcm`/`.yuv` 时提供原生 Raw 参数对话框并记住上次设置；“对比”菜单提供二进制、协议结构和帧级对比，差异按新增、删除、变化分组显示，双击带 Offset 的差异可定位左侧 Hex。
 - “媒体预览”页使用原生 Qt 画布显示 WAV/PCM 波形、Peak/RMS、Raw YUV 彩色画面和视频首帧，并将采样率、声道、位深、宽高、像素格式和帧率整理为可扫描的参数卡片。
+- 媒体预览右上角提供上一/下一导航：视频按 1 秒异步步进，Raw YUV 按帧步进并显示当前帧号/总帧数；内置 `sample.yuv` 含 3 帧不同相位彩条，便于直接验收。
 - 分析、报告导出和三种文件对比统一使用异步侧车任务，运行期间界面保持响应，并可通过顶部“取消”或 `Esc` 终止；协议/帧差异会展开到具体属性的左右值。
 - Qt 全局诊断采用结构化级别/来源/Offset/问题表格，点击带 Offset 的诊断可直接定位 Hex；时间线叠加帧大小、PTS/DTS、码率、关键帧和异常标记，支持悬停查看帧信息并点击跳转帧表与 Hex。
 - 视图菜单可快速切换 Hex、字段、帧列表、时间线、预览和诊断面板，底部日志会记录打开、搜索、对比、导出等操作状态。
 - 输出基础诊断 warning/error，ffprobe 媒体流或 packet 时间线探测失败会转为可读 warning，并基于解析结构/packet 时间线提示 MP4 chunk offset 异常、PTS/DTS 非单调、音视频时长差异和帧/packet 大小尖峰。
 - 单元测试覆盖 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 典型损坏文件，验证解析失败不会导致程序崩溃并会输出诊断。
-- 支持保存 `.avscope.json` 工程快照，记录当前分析结果、源文件路径和 Raw 参数。
+- 支持保存并重新打开 `.avscope.json` 工程快照，恢复当前分析结果、源文件路径、Raw 参数、主题和标签页；源文件仍在时保留 Hex 与预览联动，源文件移动后仍可离线查看协议树和诊断。
 - 导出独立 HTML、JSON、CSV 报告，支持写入用户备注；HTML 报告包含音频波形图、结构化统计摘要、帧/packet 大小图、PTS/DTS 曲线、码率曲线、GOP 结构图、RTP sequence 曲线、PCR 曲线、时间线异常清单、帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、备注、诊断、时间线异常、帧统计、packet 统计、帧、packet、节点和字段。
 - 支持两个文件的二进制差异扫描，并输出 offset 对齐的左右 Hex/ASCII 并排差异表；GUI 可用 F4 跳转下一个差异窗口。
 - 支持两个文件的帧级对比，按 frame index 汇总新增、删除和 size/PTS/DTS/duration/type/keyframe 差异，并可从 GUI 或 CLI 导出 JSON。
@@ -89,7 +90,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\deploy_qt.ps1
 PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1
 ```
 
-UI 验证会在 `G:\AVScope\tmp\qt-ui-validation` 留下深浅主题、时间线、Raw PCM 波形、Raw YUV 彩条和协议对比截图，以及对应的数据契约 JSON，并检查媒体预览产物与异步任务约束。
+UI 验证会在 `G:\AVScope\tmp\qt-ui-validation` 留下深浅主题、时间线、Raw PCM 波形、Raw YUV 第 1/2 帧、工程快照恢复和协议对比截图，以及对应的数据契约 JSON，并检查媒体预览产物与异步任务约束。
 
 Qt 工具链复用电脑已有的 `E:\QT\6.9.0`、MinGW 13.1、CMake 和 Ninja，本轮没有安装新工具。旧 Tk 界面仅保留为未构建源码环境的兼容回退。
 

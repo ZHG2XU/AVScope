@@ -928,9 +928,21 @@ class ParserTests(unittest.TestCase):
         yuv_summary = json.loads(yuv_json.read_text(encoding="utf-8"))["media"]["summary"]
         self.assertEqual(yuv_summary["width"], 64)
         self.assertEqual(yuv_summary["height"], 48)
-        self.assertEqual(yuv_summary["frames"], 1)
+        self.assertEqual(yuv_summary["frames"], 3)
         self.assertTrue(yuv_summary["yuv_preview"]["available"])
         self.assertTrue(Path(yuv_summary["yuv_preview"]["path"]).exists())
+        yuv_next_json = ROOT / "cli_yuv_next_report.json"
+        exit_code = cli_main(
+            [
+                "analyze", str(sample_dir / "sample.yuv"), "--width", "64", "--height", "48",
+                "--pixel-format", "yuv420p", "--fps", "30", "--preview-dir", str(ROOT / "cli-previews"),
+                "--preview-frame", "1", "--json", str(yuv_next_json),
+            ]
+        )
+        self.assertEqual(exit_code, 0)
+        yuv_next = json.loads(yuv_next_json.read_text(encoding="utf-8"))["media"]["summary"]["yuv_preview"]
+        self.assertEqual(yuv_next["frame_index"], 1)
+        self.assertNotEqual(yuv_summary["yuv_preview"]["path"], yuv_next["path"])
         binary_path = ROOT / "binary_compare.json"
         exit_code = cli_main(
             [
@@ -1498,7 +1510,7 @@ class ParserTests(unittest.TestCase):
         rgb = ppm.split(b"\n", 3)[3]
         self.assertGreater(len(set(zip(rgb[0::3], rgb[1::3], rgb[2::3]))), 4)
         self.assertEqual(result["frame_index"], 0)
-        self.assertEqual(result["total_frames"], 1)
+        self.assertEqual(result["total_frames"], 3)
 
         two_frame = write(ROOT / "two_frame.yuv", bytes([235, 235, 235, 235, 128, 128]) + bytes([16, 16, 16, 16, 128, 128]))
         first = build_yuv_preview(two_frame, 2, 2, "yuv420p", output_dir=ROOT / "yuv-previews", frame_index=0)

@@ -323,6 +323,7 @@ QWidget *MainWindow::buildWorkspace()
     m_tabs->addTab(m_timeline, tr("时间线"));
 
     m_preview = new MediaPreviewWidget;
+    connect(m_preview, &MediaPreviewWidget::stepRequested, this, &MainWindow::stepMediaPreview);
     m_tabs->addTab(m_preview, tr("媒体预览"));
 
     m_compareTree = new QTreeWidget;
@@ -522,7 +523,9 @@ void MainWindow::chooseFile()
 
 void MainWindow::reloadCurrent()
 {
-    if (!m_currentPath.isEmpty())
+    if (!m_currentProjectPath.isEmpty())
+        loadProjectSnapshot(m_currentProjectPath);
+    else if (!m_currentPath.isEmpty())
         openPath(m_currentPath);
 }
 
@@ -549,13 +552,20 @@ void MainWindow::openPath(const QString &path)
         QMessageBox::information(this, tr("正在分析"), tr("请等待当前分析完成。"));
         return;
     }
+    if (info.fileName().endsWith(".avscope.json", Qt::CaseInsensitive)) {
+        loadProjectSnapshot(info.absoluteFilePath());
+        return;
+    }
 
     bool rawAccepted = true;
     const QStringList rawOptions = rawOptionsForPath(info.absoluteFilePath(), &rawAccepted);
     if (!rawAccepted) return;
 
     m_currentPath = info.absoluteFilePath();
+    m_currentProjectPath.clear();
     m_currentRawOptions = rawOptions;
+    m_previewPosition = 0.0;
+    m_previewFrame = 0;
     m_cancelRequested = false;
     QDir().mkpath(projectRoot() + "/tmp/qt-runtime");
     QFile::remove(analysisOutputPath());
@@ -565,7 +575,69 @@ void MainWindow::openPath(const QString &path)
 
     QStringList arguments = {"analyze", m_currentPath, "--json", analysisOutputPath()};
     arguments.append(m_currentRawOptions);
-    arguments << "--preview-dir" << projectRoot() + "/tmp/qt-previews";
+    arguments << "--preview-dir" << projectRoot() + "/tmp/qt-previews"
+              << "--preview-position" << QString::number(m_previewPosition)
+              << "--preview-frame" << QString::number(m_previewFrame);
+    startEngineTask("analysis", arguments);
+}
+
+bool MainWindow::loadProjectSnapshot(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::critical(this, tr("工程快照读取失败"), file.errorString());
+        return false;
+    }
+    QJsonParseError error;
+    const auto snapshot = QJsonDocument::fromJson(file.readAll(), &error).object();
+    const auto analysis = snapshot.value("analysis").toObject();
+    if (analysis.isEmpty() || !analysis.contains("media") || !analysis.contains("root")) {
+        QMessageBox::critical(this, tr("工程快照无效"), error.errorString().isEmpty() ? tr("缺少 analysis/media/root 数据。") : error.errorString());
+        return false;
+    }
+    m_currentProjectPath = path;
+    m_currentPath = snapshot.value("source_path").toString(analysis.value("media").toObject().value("path").toString());
+    m_currentRawOptions.clear();
+    for (const auto &value : snapshot.value("raw_options").toArray()) m_currentRawOptions << value.toString();
+    m_previewPosition = analysis.value("media").toObject().value("summary").toObject()
+        .value("video_preview").toObject().value("position_seconds").toDouble();
+    m_previewFrame = analysis.value("media").toObject().value("summary").toObject()
+        .value("yuv_preview").toObject().value("frame_index").toInt();
+    loadDocument(QJsonDocument(analysis));
+    const int tab = snapshot.value("current_tab").toInt(m_tabs->currentIndex());
+    m_tabs->setCurrentIndex(qBound(0, tab, m_tabs->count() - 1));
+    if (snapshot.value("theme").toString() == "light") applyTheme(false);
+    else if (snapshot.value("theme").toString() == "dark") applyTheme(true);
+    m_fileLabel->setText(QFileInfo(path).completeBaseName());
+    m_fileLabel->setToolTip(path);
+    m_statusText->setText(QFileInfo::exists(m_currentPath)
+        ? tr("工程快照已恢复：%1").arg(QFileInfo(path).fileName())
+        : tr("工程快照已恢复，源文件已移动：%1").arg(m_currentPath));
+    m_log->appendPlainText(tr("[%1] 恢复工程快照 %2").arg(QTime::currentTime().toString("HH:mm:ss"), path));
+    addRecentFile(path);
+    return true;
+}
+
+void MainWindow::stepMediaPreview(int direction)
+{
+    if (m_currentPath.isEmpty() || !QFileInfo::exists(m_currentPath)) {
+        QMessageBox::information(this, tr("无法刷新预览"), tr("工程源文件不存在，无法生成新的预览位置。"));
+        return;
+    }
+    const auto summary = m_document.object().value("media").toObject().value("summary").toObject();
+    if (summary.contains("yuv_preview")) {
+        const int total = summary.value("yuv_preview").toObject().value("total_frames").toInt();
+        m_previewFrame = qBound(0, m_previewFrame + direction, qMax(0, total - 1));
+        m_statusText->setText(tr("正在生成 Raw YUV 第 %1 帧...").arg(m_previewFrame + 1));
+    } else {
+        m_previewPosition = qMax(0.0, m_previewPosition + direction * 1.0);
+        m_statusText->setText(tr("正在生成 %1 秒视频预览...").arg(m_previewPosition, 0, 'f', 3));
+    }
+    QStringList arguments = {"analyze", m_currentPath, "--json", analysisOutputPath()};
+    arguments.append(m_currentRawOptions);
+    arguments << "--preview-dir" << projectRoot() + "/tmp/qt-previews"
+              << "--preview-position" << QString::number(m_previewPosition)
+              << "--preview-frame" << QString::number(m_previewFrame);
     startEngineTask("analysis", arguments);
 }
 
@@ -722,6 +794,9 @@ void MainWindow::analysisFinished(int exitCode, QProcess::ExitStatus status)
         return;
     }
     loadDocument(document);
+    const auto completedSummary = document.object().value("media").toObject().value("summary").toObject();
+    m_previewPosition = completedSummary.value("video_preview").toObject().value("position_seconds").toDouble(m_previewPosition);
+    m_previewFrame = completedSummary.value("yuv_preview").toObject().value("frame_index").toInt(m_previewFrame);
     const auto info = QFileInfo(m_currentPath);
     addRecentFile(m_currentPath);
     m_statusText->setText(tr("%1  |  分析完成").arg(info.fileName()));
@@ -731,6 +806,11 @@ void MainWindow::analysisFinished(int exitCode, QProcess::ExitStatus status)
     if (!m_autoCompareTriggered && !autoMode.isEmpty() && QFileInfo::exists(autoPath)) {
         m_autoCompareTriggered = true;
         QTimer::singleShot(0, this, [this, autoMode] { runCompare(autoMode); });
+    }
+    if (!m_autoPreviewTriggered && qEnvironmentVariableIntValue("AVSCOPE_PREVIEW_STEP") != 0) {
+        m_autoPreviewTriggered = true;
+        const int direction = qEnvironmentVariableIntValue("AVSCOPE_PREVIEW_STEP") > 0 ? 1 : -1;
+        QTimer::singleShot(0, this, [this, direction] { stepMediaPreview(direction); });
     }
 }
 
@@ -1292,6 +1372,7 @@ void MainWindow::saveProjectSnapshot()
         return;
     }
     m_statusText->setText(tr("工程快照已保存：%1").arg(path));
+    m_currentProjectPath = path;
 }
 
 void MainWindow::runExport(const QString &format, const QString &outputPath)
