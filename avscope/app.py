@@ -119,6 +119,7 @@ def format_shortcuts_help() -> str:
             "Ctrl+3：切换到帧列表",
             "Ctrl+4：切换到时间线",
             "Ctrl+5：切换到预览",
+            "Ctrl+9：切换到传输会话",
             "Ctrl+L：显示或隐藏底部日志",
             "F4：跳转到下一个二进制差异",
             "Ctrl+Shift+H：导出 HTML 报告",
@@ -145,6 +146,7 @@ def format_sample_files_help() -> str:
             "3. sample.h264 / sample.h265：检查 SPS/PPS/VPS 和关键帧间隔。",
             "4. sample.mp4 / sample_changed.mp4：检查 MP4 box、chunk offset 诊断和协议对比。",
             "5. sample.pcm / sample.yuv：检查 Raw 参数输入、波形和 YUV 逐帧预览。",
+            "6. sample.pcap / sample_rtp_anomalies.pcap：检查 RTP/RTCP 字段、会话关联、丢包、重复和乱序。",
             "",
             "完整验收清单：G:\\AVScope\\docs\\ACCEPTANCE.md",
         ]

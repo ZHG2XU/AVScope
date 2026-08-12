@@ -19,7 +19,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 支持打开文件夹、最近文件列表，以及 Hex/text 流式搜索。
 - 支持协议树节点搜索，以及只显示 warning/error 异常节点的过滤视图。
 - 协议树会将每个节点下的字段和值作为可展开子项直接展示，并用不同颜色区分数值、文本、Hex、布尔值和异常字段；树表支持横向滚动，便于查看长值。
-- 支持 Ctrl+O、Ctrl+R、Ctrl+F、Ctrl+G、Ctrl+B、F3、Ctrl+1~8、Ctrl+Shift+O 等快捷键，可直接跳转十进制/十六进制 Offset、添加书签、复制文件完整路径、当前值和 Offset。
+- 支持 Ctrl+O、Ctrl+R、Ctrl+F、Ctrl+G、Ctrl+B、F3、Ctrl+1~9、Ctrl+Shift+O 等快捷键，可直接跳转十进制/十六进制 Offset、添加书签、复制文件完整路径、当前值和 Offset。
 - 工具菜单提供时间戳计算器和码率计算器，便于换算 PTS/time_base、帧序号/FPS 和文件码率。
 - 自动识别 MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、PCAP/RTP/RTCP、WAV、AAC ADTS、H.264 Annex-B、H.265 Annex-B、raw PCM、raw YUV。
 - 大文件路径使用 `ByteSource` 只读随机访问，测试覆盖 128MB+ 文件头部、中部、尾部窗口读取。
@@ -35,6 +35,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - MPEG-TS 可解析 188 字节 packet、PID、payload start、adaptation control 和 continuity counter，统计 PID 分布，并诊断 continuity counter 跳变。
 - PCAP/RTP/RTCP 按 PCAP record、Ethernet II、IPv4、UDP、RTP、RTCP Compound、Sender/Receiver Report 和 Report Block 分层展示；每层字段均带值、Offset、长度、原始 Hex 或位范围。
 - RTCP 支持 SR/RR 的 SSRC、NTP/RTP timestamp、发送包/字节数，以及接收报告的 fraction lost、24-bit signed cumulative lost、extended sequence、jitter、LSR 和 DLSR；可诊断版本错误、长度越界、报告截断和丢包。
+- RTP/RTCP 会按源/目的 IP、端口和 SSRC 聚合为传输会话，支持 16-bit sequence 回绕，并分别统计估算丢包、重复包、乱序、marker、payload 字节/码率及关联 RTCP 报告质量。
 - AAC ADTS 可解析 profile、采样率、声道布局、帧时长、平均码率，并在字段表和 HTML 报告中显示 header 字段 bit offset/bit length。
 - WAV 可解析 PCM 格式参数、data 字节数、帧数、时长，并校验 byte_rate/block_align。
 - Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、大小端、有符号/无符号、宽高、像素格式和帧率。
@@ -45,6 +46,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
 - 对 ffprobe packet 时间线生成 packet 统计摘要，包含 stream 数、packet 数、关键包数、平均/最大 packet 大小和 PTS 跨度。
 - PCAP/RTP/RTCP 会在时间线摘要、预览页和 HTML/JSON/CSV 报告中显示 RTP sequence 曲线、SSRC 分组、marker 包数量和 sequence 跳变异常点；媒体预览与 HTML 报告另有 RTCP SR/RR、丢包率、jitter、DLSR 会话质量摘要，CSV 使用 `rtcp_summary` section。
+- “传输会话”页提供可排序的端点/SSRC 会话表、会话级异常摘要和“只看异常会话”筛选；双击会话可跳到首个 RTP header，HTML/JSON/CSV 使用同一份 `transport_sessions` 数据，CSV 每路会话写入 `transport_session` section。
 - 对含视频流的文件使用现有 FFmpeg 生成 PNG 预览帧，支持在 GUI 中按 1 秒步进生成上一/下一预览帧，预览缓存写入 `G:\AVScope\tmp\previews`。
 - 视频预览帧会附带 ffprobe 帧元信息，预览页显示当前帧 PTS/DTS、duration、帧类型、关键帧标记、帧大小、分辨率和像素格式，并可通过“分析 / 跳转预览时间”“跳转预览帧号”“上一关键帧预览”“下一关键帧预览”按秒、帧号或关键帧跳转。
 - 分析菜单可使用现有 FFmpeg 提取当前文件的首路音频、首路视频或首个关键帧 PNG。
@@ -94,7 +96,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\deploy_qt.ps1
 PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1
 ```
 
-UI 验证会在 `G:\AVScope\tmp\qt-ui-validation` 留下深浅主题、PCAP 时间线、RTCP 会话预览、媒体流、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复和协议对比截图，以及对应的数据契约 JSON，并检查完整协议层节点/字段、媒体预览产物与异步任务约束。
+UI 验证会在 `G:\AVScope\tmp\qt-ui-validation` 留下深浅主题、PCAP 时间线、RTCP 会话预览、异常传输会话筛选、媒体流、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复和协议对比截图，以及对应的数据契约 JSON，并检查完整协议层节点/字段、媒体预览产物与异步任务约束。
 
 Qt 工具链复用电脑已有的 `E:\QT\6.9.0`、MinGW 13.1、CMake 和 Ninja，本轮没有安装新工具。旧 Tk 界面仅保留为未构建源码环境的兼容回退。
 

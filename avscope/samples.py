@@ -23,6 +23,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample.mkv", _matroska_sample()),
         _write(target / "sample.ps", _mpegps_sample()),
         _write(target / "sample.pcap", _pcap_rtp_sample()),
+        _write(target / "sample_rtp_anomalies.pcap", _pcap_rtp_anomaly_sample()),
         _write(target / "sample.ts", _mpegts_sample()),
         _write(target / "sample.pcm", _pcm_sample()),
         _write(target / "sample.yuv", _yuv420p_color_bars()),
@@ -135,13 +136,56 @@ def _pcap_rtp_sample() -> bytes:
     return global_header + b"".join(packets)
 
 
+def _pcap_rtp_anomaly_sample() -> bytes:
+    global_header = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
+    sequences = (100, 103, 102, 102)
+    packets = [
+        _pcap_packet(
+            index,
+            _ethernet_ipv4_udp_rtp(
+                sequence=sequence,
+                timestamp=90000 + index * 3000,
+                marker=index == len(sequences) - 1,
+                payload=bytes([0x60 + index, 0x88, 0x84]),
+            ),
+        )
+        for index, sequence in enumerate(sequences)
+    ]
+    packets.extend(
+        [
+            _pcap_packet(
+                10 + index,
+                _ethernet_ipv4_udp_rtp(
+                    sequence=sequence,
+                    timestamp=180000 + index * 3000,
+                    marker=index == 1,
+                    payload=b"\x61\x22\x33",
+                    ssrc=0xABCDEF01,
+                    src_port=6004,
+                    dst_port=6004,
+                ),
+            )
+            for index, sequence in enumerate((200, 201))
+        ]
+    )
+    return global_header + b"".join(packets)
+
+
 def _pcap_packet(ts_sec: int, payload: bytes) -> bytes:
     return struct.pack("<IIII", ts_sec, 0, len(payload), len(payload)) + payload
 
 
-def _ethernet_ipv4_udp_rtp(sequence: int, timestamp: int, marker: bool, payload: bytes) -> bytes:
-    rtp = bytes([0x80, (0x80 if marker else 0x00) | 96]) + struct.pack(">HII", sequence, timestamp, 0x12345678) + payload
-    return _ethernet_ipv4_udp(rtp, src_port=5004, dst_port=5004)
+def _ethernet_ipv4_udp_rtp(
+    sequence: int,
+    timestamp: int,
+    marker: bool,
+    payload: bytes,
+    ssrc: int = 0x12345678,
+    src_port: int = 5004,
+    dst_port: int = 5004,
+) -> bytes:
+    rtp = bytes([0x80, (0x80 if marker else 0x00) | 96]) + struct.pack(">HII", sequence, timestamp, ssrc) + payload
+    return _ethernet_ipv4_udp(rtp, src_port=src_port, dst_port=dst_port)
 
 
 def _ethernet_ipv4_udp(payload: bytes, src_port: int, dst_port: int) -> bytes:

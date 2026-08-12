@@ -4,6 +4,7 @@ from avscope.byte_source import ByteSource
 from avscope.models import FieldInfo, FrameInfo, ParseNode, ParseResult, Severity
 from avscope.parsers.base import FormatParser
 from avscope.parsers.common import error, media_info, root_node, warn
+from avscope.transport_sessions import TransportSessionTracker
 
 
 MAGICS = {
@@ -65,9 +66,9 @@ class PcapRtpParser(FormatParser):
         packet_count = 0
         rtp_count = 0
         sequence_warnings = 0
-        last_sequence_by_ssrc: dict[int, int] = {}
         payload_type_counts: dict[int, int] = {}
         rtcp_stats = _new_rtcp_stats()
+        session_tracker = TransportSessionTracker()
         while offset + 16 <= source.size and packet_count < MAX_VISIBLE_PACKETS:
             record_header = source.read_at(offset, 16)
             ts_sec = _u32(record_header, 0, endian)
@@ -107,19 +108,19 @@ class PcapRtpParser(FormatParser):
             )
             parsed_rtp = parsed.get("rtp") if parsed else None
             if parsed_rtp:
+                parsed_rtp["capture_time"] = _packet_timestamp(ts_sec, ts_frac, resolution)
                 rtp_count += 1
                 payload_type = parsed_rtp["payload_type"]
                 payload_type_counts[payload_type] = payload_type_counts.get(payload_type, 0) + 1
                 ssrc = parsed_rtp["ssrc"]
                 sequence = parsed_rtp["sequence"]
-                previous = last_sequence_by_ssrc.get(ssrc)
-                if previous is not None and sequence != ((previous + 1) & 0xFFFF):
+                sequence_event = session_tracker.add_rtp(parsed_rtp)
+                if sequence_event:
                     sequence_warnings += 1
-                    message = f"RTP sequence 跳变: ssrc=0x{ssrc:08X} previous={previous} current={sequence}"
+                    message = _sequence_event_message(ssrc, sequence_event)
                     diagnostics.append(warn(message, parsed_rtp["header_offset"] + 2, self.name))
                     packet_node.severity = Severity.WARNING if packet_node.severity == Severity.NORMAL else packet_node.severity
                     packet_node.description = packet_node.description or message
-                last_sequence_by_ssrc[ssrc] = sequence
                 frames.append(
                     FrameInfo(
                         index=len(frames),
@@ -134,6 +135,7 @@ class PcapRtpParser(FormatParser):
                             "rtp_ssrc": f"0x{ssrc:08X}",
                             "rtp_payload_type": payload_type,
                             "rtp_marker": bool(parsed_rtp["marker"]),
+                            "rtp_sequence_event": sequence_event.get("kind") if sequence_event else "",
                         },
                     )
                 )
@@ -145,6 +147,8 @@ class PcapRtpParser(FormatParser):
         elif offset < source.size:
             diagnostics.append(warn("PCAP 尾部存在未解析字节", offset, self.name))
 
+        session_tracker.attach_rtcp(rtcp_stats)
+        transport_sessions = session_tracker.summary()
         rtcp_summary = _finalize_rtcp_stats(rtcp_stats)
         root.fields.extend(
             [
@@ -152,6 +156,8 @@ class PcapRtpParser(FormatParser):
                 FieldInfo("rtp_packets", rtp_count),
                 FieldInfo("rtcp_datagrams", rtcp_summary["datagrams"]),
                 FieldInfo("rtcp_packets", rtcp_summary["packets"]),
+                FieldInfo("transport_sessions", transport_sessions["session_count"]),
+                FieldInfo("warning_sessions", transport_sessions["warning_sessions"]),
                 FieldInfo("sequence_warnings", sequence_warnings),
             ]
         )
@@ -163,6 +169,7 @@ class PcapRtpParser(FormatParser):
             "sequence_warnings": sequence_warnings,
             "payload_type_counts": {str(key): value for key, value in sorted(payload_type_counts.items())},
             "rtcp": rtcp_summary,
+            "transport_sessions": transport_sessions,
         }
         return ParseResult(media_info(source, self.name, **summary), root, frames=frames, diagnostics=diagnostics)
 
@@ -255,6 +262,15 @@ def _parse_network_packet(
         _parse_rtcp_compound(source, udp_node, payload_offset, payload_size, diagnostics, rtcp_stats)
         return {"kind": "rtcp"}
     rtp = _parse_rtp(source, udp_node, payload_offset, payload_size)
+    if rtp:
+        rtp.update(
+            {
+                "source_ip": _ip(ip[12:16]),
+                "destination_ip": _ip(ip[16:20]),
+                "source_port": src_port,
+                "destination_port": dst_port,
+            }
+        )
     return {"kind": "rtp", "rtp": rtp} if rtp else None
 
 
@@ -446,6 +462,15 @@ def _parse_sender_report(source: ByteSource, node: ParseNode, offset: int, size:
     packet_count = int.from_bytes(data[20:24], "big")
     octet_count = int.from_bytes(data[24:28], "big")
     stats["ssrcs"].add(sender_ssrc)
+    stats["sender_report_records"].append(
+        {
+            "sender_ssrc": sender_ssrc,
+            "offset": offset,
+            "rtp_timestamp": rtp_timestamp,
+            "sender_packet_count": packet_count,
+            "sender_octet_count": octet_count,
+        }
+    )
     node.fields.extend(
         [
             FieldInfo("sender_ssrc", f"0x{sender_ssrc:08X}", offset + 4, 4, _hex_bytes(data[4:8])),
@@ -458,7 +483,7 @@ def _parse_sender_report(source: ByteSource, node: ParseNode, offset: int, size:
             FieldInfo("sender_octet_count", octet_count, offset + 24, 4, _hex_bytes(data[24:28])),
         ]
     )
-    _parse_report_blocks(source, node, offset + 28, offset + size, report_count, diagnostics, stats)
+    _parse_report_blocks(source, node, offset + 28, offset + size, report_count, diagnostics, stats, sender_ssrc)
 
 
 def _parse_receiver_report(source: ByteSource, node: ParseNode, offset: int, size: int, report_count: int, diagnostics: list, stats: dict) -> None:
@@ -470,10 +495,19 @@ def _parse_receiver_report(source: ByteSource, node: ParseNode, offset: int, siz
     reporter_ssrc = int.from_bytes(data, "big")
     stats["ssrcs"].add(reporter_ssrc)
     node.fields.append(FieldInfo("reporter_ssrc", f"0x{reporter_ssrc:08X}", offset + 4, 4, _hex_bytes(data)))
-    _parse_report_blocks(source, node, offset + 8, offset + size, report_count, diagnostics, stats)
+    _parse_report_blocks(source, node, offset + 8, offset + size, report_count, diagnostics, stats, reporter_ssrc)
 
 
-def _parse_report_blocks(source: ByteSource, parent: ParseNode, offset: int, packet_end: int, count: int, diagnostics: list, stats: dict) -> None:
+def _parse_report_blocks(
+    source: ByteSource,
+    parent: ParseNode,
+    offset: int,
+    packet_end: int,
+    count: int,
+    diagnostics: list,
+    stats: dict,
+    reporter_ssrc: int,
+) -> None:
     for index in range(count):
         block_offset = offset + index * 24
         available = packet_end - block_offset
@@ -514,6 +548,19 @@ def _parse_report_blocks(source: ByteSource, parent: ParseNode, offset: int, pac
         stats["max_cumulative_packets_lost"] = max(stats["max_cumulative_packets_lost"], cumulative_lost)
         stats["max_interarrival_jitter"] = max(stats["max_interarrival_jitter"], jitter)
         stats["max_delay_since_last_sr_seconds"] = max(stats["max_delay_since_last_sr_seconds"], delay_seconds)
+        stats["report_records"].append(
+            {
+                "reporter_ssrc": f"0x{reporter_ssrc:08X}",
+                "source_ssrc": source_ssrc,
+                "offset": block_offset,
+                "fraction_lost": fraction_lost,
+                "cumulative_packets_lost": cumulative_lost,
+                "extended_highest_sequence": highest_sequence,
+                "interarrival_jitter": jitter,
+                "last_sr": last_sr,
+                "delay_since_last_sr_seconds": round(delay_seconds, 6),
+            }
+        )
         if fraction_lost > 0 or cumulative_lost > 0:
             message = (
                 f"RTCP 接收报告存在丢包: ssrc=0x{source_ssrc:08X} "
@@ -544,6 +591,8 @@ def _new_rtcp_stats() -> dict:
         "max_cumulative_packets_lost": 0,
         "max_interarrival_jitter": 0,
         "max_delay_since_last_sr_seconds": 0.0,
+        "report_records": [],
+        "sender_report_records": [],
     }
 
 
@@ -569,6 +618,21 @@ def _finalize_rtcp_stats(stats: dict) -> dict:
 def _packet_timestamp(seconds: int, fraction: int, resolution: str) -> float:
     divisor = 1_000_000_000 if resolution == "nanosecond" else 1_000_000
     return round(seconds + fraction / divisor, 9)
+
+
+def _sequence_event_message(ssrc: int, event: dict) -> str:
+    kind = event.get("kind")
+    if kind == "duplicate":
+        return f"RTP sequence 重复: ssrc=0x{ssrc:08X} sequence={event.get('sequence')}"
+    if kind == "reordered":
+        return (
+            f"RTP sequence 乱序: ssrc=0x{ssrc:08X} sequence={event.get('sequence')} "
+            f"behind={event.get('behind')}"
+        )
+    return (
+        f"RTP sequence 跳变（缺口）: ssrc=0x{ssrc:08X} expected={event.get('expected')} "
+        f"current={event.get('sequence')} missing={event.get('missing')}"
+    )
 
 
 def _signed_24(data: bytes) -> int:

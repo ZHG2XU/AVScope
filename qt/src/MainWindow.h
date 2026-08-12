@@ -81,6 +81,8 @@ private:
     void populateFields(const QJsonObject &node);
     void populateFrames(const QJsonArray &frames);
     void populateStreams(const QJsonArray &streams);
+    void populateTransportSessions(const QJsonObject &transport);
+    void filterTransportSessions();
     void populateBookmarks();
     void populateDiagnostics(const QJsonArray &diagnostics, const QJsonObject &media);
     void filterDiagnostics(const QString &formatName);
@@ -131,6 +133,7 @@ private:
     QTableWidget *m_fieldsTable = nullptr;
     QTableWidget *m_framesTable = nullptr;
     QTableWidget *m_streamsTable = nullptr;
+    QTableWidget *m_transportSessionsTable = nullptr;
     QTableWidget *m_bookmarksTable = nullptr;
     QTreeWidget *m_compareTree = nullptr;
     QPlainTextEdit *m_hexView = nullptr;
@@ -139,7 +142,9 @@ private:
     QComboBox *m_diagnosticSeverityFilter = nullptr;
     QComboBox *m_diagnosticSourceFilter = nullptr;
     QCheckBox *m_diagnosticOffsetOnly = nullptr;
+    QCheckBox *m_transportIssuesOnly = nullptr;
     QLabel *m_diagnosticSummary = nullptr;
+    QLabel *m_transportSummary = nullptr;
     QPlainTextEdit *m_selectionDetails = nullptr;
     QPlainTextEdit *m_log = nullptr;
     QTabWidget *m_tabs = nullptr;

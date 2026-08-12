@@ -102,6 +102,21 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                     "value": json.dumps(rtcp, ensure_ascii=False),
                 }
             )
+        transport = result.media.summary.get("transport_sessions", {})
+        for session in transport.get("sessions", []):
+            writer.writerow(
+                {
+                    "section": "transport_session",
+                    "name": session.get("ssrc", ""),
+                    "type": session.get("status", ""),
+                    "index": session.get("index", ""),
+                    "offset": f"0x{int(session.get('first_offset', 0)):X}",
+                    "size": session.get("payload_bytes", ""),
+                    "key": session.get("endpoint", ""),
+                    "value": json.dumps(session, ensure_ascii=False),
+                    "severity": "warning" if session.get("status") == "warning" else "normal",
+                }
+            )
         timeline_summary = result.media.summary.get("timeline_summary", {})
         if timeline_summary.get("available"):
             writer.writerow(
@@ -187,6 +202,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
         timeline_summary = build_timeline_summary(result.frames, packets)
     stats_summary_html = _stats_summary_html(frame_stats, packet_stats)
     rtcp_summary_html = _rtcp_summary_html(result.media.summary.get("rtcp", {}))
+    transport_sessions_html = _transport_sessions_html(result.media.summary.get("transport_sessions", {}))
     timeline_summary_html = _timeline_summary_html(timeline_summary)
     timeline_chart_html = _timeline_chart_html(doc["frames"], packets)
     issue_labels = timeline_issue_label_map(timeline_summary)
@@ -438,6 +454,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
       {stats_summary_html}
     </section>
     {rtcp_summary_html}
+    {transport_sessions_html}
     <section>
       <h2>音频波形</h2>
       {waveform_html}
@@ -576,6 +593,61 @@ def _rtcp_summary_html(rtcp: dict) -> str:
         for label, value in rows
     )
     return f'<section><h2>RTCP 会话质量</h2><div class="overview">{metrics}</div></section>'
+
+
+def _transport_sessions_html(transport: dict) -> str:
+    sessions = transport.get("sessions", [])
+    if not sessions:
+        return ""
+    metrics = [
+        ("会话", transport.get("session_count", 0)),
+        ("RTP 包", transport.get("total_rtp_packets", 0)),
+        ("Payload", _format_size(int(transport.get("total_payload_bytes", 0)))),
+        ("估算丢失", transport.get("estimated_lost_packets", 0)),
+        ("重复", transport.get("duplicate_packets", 0)),
+        ("乱序", transport.get("reordered_packets", 0)),
+        ("RTCP 关联", transport.get("rtcp_linked_sessions", 0)),
+    ]
+    metric_html = "".join(
+        f'<div class="metric"><div class="label">{html.escape(str(label))}</div>'
+        f'<div class="value">{html.escape(str(value))}</div></div>'
+        for label, value in metrics
+    )
+    rows = []
+    for session in sessions:
+        warning = session.get("status") == "warning"
+        row_class = ' class="warning-row"' if warning else ""
+        pts = ", ".join(str(value) for value in session.get("payload_types", []))
+        rtcp = f"SR {session.get('rtcp_sender_reports', 0)} / RB {session.get('rtcp_report_blocks', 0)}"
+        bitrate = session.get("payload_bitrate_kbps")
+        bitrate_text = "--" if bitrate is None else f"{float(bitrate):.3f} kbps"
+        rows.append(
+            f"<tr{row_class}>"
+            f"<td>{'warning' if warning else 'normal'}</td>"
+            f"<td>{html.escape(str(session.get('endpoint', '')))}</td>"
+            f"<td>{html.escape(str(session.get('ssrc', '')))}</td>"
+            f"<td>{html.escape(pts)}</td>"
+            f"<td>{session.get('packets', 0)}</td>"
+            f"<td>{session.get('payload_bytes', 0)}</td>"
+            f"<td>{session.get('first_sequence', 0)} -> {session.get('last_sequence', 0)}</td>"
+            f"<td>{session.get('estimated_lost_packets', 0)}</td>"
+            f"<td>{session.get('duplicate_packets', 0)}</td>"
+            f"<td>{session.get('reordered_packets', 0)}</td>"
+            f"<td>{html.escape(bitrate_text)}</td>"
+            f"<td>{rtcp}</td>"
+            f"<td>{session.get('rtcp_max_interarrival_jitter', 0)}</td>"
+            f"<td>{float(session.get('rtcp_max_delay_since_last_sr_seconds', 0)):.3f} s</td>"
+            f"<td>0x{int(session.get('first_offset', 0)):X}</td>"
+            "</tr>"
+        )
+    table = (
+        '<table class="timeline-issues"><tr><th>状态</th><th>端点</th><th>SSRC</th><th>PT</th>'
+        '<th>包</th><th>Payload</th><th>Sequence</th><th>丢失</th><th>重复</th><th>乱序</th>'
+        '<th>码率</th><th>RTCP</th><th>Jitter</th><th>DLSR</th><th>首包 Offset</th></tr>'
+        + "".join(rows)
+        + "</table>"
+    )
+    return f'<section><h2>RTP / RTCP 传输会话</h2><div class="overview">{metric_html}</div>{table}</section>'
 
 
 def _waveform_html(waveform: dict) -> str:

@@ -385,6 +385,41 @@ QWidget *MainWindow::buildWorkspace()
         if (offset >= 0) { showHex(offset, 1); m_tabs->setCurrentWidget(m_hexView); }
     });
     m_tabs->addTab(m_compareTree, tr("对比结果"));
+
+    auto *transportPanel = new QWidget;
+    auto *transportLayout = new QVBoxLayout(transportPanel);
+    transportLayout->setContentsMargins(10, 10, 10, 10);
+    transportLayout->setSpacing(8);
+    auto *transportTools = new QHBoxLayout;
+    m_transportSummary = new QLabel(tr("当前文件没有 RTP 传输会话"));
+    m_transportSummary->setObjectName("sectionHint");
+    m_transportSummary->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_transportIssuesOnly = new QCheckBox(tr("只看异常会话"));
+    connect(m_transportIssuesOnly, &QCheckBox::toggled, this, [this] { filterTransportSessions(); });
+    transportTools->addWidget(m_transportSummary, 1);
+    transportTools->addWidget(m_transportIssuesOnly);
+    transportLayout->addLayout(transportTools);
+    m_transportSessionsTable = new QTableWidget;
+    m_transportSessionsTable->setColumnCount(15);
+    m_transportSessionsTable->setHorizontalHeaderLabels({
+        tr("状态"), tr("端点"), "SSRC", "PT", tr("包"), "Payload", tr("序号范围"),
+        tr("估算丢失"), tr("重复"), tr("乱序"), "Marker", tr("码率"), "RTCP", "Jitter", "DLSR"
+    });
+    m_transportSessionsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_transportSessionsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_transportSessionsTable->setAlternatingRowColors(true);
+    m_transportSessionsTable->setSortingEnabled(true);
+    m_transportSessionsTable->verticalHeader()->hide();
+    m_transportSessionsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_transportSessionsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    connect(m_transportSessionsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 12);
+        m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("传输会话首包  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    transportLayout->addWidget(m_transportSessionsTable, 1);
+    m_tabs->addTab(transportPanel, tr("传输会话"));
     layout->addWidget(m_tabs);
     return panel;
 }
@@ -533,7 +568,7 @@ void MainWindow::buildShortcuts()
     connect(focusSearch, &QShortcut::activated, m_search, [this] { m_search->setFocus(); m_search->selectAll(); });
     auto *findNext = new QShortcut(QKeySequence(Qt::Key_F3), this);
     connect(findNext, &QShortcut::activated, this, &MainWindow::searchNext);
-    for (int index = 0; index < 8; ++index) {
+    for (int index = 0; index < 9; ++index) {
         auto *shortcut = new QShortcut(QKeySequence(QString("Ctrl+%1").arg(index + 1)), this);
         connect(shortcut, &QShortcut::activated, this, [this, index] { m_tabs->setCurrentIndex(index); });
     }
@@ -961,6 +996,7 @@ void MainWindow::loadDocument(const QJsonDocument &document)
     }
     populateFrames(frames);
     populateStreams(media.value("summary").toObject().value("ffprobe").toObject().value("streams").toArray());
+    populateTransportSessions(media.value("summary").toObject().value("transport_sessions").toObject());
     populateDiagnostics(diagnostics, media);
     m_timeline->setData(frames, media.value("summary").toObject().value("timeline_summary").toObject());
 
@@ -1145,6 +1181,105 @@ void MainWindow::populateStreams(const QJsonArray &streams)
         auto *empty = new QTableWidgetItem(tr("当前文件没有 ffprobe 媒体流信息"));
         empty->setForeground(QColor(m_dark ? "#94A3B2" : "#607080"));
         m_streamsTable->setItem(0, 2, empty);
+    }
+}
+
+void MainWindow::populateTransportSessions(const QJsonObject &transport)
+{
+    if (!m_transportSessionsTable) return;
+    const auto sessions = transport.value("sessions").toArray();
+    m_transportSessionsTable->setSortingEnabled(false);
+    m_transportSessionsTable->setRowCount(sessions.size());
+    for (int row = 0; row < sessions.size(); ++row) {
+        const auto session = sessions.at(row).toObject();
+        const QString status = session.value("status").toString("normal");
+        const qint64 offset = jsonInteger(session.value("first_offset"));
+        const auto payloadTypes = session.value("payload_types").toArray();
+        QStringList ptValues;
+        for (const auto &value : payloadTypes) ptValues << displayValue(value);
+        const QString sequenceRange = tr("%1 -> %2")
+            .arg(jsonInteger(session.value("first_sequence")))
+            .arg(jsonInteger(session.value("last_sequence")));
+        const QString rtcp = tr("SR %1 / RB %2")
+            .arg(jsonInteger(session.value("rtcp_sender_reports")))
+            .arg(jsonInteger(session.value("rtcp_report_blocks")));
+        const double bitrate = session.value("payload_bitrate_kbps").toDouble(-1.0);
+        const QStringList values = {
+            status == "warning" ? tr("警告") : tr("正常"),
+            session.value("endpoint").toString(), session.value("ssrc").toString(), ptValues.join(", "),
+            displayValue(session.value("packets")), formatSize(jsonInteger(session.value("payload_bytes"))), sequenceRange,
+            displayValue(session.value("estimated_lost_packets")), displayValue(session.value("duplicate_packets")),
+            displayValue(session.value("reordered_packets")), displayValue(session.value("marker_packets")),
+            bitrate < 0 ? "--" : tr("%1 kbps").arg(bitrate, 0, 'f', 3), rtcp,
+            displayValue(session.value("rtcp_max_interarrival_jitter")),
+            tr("%1 s").arg(session.value("rtcp_max_delay_since_last_sr_seconds").toDouble(), 0, 'f', 3)
+        };
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setData(OffsetRole, offset);
+            cell->setData(Qt::UserRole + 10, status);
+            cell->setToolTip(column == 1 ? session.value("session_id").toString() : values.at(column));
+            if (status == "warning")
+                cell->setForeground(QColor(m_dark ? "#F5C76B" : "#8A5A00"));
+            else if (column == 0)
+                cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
+            m_transportSessionsTable->setItem(row, column, cell);
+        }
+        const QList<int> numericColumns = {4, 7, 8, 9, 10, 13};
+        for (int column : numericColumns) {
+            QJsonValue value;
+            if (column == 4) value = session.value("packets");
+            else if (column == 7) value = session.value("estimated_lost_packets");
+            else if (column == 8) value = session.value("duplicate_packets");
+            else if (column == 9) value = session.value("reordered_packets");
+            else if (column == 10) value = session.value("marker_packets");
+            else value = session.value("rtcp_max_interarrival_jitter");
+            m_transportSessionsTable->item(row, column)->setData(Qt::EditRole, jsonInteger(value));
+        }
+    }
+    m_transportSessionsTable->setSortingEnabled(true);
+    const int count = jsonInteger(transport.value("session_count"));
+    const int warnings = jsonInteger(transport.value("warning_sessions"));
+    m_transportSummary->setText(
+        tr("会话 %1  |  RTP %2 包  |  Payload %3  |  估算丢失 %4  |  重复 %5  |  乱序 %6  |  RTCP 关联 %7")
+            .arg(count)
+            .arg(jsonInteger(transport.value("total_rtp_packets")))
+            .arg(formatSize(jsonInteger(transport.value("total_payload_bytes"))))
+            .arg(jsonInteger(transport.value("estimated_lost_packets")))
+            .arg(jsonInteger(transport.value("duplicate_packets")))
+            .arg(jsonInteger(transport.value("reordered_packets")))
+            .arg(jsonInteger(transport.value("rtcp_linked_sessions"))));
+    m_transportIssuesOnly->setEnabled(warnings > 0);
+    if (!qEnvironmentVariableIsEmpty("AVSCOPE_TRANSPORT_ISSUES_ONLY"))
+        m_transportIssuesOnly->setChecked(qEnvironmentVariableIntValue("AVSCOPE_TRANSPORT_ISSUES_ONLY") != 0);
+    else if (warnings == 0)
+        m_transportIssuesOnly->setChecked(false);
+    filterTransportSessions();
+}
+
+void MainWindow::filterTransportSessions()
+{
+    if (!m_transportSessionsTable) return;
+    const bool issuesOnly = m_transportIssuesOnly && m_transportIssuesOnly->isChecked();
+    for (int row = 0; row < m_transportSessionsTable->rowCount(); ++row) {
+        const auto *item = m_transportSessionsTable->item(row, 0);
+        const bool warning = item && item->data(Qt::UserRole + 10).toString() == "warning";
+        m_transportSessionsTable->setRowHidden(row, issuesOnly && !warning);
+    }
+    const QString statePath = qEnvironmentVariable("AVSCOPE_TRANSPORT_STATE");
+    if (!statePath.isEmpty()) {
+        int visible = 0;
+        for (int row = 0; row < m_transportSessionsTable->rowCount(); ++row)
+            visible += !m_transportSessionsTable->isRowHidden(row);
+        QJsonObject state{
+            {"visible", visible},
+            {"total", m_transportSessionsTable->rowCount()},
+            {"issues_only", issuesOnly},
+        };
+        QFile file(statePath);
+        QDir().mkpath(QFileInfo(statePath).absolutePath());
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
     }
 }
 

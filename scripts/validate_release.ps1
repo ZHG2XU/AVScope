@@ -372,6 +372,23 @@ if "RTP seq=100" not in pcap_csv_text:
     raise SystemExit("CSV RTP sequence metadata missing")
 if "rtcp_summary" not in pcap_csv_text:
     raise SystemExit("CSV RTCP session quality summary missing")
+transport = pcap.media.summary.get("transport_sessions", {})
+if (transport.get("session_count"), transport.get("rtcp_linked_sessions")) != (1, 1):
+    raise SystemExit(f"RTP/RTCP transport session link missing: {transport}")
+if "RTP / RTCP \u4f20\u8f93\u4f1a\u8bdd" not in pcap_html_text or "transport_session" not in pcap_csv_text:
+    raise SystemExit("RTP/RTCP transport session report missing")
+anomaly = Analyzer().analyze(Path("G:/AVScope/samples/sample_rtp_anomalies.pcap"))
+anomaly_transport = anomaly.media.summary.get("transport_sessions", {})
+if (anomaly_transport.get("session_count"), anomaly_transport.get("warning_sessions")) != (2, 1):
+    raise SystemExit(f"RTP anomaly session split mismatch: {anomaly_transport}")
+if tuple(anomaly_transport.get(key) for key in ("estimated_lost_packets", "duplicate_packets", "reordered_packets")) != (1, 1, 1):
+    raise SystemExit(f"RTP anomaly counters mismatch: {anomaly_transport}")
+anomaly_html = out_dir / "pcap_rtp_anomalies.html"
+anomaly_csv = out_dir / "pcap_rtp_anomalies.csv"
+export_html(anomaly, anomaly_html)
+export_csv(anomaly, anomaly_csv)
+if "transport_session" not in anomaly_csv.read_text(encoding="utf-8-sig"):
+    raise SystemExit("CSV RTP anomaly session rows missing")
 ts = Analyzer().analyze(Path("G:/AVScope/samples/sample.ts"))
 pcr = ts.media.summary.get("timeline_summary", {}).get("pcr", {})
 if not pcr.get("available") or pcr.get("points") != 2:

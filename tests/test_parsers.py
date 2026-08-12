@@ -60,6 +60,7 @@ from scripts.release_manifest import build_release_manifest, write_release_manif
 from scripts.sample_reports import build_sample_reports
 from scripts.validation_report import build_validation_report, write_validation_report
 from avscope.timeline_viz import build_timeline_summary, timeline_chart_items
+from avscope.transport_sessions import TransportSessionTracker
 from avscope.waveform import build_waveform_preview
 from avscope.yuv_preview import build_yuv_preview, yuv_frame_size, yuv_preview_output_path, yuv_to_rgb
 
@@ -541,6 +542,26 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(report_fields["cumulative_packets_lost"], 0)
         self.assertEqual(report_fields["extended_highest_sequence"], 101)
         self.assertEqual(report_fields["delay_since_last_sr_seconds"], 0.5)
+        transport = result.media.summary["transport_sessions"]
+        self.assertTrue(transport["available"])
+        self.assertEqual(transport["session_count"], 1)
+        self.assertEqual(transport["warning_sessions"], 0)
+        self.assertEqual(transport["rtcp_linked_sessions"], 1)
+        session = transport["sessions"][0]
+        self.assertEqual(session["endpoint"], "192.168.1.10:5004 -> 239.1.1.1:5004")
+        self.assertEqual(session["ssrc"], "0x12345678")
+        self.assertEqual(session["payload_types"], [96])
+        self.assertEqual(session["packets"], 2)
+        self.assertEqual(session["payload_bytes"], 6)
+        self.assertEqual(session["expected_packets"], 2)
+        self.assertEqual(session["estimated_lost_packets"], 0)
+        self.assertEqual(session["duplicate_packets"], 0)
+        self.assertEqual(session["reordered_packets"], 0)
+        self.assertEqual(session["rtcp_report_blocks"], 2)
+        self.assertEqual(session["rtcp_sender_reports"], 1)
+        self.assertEqual(session["rtcp_max_interarrival_jitter"], 90)
+        self.assertEqual(session["rtcp_max_delay_since_last_sr_seconds"], 0.5)
+        self.assertEqual(session["status"], "normal")
         html_path = ROOT / "pcap_rtp_report.html"
         csv_path = ROOT / "pcap_rtp_report.csv"
         json_path = ROOT / "pcap_rtp_report.json"
@@ -553,6 +574,9 @@ class ParserTests(unittest.TestCase):
         self.assertIn("RTCP 会话质量", html_path.read_text(encoding="utf-8"))
         self.assertIn("RTP seq=100", csv_path.read_text(encoding="utf-8-sig"))
         self.assertIn("rtcp_summary", csv_path.read_text(encoding="utf-8-sig"))
+        self.assertIn("RTP / RTCP 传输会话", html_path.read_text(encoding="utf-8"))
+        self.assertIn("192.168.1.10:5004", html_path.read_text(encoding="utf-8"))
+        self.assertIn("transport_session", csv_path.read_text(encoding="utf-8-sig"))
         self.assertIn('"rtp_sequence": 100', json_path.read_text(encoding="utf-8"))
 
     def test_pcap_rtp_sequence_diagnostic(self):
@@ -571,6 +595,54 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(rtp_sequence["warnings"][0]["expected"], 101)
         self.assertEqual(rtp_sequence["warnings"][0]["current"], 105)
         self.assertTrue(any("RTP sequence 跳变" in issue.message for issue in diagnostics_with(result, "warning")))
+
+    def test_pcap_rtp_session_loss_duplicate_and_reorder(self):
+        sample_dir = ROOT / "pcap_session_anomalies"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample_rtp_anomalies.pcap")
+        transport = result.media.summary["transport_sessions"]
+        self.assertEqual(transport["session_count"], 2)
+        self.assertEqual(transport["warning_sessions"], 1)
+        self.assertEqual(transport["estimated_lost_packets"], 1)
+        self.assertEqual(transport["duplicate_packets"], 1)
+        self.assertEqual(transport["reordered_packets"], 1)
+        session = next(item for item in transport["sessions"] if item["status"] == "warning")
+        self.assertEqual(session["packets"], 4)
+        self.assertEqual(session["unique_packets"], 3)
+        self.assertEqual(session["expected_packets"], 4)
+        self.assertEqual(session["estimated_lost_packets"], 1)
+        self.assertEqual(session["duplicate_packets"], 1)
+        self.assertEqual(session["reordered_packets"], 1)
+        self.assertEqual(session["forward_gap_events"], 1)
+        self.assertEqual(session["status"], "warning")
+        clean = next(item for item in transport["sessions"] if item["status"] == "normal")
+        self.assertEqual(clean["ssrc"], "0xABCDEF01")
+        self.assertEqual(clean["packets"], 2)
+        self.assertEqual(clean["estimated_lost_packets"], 0)
+        messages = [issue.message for issue in diagnostics_with(result, "warning")]
+        self.assertTrue(any("跳变（缺口）" in message and "missing=2" in message for message in messages))
+        self.assertTrue(any("乱序" in message and "sequence=102" in message for message in messages))
+        self.assertTrue(any("重复" in message and "sequence=102" in message for message in messages))
+
+    def test_transport_session_sequence_wraparound(self):
+        tracker = TransportSessionTracker()
+        base = {
+            "source_ip": "10.0.0.1",
+            "source_port": 5004,
+            "destination_ip": "239.1.1.1",
+            "destination_port": 5004,
+            "ssrc": 0x01020304,
+            "payload_type": 96,
+            "payload_size": 100,
+            "marker": False,
+        }
+        self.assertIsNone(tracker.add_rtp({**base, "sequence": 65535, "header_offset": 100, "capture_time": 0.0}))
+        self.assertIsNone(tracker.add_rtp({**base, "sequence": 0, "header_offset": 200, "capture_time": 0.04}))
+        session = tracker.summary()["sessions"][0]
+        self.assertEqual(session["expected_packets"], 2)
+        self.assertEqual(session["estimated_lost_packets"], 0)
+        self.assertEqual(session["sequence_cycles"], 1)
+        self.assertEqual(session["status"], "normal")
 
     def test_pcap_rtcp_loss_and_signed_cumulative_loss_diagnostic(self):
         sample_dir = ROOT / "pcap_rtcp_loss_sample"
@@ -850,9 +922,11 @@ class ParserTests(unittest.TestCase):
         self.assertIn("Ctrl+L", shortcuts)
         self.assertIn("F4", shortcuts)
         self.assertIn("Ctrl+Shift+I", shortcuts)
+        self.assertIn("Ctrl+9", shortcuts)
         samples = format_sample_files_help()
         self.assertIn("G:\\AVScope\\samples", samples)
         self.assertIn("sample.mp4", samples)
+        self.assertIn("sample_rtp_anomalies.pcap", samples)
         empty_state = format_empty_state_text()
         self.assertIn("工作区待命", empty_state)
         self.assertIn("H.264/H.265", empty_state)
