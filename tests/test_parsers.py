@@ -716,6 +716,53 @@ class ParserTests(unittest.TestCase):
         self.assertIn("rtcp_bye", sections)
         self.assertIn('"rtcp_cname": "camera-01@example"', json_path.read_text(encoding="utf-8"))
 
+    def test_pcap_rtp_rfc3550_timing_quality(self):
+        sample_dir = ROOT / "pcap_rtp_timing"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample_rtp_timing.pcap")
+        transport = result.media.summary["transport_sessions"]
+        self.assertEqual(transport["rtp_timing"]["session_count"], 1)
+        self.assertEqual(transport["rtp_timing"]["warning_sessions"], 1)
+        self.assertEqual(transport["rtp_timing"]["max_rfc3550_jitter_ms"], 1.875)
+        self.assertEqual(transport["rtp_timing"]["max_abs_deviation_ms"], 30.0)
+        timing = transport["sessions"][0]["rtp_timing"]
+        self.assertTrue(timing["available"])
+        self.assertEqual(timing["clock_rate"], 8000)
+        self.assertEqual(timing["clock_source"], "RTP static PT")
+        self.assertEqual(timing["average_arrival_interval_ms"], 30.0)
+        self.assertEqual((timing["min_arrival_interval_ms"], timing["max_arrival_interval_ms"]), (20.0, 50.0))
+        self.assertEqual(timing["burst_events"], 1)
+        self.assertEqual(timing["events"][0]["sequence"], 103)
+        self.assertEqual(timing["events"][0]["deviation_ms"], 30.0)
+        timing_diagnostics = [issue for issue in diagnostics_with(result, "warning") if issue.source == "RTP Timing"]
+        self.assertEqual(len(timing_diagnostics), 1)
+        self.assertIn("sequence=103", timing_diagnostics[0].message)
+        self.assertEqual(timing_diagnostics[0].offset, timing["events"][0]["offset"])
+
+        html_path = ROOT / "rtp_timing.html"
+        csv_path = ROOT / "rtp_timing.csv"
+        export_html(result, html_path)
+        export_csv(result, csv_path)
+        self.assertIn("RTP 时序质量", html_path.read_text(encoding="utf-8"))
+        csv_text = csv_path.read_text(encoding="utf-8-sig")
+        self.assertIn("rtp_timing_session", csv_text)
+        self.assertIn("rtp_timing_event", csv_text)
+
+        from avscope.parsers.pcap import _rtp_timing_metrics
+        reordered = _rtp_timing_metrics(
+            [
+                {"capture_time": 0.0, "rtp_timestamp": 0, "sequence": 100, "offset": 10},
+                {"capture_time": 0.02, "rtp_timestamp": 160, "sequence": 101, "offset": 20},
+                {"capture_time": 0.025, "rtp_timestamp": 0, "sequence": 100, "offset": 30},
+                {"capture_time": 0.04, "rtp_timestamp": 320, "sequence": 102, "offset": 40},
+            ],
+            8000,
+            "test",
+        )
+        self.assertEqual(reordered["interval_count"], 2)
+        self.assertEqual(reordered["rfc3550_jitter_ms"], 0.0)
+        self.assertEqual(reordered["burst_events"], 0)
+
     def test_pcap_rtp_session_loss_duplicate_and_reorder(self):
         sample_dir = ROOT / "pcap_session_anomalies"
         generate_samples(sample_dir)
@@ -865,6 +912,9 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(result.frames[2].pts, 1.0)
         transport = result.media.summary["transport_sessions"]
         self.assertEqual(transport["sdp_linked_sessions"], 3)
+        audio_session = next(item for item in transport["sessions"] if item.get("negotiated_encoding") == "PCMA")
+        self.assertEqual(audio_session["rtp_timing"]["clock_rate"], 8000)
+        self.assertEqual(audio_session["rtp_timing"]["clock_source"], "SDP")
         encodings = {item["ssrc"]: item["negotiated_encoding"] for item in transport["sessions"]}
         self.assertEqual(encodings["0x44444444"], "H264")
         self.assertEqual(encodings["0x55555555"], "H265")
@@ -1217,6 +1267,7 @@ class ParserTests(unittest.TestCase):
         self.assertIn("sample_rtp_video.pcap", samples)
         self.assertIn("sample_sip_sdp.pcap", samples)
         self.assertIn("sample_rtcp_feedback.pcap", samples)
+        self.assertIn("sample_rtp_timing.pcap", samples)
         self.assertIn("sample_h264_issues.h264", samples)
         empty_state = format_empty_state_text()
         self.assertIn("工作区待命", empty_state)
@@ -1468,6 +1519,9 @@ class ParserTests(unittest.TestCase):
         self.assertIn("sample_rtcp_feedback_report.html", names)
         self.assertIn("sample_rtcp_feedback_report.json", names)
         self.assertIn("sample_rtcp_feedback_report.csv", names)
+        self.assertIn("sample_rtp_timing_report.html", names)
+        self.assertIn("sample_rtp_timing_report.json", names)
+        self.assertIn("sample_rtp_timing_report.csv", names)
         self.assertIn(
             "RTP H.264/H.265 视频负载",
             (report_root / "dist" / "sample-reports" / "sample_rtp_video_report.html").read_text(encoding="utf-8"),
@@ -1479,6 +1533,10 @@ class ParserTests(unittest.TestCase):
         self.assertIn(
             "RTCP 控制反馈",
             (report_root / "dist" / "sample-reports" / "sample_rtcp_feedback_report.html").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            "RTP 时序质量",
+            (report_root / "dist" / "sample-reports" / "sample_rtp_timing_report.html").read_text(encoding="utf-8"),
         )
         self.assertIn("sample_protocol_compare.json", names)
         for path in outputs:

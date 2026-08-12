@@ -147,6 +147,26 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                     "severity": "warning" if session.get("status") == "warning" else "normal",
                 }
             )
+            timing = session.get("rtp_timing", {})
+            if timing.get("available"):
+                writer.writerow(
+                    {
+                        "section": "rtp_timing_session", "name": session.get("ssrc", ""),
+                        "type": timing.get("status", ""), "index": session.get("index", ""),
+                        "offset": f"0x{int(session.get('first_offset', 0)):X}", "key": session.get("endpoint", ""),
+                        "value": json.dumps(timing, ensure_ascii=False),
+                        "severity": "warning" if timing.get("status") == "warning" else "normal",
+                    }
+                )
+                for event in timing.get("events", []):
+                    writer.writerow(
+                        {
+                            "section": "rtp_timing_event", "name": f"RTP seq={event.get('sequence', '')}",
+                            "type": "burst", "offset": f"0x{int(event.get('offset', 0)):X}",
+                            "key": session.get("ssrc", ""), "value": json.dumps(event, ensure_ascii=False),
+                            "severity": "warning",
+                        }
+                    )
         codec_health = result.media.summary.get("codec_health", {})
         if codec_health.get("available"):
             writer.writerow(
@@ -344,6 +364,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     rtcp_summary_html = _rtcp_summary_html(result.media.summary.get("rtcp", {}))
     rtcp_feedback_html = _rtcp_feedback_html(result.media.summary.get("rtcp", {}))
     transport_sessions_html = _transport_sessions_html(result.media.summary.get("transport_sessions", {}))
+    rtp_timing_html = _rtp_timing_html(result.media.summary.get("transport_sessions", {}))
     codec_health_html = _codec_health_html(result.media.summary.get("codec_health", {}))
     rtp_video_html = _rtp_video_html(result.media.summary.get("rtp_video", {}))
     sip_sdp_html = _sip_sdp_html(result.media.summary.get("sip_sdp", {}))
@@ -600,6 +621,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     {rtcp_summary_html}
     {rtcp_feedback_html}
     {transport_sessions_html}
+    {rtp_timing_html}
     {codec_health_html}
     {rtp_video_html}
     {sip_sdp_html}
@@ -850,6 +872,56 @@ def _transport_sessions_html(transport: dict) -> str:
         + "</table>"
     )
     return f'<section><h2>RTP / RTCP 传输会话</h2><div class="overview">{metric_html}</div>{table}</section>'
+
+
+def _rtp_timing_html(transport: dict) -> str:
+    summary = transport.get("rtp_timing", {})
+    if not summary.get("available"):
+        return ""
+    metrics = [
+        ("可计算会话", summary.get("session_count", 0)), ("警告会话", summary.get("warning_sessions", 0)),
+        ("最大 RFC 3550 Jitter", f"{float(summary.get('max_rfc3550_jitter_ms', 0)):.3f} ms"),
+        ("最大时间偏差", f"{float(summary.get('max_abs_deviation_ms', 0)):.3f} ms"),
+        ("突发事件", summary.get("burst_events", 0)),
+    ]
+    metric_html = "".join(
+        f'<div class="metric"><div class="label">{html.escape(str(label))}</div>'
+        f'<div class="value">{html.escape(str(value))}</div></div>' for label, value in metrics
+    )
+    rows = []
+    events = []
+    for session in transport.get("sessions", []):
+        timing = session.get("rtp_timing", {})
+        if not timing.get("available"):
+            continue
+        warning = timing.get("status") == "warning"
+        row_class = ' class="warning-row"' if warning else ""
+        rows.append(
+            f'<tr{row_class}><td>{"warning" if warning else "normal"}</td>'
+            f'<td>{html.escape(str(session.get("endpoint", "")))}</td><td>{html.escape(str(session.get("ssrc", "")))}</td>'
+            f'<td>{timing.get("clock_rate", 0)} / {html.escape(str(timing.get("clock_source", "")))}</td>'
+            f'<td>{timing.get("packet_count", 0)}</td><td>{float(timing.get("rfc3550_jitter_ms", 0)):.3f} ms</td>'
+            f'<td>{float(timing.get("average_arrival_interval_ms", 0)):.3f} ms</td>'
+            f'<td>{float(timing.get("min_arrival_interval_ms", 0)):.3f} - {float(timing.get("max_arrival_interval_ms", 0)):.3f} ms</td>'
+            f'<td>{float(timing.get("max_abs_deviation_ms", 0)):.3f} ms</td><td>{timing.get("burst_events", 0)}</td></tr>'
+        )
+        for event in timing.get("events", []):
+            events.append(
+                '<tr class="warning-row">'
+                f'<td>{html.escape(str(session.get("ssrc", "")))}</td><td>{event.get("sequence", "")}</td>'
+                f'<td>{float(event.get("arrival_interval_ms", 0)):.3f} ms</td><td>{float(event.get("media_interval_ms", 0)):.3f} ms</td>'
+                f'<td>{float(event.get("deviation_ms", 0)):.3f} ms</td><td>0x{int(event.get("offset", 0)):X}</td></tr>'
+            )
+    table = (
+        '<table class="timeline-issues"><tr><th>状态</th><th>端点</th><th>SSRC</th><th>Clock / 来源</th><th>包</th>'
+        '<th>RFC 3550 Jitter</th><th>平均到达间隔</th><th>间隔范围</th><th>最大偏差</th><th>突发</th></tr>'
+        + "".join(rows) + '</table>'
+    )
+    event_table = "" if not events else (
+        '<h3>突发延迟事件</h3><table class="timeline-issues"><tr><th>SSRC</th><th>序号</th><th>到达间隔</th>'
+        '<th>媒体间隔</th><th>偏差</th><th>Offset</th></tr>' + "".join(events) + '</table>'
+    )
+    return f'<section><h2>RTP 时序质量</h2><div class="overview">{metric_html}</div>{table}{event_table}</section>'
 
 
 def _codec_health_html(health: dict) -> str:

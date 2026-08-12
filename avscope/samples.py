@@ -29,6 +29,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample_rtp_video.pcap", _pcap_rtp_video_sample()),
         _write(target / "sample_sip_sdp.pcap", _pcap_sip_sdp_sample()),
         _write(target / "sample_rtcp_feedback.pcap", _pcap_rtcp_feedback_sample()),
+        _write(target / "sample_rtp_timing.pcap", _pcap_rtp_timing_sample()),
         _write(target / "sample.ts", _mpegts_sample()),
         _write(target / "sample.pcm", _pcm_sample()),
         _write(target / "sample.yuv", _yuv420p_color_bars()),
@@ -211,6 +212,23 @@ def _pcap_rtcp_feedback_sample() -> bytes:
     return global_header + b"".join(packets)
 
 
+def _pcap_rtp_timing_sample() -> bytes:
+    global_header = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
+    capture_us = (0, 20_000, 40_000, 90_000)
+    packets = [
+        _pcap_packet(
+            0,
+            _ethernet_ipv4_udp_rtp(
+                sequence=100 + index, timestamp=8_000 + index * 160, marker=index == 3,
+                payload=b"\xD5" * 160, ssrc=0x10203040, payload_type=8,
+            ),
+            timestamp_fraction=capture_time,
+        )
+        for index, capture_time in enumerate(capture_us)
+    ]
+    return global_header + b"".join(packets)
+
+
 def _pcap_rtp_video_sample() -> bytes:
     global_header = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
     h264_sps = b"\x67" + make_h264_baseline_sps(width=640, height=480)
@@ -314,8 +332,8 @@ def _sip_message(start_line: str, call_id: str, cseq: str, sdp: str) -> bytes:
     return headers + body
 
 
-def _pcap_packet(ts_sec: int, payload: bytes) -> bytes:
-    return struct.pack("<IIII", ts_sec, 0, len(payload), len(payload)) + payload
+def _pcap_packet(ts_sec: int, payload: bytes, timestamp_fraction: int = 0) -> bytes:
+    return struct.pack("<IIII", ts_sec, timestamp_fraction, len(payload), len(payload)) + payload
 
 
 def _ethernet_ipv4_udp_rtp(

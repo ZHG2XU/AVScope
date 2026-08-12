@@ -99,6 +99,7 @@ class _Session:
     rtcp_feedback: list[dict[str, Any]] = field(default_factory=list)
     rtcp_sdes: list[dict[str, Any]] = field(default_factory=list)
     rtcp_bye_events: list[dict[str, Any]] = field(default_factory=list)
+    timing_samples: list[dict[str, Any]] = field(default_factory=list)
 
     def add_rtp(self, packet: dict[str, Any]) -> dict[str, int | str] | None:
         self.packets += 1
@@ -112,6 +113,12 @@ class _Session:
             self.first_capture_time = capture_time
         self.last_offset = offset
         self.last_capture_time = capture_time
+        self.timing_samples.append({
+            "capture_time": capture_time,
+            "rtp_timestamp": int(packet.get("timestamp", 0)),
+            "sequence": int(packet.get("sequence", 0)),
+            "offset": offset,
+        })
         return self.sequence.add(int(packet.get("sequence", 0)))
 
     def to_dict(self, index: int) -> dict[str, Any]:
@@ -159,6 +166,7 @@ class _Session:
             "last_capture_time": round(float(self.last_capture_time or 0.0), 9),
             "duration_seconds": round(duration, 9),
             "payload_bitrate_kbps": None if bitrate is None else round(bitrate, 3),
+            "rtp_timing_samples": self.timing_samples,
             **sequence,
             "rtcp_report_blocks": len(reports),
             "rtcp_sender_reports": len(sender_reports),

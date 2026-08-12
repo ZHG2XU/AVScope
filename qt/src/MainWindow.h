@@ -85,6 +85,7 @@ private:
     void populateRtpVideo(const QJsonObject &video);
     void populateSipSdp(const QJsonObject &signaling);
     void populateRtcpFeedback(const QJsonObject &rtcp);
+    void populateRtpTiming(const QJsonObject &transport);
     void populateCodecHealth(const QJsonObject &health);
     void filterTransportSessions();
     void populateBookmarks();
@@ -144,6 +145,8 @@ private:
     QTableWidget *m_sdpMappingsTable = nullptr;
     QTableWidget *m_rtcpFeedbackTable = nullptr;
     QTableWidget *m_rtcpMetadataTable = nullptr;
+    QTableWidget *m_rtpTimingTable = nullptr;
+    QTableWidget *m_rtpTimingEventsTable = nullptr;
     QTabWidget *m_transportDetails = nullptr;
     QTableWidget *m_codecIssuesTable = nullptr;
     QTableWidget *m_codecParametersTable = nullptr;
@@ -162,6 +165,7 @@ private:
     QLabel *m_rtpVideoSummary = nullptr;
     QLabel *m_sipSdpSummary = nullptr;
     QLabel *m_rtcpFeedbackSummary = nullptr;
+    QLabel *m_rtpTimingSummary = nullptr;
     QLabel *m_codecMetric = nullptr;
     QLabel *m_codecStatusMetric = nullptr;
     QLabel *m_codecParameterMetric = nullptr;

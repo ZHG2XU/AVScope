@@ -564,6 +564,55 @@ QWidget *MainWindow::buildWorkspace()
     feedbackSplitter->setSizes({340, 190});
     feedbackLayout->addWidget(feedbackSplitter, 1);
     m_transportDetails->addTab(feedbackPanel, tr("控制反馈"));
+
+    auto *timingPanel = new QWidget;
+    auto *timingLayout = new QVBoxLayout(timingPanel);
+    timingLayout->setContentsMargins(8, 8, 8, 8);
+    timingLayout->setSpacing(7);
+    m_rtpTimingSummary = new QLabel(tr("当前文件没有可计算的 RTP 时序质量"));
+    m_rtpTimingSummary->setObjectName("sectionHint");
+    m_rtpTimingSummary->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    timingLayout->addWidget(m_rtpTimingSummary);
+    auto *timingSplitter = new QSplitter(Qt::Vertical);
+    m_rtpTimingTable = new QTableWidget;
+    m_rtpTimingTable->setColumnCount(10);
+    m_rtpTimingTable->setHorizontalHeaderLabels({
+        tr("状态"), tr("端点"), "SSRC", tr("Clock"), tr("包"), tr("RFC 3550 Jitter"),
+        tr("平均间隔"), tr("间隔范围"), tr("最大偏差"), tr("突发")
+    });
+    m_rtpTimingTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_rtpTimingTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_rtpTimingTable->setAlternatingRowColors(true);
+    m_rtpTimingTable->setSortingEnabled(true);
+    m_rtpTimingTable->verticalHeader()->hide();
+    m_rtpTimingTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_rtpTimingTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    connect(m_rtpTimingTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 12); m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("RTP 时序会话  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    timingSplitter->addWidget(m_rtpTimingTable);
+    m_rtpTimingEventsTable = new QTableWidget;
+    m_rtpTimingEventsTable->setColumnCount(7);
+    m_rtpTimingEventsTable->setHorizontalHeaderLabels({
+        "SSRC", tr("序号"), tr("到达间隔"), tr("媒体间隔"), tr("偏差"), tr("阈值"), "Offset"
+    });
+    m_rtpTimingEventsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_rtpTimingEventsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_rtpTimingEventsTable->setAlternatingRowColors(true);
+    m_rtpTimingEventsTable->verticalHeader()->hide();
+    m_rtpTimingEventsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_rtpTimingEventsTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
+    connect(m_rtpTimingEventsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 12); m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("RTP 突发延迟  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    timingSplitter->addWidget(m_rtpTimingEventsTable);
+    timingSplitter->setSizes({340, 190});
+    timingLayout->addWidget(timingSplitter, 1);
+    m_transportDetails->addTab(timingPanel, tr("时序质量"));
     transportLayout->addWidget(m_transportDetails, 1);
     m_tabs->addTab(transportPanel, tr("传输会话"));
 
@@ -1212,6 +1261,7 @@ void MainWindow::loadDocument(const QJsonDocument &document)
     populateRtpVideo(media.value("summary").toObject().value("rtp_video").toObject());
     populateSipSdp(media.value("summary").toObject().value("sip_sdp").toObject());
     populateRtcpFeedback(media.value("summary").toObject().value("rtcp").toObject());
+    populateRtpTiming(media.value("summary").toObject().value("transport_sessions").toObject());
     populateCodecHealth(media.value("summary").toObject().value("codec_health").toObject());
     populateDiagnostics(diagnostics, media);
     m_timeline->setData(frames, media.value("summary").toObject().value("timeline_summary").toObject());
@@ -1745,6 +1795,80 @@ void MainWindow::populateRtcpFeedback(const QJsonObject &rtcp)
         QFile file(statePath); QDir().mkpath(QFileInfo(statePath).absolutePath());
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
             file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+    }
+}
+
+void MainWindow::populateRtpTiming(const QJsonObject &transport)
+{
+    if (!m_rtpTimingTable || !m_rtpTimingEventsTable || !m_rtpTimingSummary) return;
+    const auto sessions = transport.value("sessions").toArray();
+    const auto summary = transport.value("rtp_timing").toObject();
+    m_rtpTimingTable->setSortingEnabled(false);
+    m_rtpTimingTable->setRowCount(sessions.size());
+    int eventCount = 0;
+    for (const auto &value : sessions) eventCount += value.toObject().value("rtp_timing").toObject().value("events").toArray().size();
+    m_rtpTimingEventsTable->setRowCount(eventCount);
+    int eventRow = 0;
+    for (int row = 0; row < sessions.size(); ++row) {
+        const auto session = sessions.at(row).toObject();
+        const auto timing = session.value("rtp_timing").toObject();
+        const qint64 offset = jsonInteger(session.value("first_offset"));
+        const bool available = timing.value("available").toBool();
+        const bool warning = timing.value("status").toString() == "warning";
+        const QString status = !available ? tr("不可计算") : warning ? tr("警告") : tr("正常");
+        const QString clock = jsonInteger(timing.value("clock_rate")) > 0
+            ? tr("%1 Hz / %2").arg(jsonInteger(timing.value("clock_rate"))).arg(timing.value("clock_source").toString()) : "--";
+        const QStringList values = {
+            status, session.value("endpoint").toString(), session.value("ssrc").toString(), clock,
+            displayValue(timing.value("packet_count")), available ? tr("%1 ms").arg(timing.value("rfc3550_jitter_ms").toDouble(), 0, 'f', 3) : "--",
+            available ? tr("%1 ms").arg(timing.value("average_arrival_interval_ms").toDouble(), 0, 'f', 3) : "--",
+            available ? tr("%1 - %2 ms").arg(timing.value("min_arrival_interval_ms").toDouble(), 0, 'f', 3)
+                                              .arg(timing.value("max_arrival_interval_ms").toDouble(), 0, 'f', 3) : "--",
+            available ? tr("%1 ms").arg(timing.value("max_abs_deviation_ms").toDouble(), 0, 'f', 3) : "--",
+            displayValue(timing.value("burst_events")),
+        };
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column)); cell->setData(OffsetRole, offset);
+            if (warning) cell->setForeground(QColor(m_dark ? "#F5C76B" : "#8A5A00"));
+            else if (available && column == 0) cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
+            else if (!available && column == 0) cell->setForeground(QColor(m_dark ? "#94A3B2" : "#536574"));
+            else if (column == 5) cell->setForeground(QColor(m_dark ? "#7CC9F3" : "#176A99"));
+            m_rtpTimingTable->setItem(row, column, cell);
+        }
+        for (const auto &eventValue : timing.value("events").toArray()) {
+            const auto event = eventValue.toObject();
+            const qint64 eventOffset = jsonInteger(event.value("offset"));
+            const QStringList eventValues = {
+                session.value("ssrc").toString(), displayValue(event.value("sequence")),
+                tr("%1 ms").arg(event.value("arrival_interval_ms").toDouble(), 0, 'f', 3),
+                tr("%1 ms").arg(event.value("media_interval_ms").toDouble(), 0, 'f', 3),
+                tr("%1 ms").arg(event.value("deviation_ms").toDouble(), 0, 'f', 3),
+                tr("%1 ms").arg(timing.value("burst_threshold_ms").toDouble(), 0, 'f', 1),
+                QString("0x%1").arg(eventOffset, 0, 16).toUpper(),
+            };
+            for (int column = 0; column < eventValues.size(); ++column) {
+                auto *cell = new QTableWidgetItem(eventValues.at(column)); cell->setData(OffsetRole, eventOffset);
+                cell->setForeground(QColor(m_dark ? "#F5C76B" : "#8A5A00"));
+                m_rtpTimingEventsTable->setItem(eventRow, column, cell);
+            }
+            ++eventRow;
+        }
+    }
+    m_rtpTimingTable->setSortingEnabled(true);
+    m_rtpTimingSummary->setText(
+        !summary.value("available").toBool() ? tr("当前文件没有可计算的 RTP 时序质量")
+        : tr("可计算会话 %1  |  警告 %2  |  最大 Jitter %3 ms  |  最大偏差 %4 ms  |  突发 %5")
+              .arg(jsonInteger(summary.value("session_count"))).arg(jsonInteger(summary.value("warning_sessions")))
+              .arg(summary.value("max_rfc3550_jitter_ms").toDouble(), 0, 'f', 3)
+              .arg(summary.value("max_abs_deviation_ms").toDouble(), 0, 'f', 3)
+              .arg(jsonInteger(summary.value("burst_events"))));
+    const QString statePath = qEnvironmentVariable("AVSCOPE_RTP_TIMING_STATE");
+    if (!statePath.isEmpty()) {
+        QJsonObject state{{"sessions", summary.value("session_count")}, {"warnings", summary.value("warning_sessions")},
+                          {"max_jitter_ms", summary.value("max_rfc3550_jitter_ms")},
+                          {"max_deviation_ms", summary.value("max_abs_deviation_ms")}, {"bursts", summary.value("burst_events")}};
+        QFile file(statePath); QDir().mkpath(QFileInfo(statePath).absolutePath());
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
     }
 }
 

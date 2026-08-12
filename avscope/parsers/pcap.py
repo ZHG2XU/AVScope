@@ -31,6 +31,12 @@ RTCP_PACKET_TYPES = {
     206: "Payload Feedback",
     207: "Extended Report",
 }
+RTP_STATIC_CLOCK_RATES = {
+    0: 8000, 3: 8000, 4: 8000, 5: 8000, 6: 16000, 7: 8000, 8: 8000, 9: 8000,
+    10: 44100, 11: 44100, 12: 8000, 13: 8000, 14: 90000, 15: 8000, 16: 11025,
+    17: 22050, 18: 8000, 25: 90000, 26: 90000, 28: 90000, 31: 90000, 32: 90000,
+    33: 90000, 34: 90000,
+}
 
 
 class PcapRtpParser(FormatParser):
@@ -185,8 +191,20 @@ class PcapRtpParser(FormatParser):
         session_tracker.attach_rtcp(rtcp_stats)
         transport_sessions = session_tracker.summary()
         _merge_sdp_transport_sessions(transport_sessions, negotiated_packets)
+        _merge_rtp_timing_quality(transport_sessions)
+        for session in transport_sessions.get("sessions", []):
+            for event in session.get("rtp_timing", {}).get("events", []):
+                diagnostics.append(warn(
+                    f"RTP 到达时序突发: ssrc={session.get('ssrc')} sequence={event.get('sequence')} "
+                    f"arrival={event.get('arrival_interval_ms'):.3f}ms media={event.get('media_interval_ms'):.3f}ms "
+                    f"deviation={event.get('deviation_ms'):.3f}ms",
+                    int(event.get("offset", 0)), "RTP Timing",
+                ))
         rtp_video, video_diagnostics = video_analyzer.finalize()
         _merge_rtp_video_sessions(transport_sessions, rtp_video)
+        transport_sessions["warning_sessions"] = sum(
+            item.get("status") == "warning" for item in transport_sessions.get("sessions", [])
+        )
         diagnostics.extend(video_diagnostics)
         rtcp_summary = _finalize_rtcp_stats(rtcp_stats)
         root.fields.extend(
@@ -203,6 +221,7 @@ class PcapRtpParser(FormatParser):
                 FieldInfo("sip_messages", sip_sdp["message_count"]),
                 FieldInfo("sdp_media", sip_sdp["media_count"]),
                 FieldInfo("sdp_payload_mappings", sip_sdp["mapping_count"]),
+                FieldInfo("rtp_timing_bursts", transport_sessions["rtp_timing"]["burst_events"]),
             ]
         )
         summary = {
@@ -931,6 +950,90 @@ def _merge_sdp_transport_sessions(transport: dict, negotiated_packets: list[tupl
         session["mapping_source"] = mapping.get("mapping_source", "SDP")
         linked.add(int(session.get("index", 0)))
     transport["sdp_linked_sessions"] = len(linked)
+
+
+def _merge_rtp_timing_quality(transport: dict) -> None:
+    warning_sessions = 0
+    available_sessions = 0
+    max_jitter_ms = 0.0
+    max_deviation_ms = 0.0
+    total_burst_events = 0
+    for session in transport.get("sessions", []):
+        samples = session.pop("rtp_timing_samples", [])
+        clock_rate = int(session.get("negotiated_clock_rate", 0) or 0)
+        clock_source = "SDP" if clock_rate > 0 else ""
+        payload_types = session.get("payload_types", [])
+        if clock_rate <= 0 and len(payload_types) == 1:
+            clock_rate = RTP_STATIC_CLOCK_RATES.get(int(payload_types[0]), 0)
+            clock_source = "RTP static PT" if clock_rate > 0 else ""
+        quality = _rtp_timing_metrics(samples, clock_rate, clock_source)
+        session["rtp_timing"] = quality
+        if quality["available"]:
+            available_sessions += 1
+            max_jitter_ms = max(max_jitter_ms, float(quality["rfc3550_jitter_ms"]))
+            max_deviation_ms = max(max_deviation_ms, float(quality["max_abs_deviation_ms"]))
+            total_burst_events += int(quality["burst_events"])
+        if quality["status"] == "warning":
+            warning_sessions += 1
+            session["status"] = "warning"
+    transport["rtp_timing"] = {
+        "available": available_sessions > 0,
+        "session_count": available_sessions,
+        "warning_sessions": warning_sessions,
+        "max_rfc3550_jitter_ms": round(max_jitter_ms, 3),
+        "max_abs_deviation_ms": round(max_deviation_ms, 3),
+        "burst_events": total_burst_events,
+    }
+    transport["warning_sessions"] = sum(item.get("status") == "warning" for item in transport.get("sessions", []))
+
+
+def _rtp_timing_metrics(samples: list[dict], clock_rate: int, clock_source: str) -> dict:
+    base = {
+        "available": False, "status": "unavailable", "clock_rate": clock_rate, "clock_source": clock_source,
+        "packet_count": len(samples), "interval_count": max(0, len(samples) - 1), "rfc3550_jitter_ms": 0.0,
+        "average_arrival_interval_ms": 0.0, "min_arrival_interval_ms": 0.0, "max_arrival_interval_ms": 0.0,
+        "max_abs_deviation_ms": 0.0, "burst_events": 0, "burst_threshold_ms": 20.0, "events": [],
+    }
+    if clock_rate <= 0 or len(samples) < 2:
+        return base
+    jitter = 0.0
+    arrival_intervals: list[float] = []
+    deviations: list[float] = []
+    events: list[dict] = []
+    previous = samples[0]
+    for sample in samples[1:]:
+        sequence_delta = (int(sample["sequence"]) - int(previous["sequence"])) & 0xFFFF
+        if sequence_delta == 0 or sequence_delta & 0x8000:
+            continue
+        arrival_ms = (float(sample["capture_time"]) - float(previous["capture_time"])) * 1000
+        timestamp_delta = (int(sample["rtp_timestamp"]) - int(previous["rtp_timestamp"])) & 0xFFFFFFFF
+        if timestamp_delta & 0x80000000:
+            timestamp_delta -= 0x100000000
+        media_ms = timestamp_delta * 1000 / clock_rate
+        deviation_ms = arrival_ms - media_ms
+        jitter += (abs(deviation_ms) - jitter) / 16
+        arrival_intervals.append(arrival_ms)
+        deviations.append(deviation_ms)
+        if abs(deviation_ms) > base["burst_threshold_ms"]:
+            events.append({
+                "sequence": int(sample["sequence"]), "offset": int(sample["offset"]),
+                "arrival_interval_ms": round(arrival_ms, 3), "media_interval_ms": round(media_ms, 3),
+                "deviation_ms": round(deviation_ms, 3),
+            })
+        previous = sample
+    if not arrival_intervals:
+        return base
+    max_deviation = max((abs(value) for value in deviations), default=0.0)
+    base.update({
+        "available": True, "status": "warning" if events else "normal", "interval_count": len(arrival_intervals),
+        "rfc3550_jitter_ms": round(jitter, 3),
+        "rfc3550_jitter_timestamp_units": round(jitter * clock_rate / 1000, 3),
+        "average_arrival_interval_ms": round(sum(arrival_intervals) / len(arrival_intervals), 3),
+        "min_arrival_interval_ms": round(min(arrival_intervals), 3),
+        "max_arrival_interval_ms": round(max(arrival_intervals), 3),
+        "max_abs_deviation_ms": round(max_deviation, 3), "burst_events": len(events), "events": events,
+    })
+    return base
 
 
 def _signed_24(data: bytes) -> int:

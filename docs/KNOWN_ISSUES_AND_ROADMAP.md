@@ -37,5 +37,6 @@
 - 新增 RTP H.264/H.265 视频负载检查，支持 STAP-A/AP/FU 分层协议节点、分片状态机、NALU 类型汇总和 payload Hex 定位；负载问题与传输会话状态联动，并提供正式多 SSRC 测试抓包及 HTML/JSON/CSV 示例报告。
 - 新增 SIP/SDP 信令协商分析，支持 SIP 请求/响应、Call-ID/CSeq、完整 Header、SDP 媒体/方向/rtpmap/fmtp、按端口作用域的动态 PT 映射和 RTP Clock Rate 修正；Qt 提供信令/媒体上下分栏，并附带同 PT 跨会话、音频排除测试抓包及报告。
 - 新增 RTCP 控制反馈分析，支持 SDES CNAME、BYE 原因、Generic NACK PID/BLP 丢失序号展开、PLI 和 FIR sequence；反馈与 RTP SSRC 会话关联，Qt 提供控制反馈上下分栏，HTML/JSON/CSV 与专用 PCAP 样例同步覆盖。
+- 新增 RTP 时序质量分析，按静态 PT/SDP Clock Rate 计算 RFC 3550 Jitter、到达/媒体间隔、最大偏差和 20 ms 突发事件；Qt、全局诊断、HTML/JSON/CSV 与专用音频 RTP 样例同步覆盖。
 - GUI 时间线页已叠加 PTS/DTS 曲线、码率曲线、GOP 分段、RTP sequence 曲线、PCR 曲线和异常标记，时间戳、RTP sequence 与带行号 PCR 异常会在表格中高亮并通过 `Issue` 列说明原因，同时提供“只看时间线异常”筛选；预览页会显示时间线曲线摘要和统一的时间线异常原因摘要；HTML 报告会汇总时间戳、RTP sequence 和 PCR 异常清单，并在帧列表/Packet 时间线中标注 `Issue` 原因，宽表在窄屏下可横向滚动；CSV 导出会写入可筛选的 `timeline_issue` section；HTML/JSON/CSV 导出已包含同一份结构化数据，PCAP/RTP/RTCP 还会显示 sequence 曲线、跳变点与 RTCP 会话质量，MPEG-TS 会显示 PCR 曲线。
 - 后续仍建议继续扩展 RTP sequence 多流对齐视图、后台索引、取消任务和 10GB 级自动化压力测试。

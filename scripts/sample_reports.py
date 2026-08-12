@@ -24,6 +24,9 @@ DEFAULT_OUTPUTS = [
     "sample_rtcp_feedback_report.html",
     "sample_rtcp_feedback_report.json",
     "sample_rtcp_feedback_report.csv",
+    "sample_rtp_timing_report.html",
+    "sample_rtp_timing_report.json",
+    "sample_rtp_timing_report.csv",
     "sample_protocol_compare.json",
     "sample_frame_compare.json",
 ]
@@ -66,6 +69,13 @@ def build_sample_reports(root: str | Path, output_dir: str | Path) -> list[Path]
     export_html(rtcp_feedback_result, output_path / "sample_rtcp_feedback_report.html", notes=rtcp_note)
     export_json(rtcp_feedback_result, output_path / "sample_rtcp_feedback_report.json", notes=rtcp_note)
     export_csv(rtcp_feedback_result, output_path / "sample_rtcp_feedback_report.csv", notes=rtcp_note)
+
+    rtp_timing = root_path / "samples" / "sample_rtp_timing.pcap"
+    rtp_timing_result = analyzer.analyze(rtp_timing)
+    timing_note = "AVScope 交付示例报告：RTP RFC 3550 Jitter、到达间隔、媒体间隔与突发延迟。"
+    export_html(rtp_timing_result, output_path / "sample_rtp_timing_report.html", notes=timing_note)
+    export_json(rtp_timing_result, output_path / "sample_rtp_timing_report.json", notes=timing_note)
+    export_csv(rtp_timing_result, output_path / "sample_rtp_timing_report.csv", notes=timing_note)
 
     changed_mp4 = root_path / "samples" / "sample_changed.mp4"
     protocol_compare = compare_protocol(mp4, changed_mp4)
