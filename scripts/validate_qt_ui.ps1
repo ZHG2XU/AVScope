@@ -32,7 +32,7 @@ foreach ($theme in @("dark", "light")) {
 }
 
 $env:PYTHONPATH = $root
-& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png')]; dims=[png_dimensions(p) for p in paths]; assert dims[0] == dims[1], dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; assert all(p.stat().st_size > 50000 for p in paths); print({'screenshots': [str(p) for p in paths], 'dimensions': dims, 'dpi_scale': round(width / 1560, 2)})"
+& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png')]; dims=[png_dimensions(p) for p in paths]; assert dims[0] == dims[1], dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; assert all(p.stat().st_size > 50000 for p in paths); settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'dimensions': dims, 'dpi_scale': round(width / 1560, 2), 'settings': str(settings)})"
 if ($LASTEXITCODE -ne 0) { throw "Qt screenshot validation failed" }
 
 & "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; document=json.loads(Path(r'$root/tmp/qt-runtime/current-analysis.json').read_text(encoding='utf-8')); root=document['root']; assert root['children'] and root['children'][0]['fields']; print({'nodes': len(root['children']), 'first_fields': len(root['children'][0]['fields'])})"

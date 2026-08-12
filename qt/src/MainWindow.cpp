@@ -3,6 +3,9 @@
 
 #include <QActionGroup>
 #include <QApplication>
+#include <QCheckBox>
+#include <QClipboard>
+#include <QCloseEvent>
 #include <QDateTime>
 #include <QDir>
 #include <QDragEnterEvent>
@@ -14,6 +17,7 @@
 #include <QFrame>
 #include <QGridLayout>
 #include <QHeaderView>
+#include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QLabel>
@@ -23,10 +27,12 @@
 #include <QMimeData>
 #include <QPlainTextEdit>
 #include <QProcessEnvironment>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QStatusBar>
+#include <QShortcut>
 #include <QTableWidget>
 #include <QTabWidget>
 #include <QTextBlock>
@@ -59,7 +65,9 @@ QLabel *sectionLabel(const QString &text)
 }
 }
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_process(new QProcess(this))
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent), m_process(new QProcess(this)),
+      m_settings(QDir(qEnvironmentVariable("AVSCOPE_ROOT", "G:/AVScope")).filePath("data/qt-settings.ini"), QSettings::IniFormat)
 {
     setWindowTitle(tr("AVScope - 音视频协议分析工作台"));
     resize(1560, 940);
@@ -67,8 +75,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_process(new QPr
     setAcceptDrops(true);
     buildUi();
     buildMenus();
+    buildShortcuts();
     applyTheme(qEnvironmentVariable("AVSCOPE_THEME").compare("light", Qt::CaseInsensitive) != 0);
     connect(m_process, &QProcess::finished, this, &MainWindow::analysisFinished);
+    restoreWorkspaceState();
 }
 
 void MainWindow::buildUi()
@@ -81,17 +91,17 @@ void MainWindow::buildUi()
     rootLayout->addWidget(buildHeader());
     rootLayout->addWidget(buildSummaryStrip());
 
-    auto *splitter = new QSplitter(Qt::Horizontal);
-    splitter->setObjectName("mainSplitter");
-    splitter->setChildrenCollapsible(false);
-    splitter->addWidget(buildProtocolPanel());
-    splitter->addWidget(buildWorkspace());
-    splitter->addWidget(buildInspector());
-    splitter->setStretchFactor(0, 2);
-    splitter->setStretchFactor(1, 6);
-    splitter->setStretchFactor(2, 2);
-    splitter->setSizes({390, 800, 330});
-    rootLayout->addWidget(splitter, 1);
+    m_mainSplitter = new QSplitter(Qt::Horizontal);
+    m_mainSplitter->setObjectName("mainSplitter");
+    m_mainSplitter->setChildrenCollapsible(false);
+    m_mainSplitter->addWidget(buildProtocolPanel());
+    m_mainSplitter->addWidget(buildWorkspace());
+    m_mainSplitter->addWidget(buildInspector());
+    m_mainSplitter->setStretchFactor(0, 2);
+    m_mainSplitter->setStretchFactor(1, 6);
+    m_mainSplitter->setStretchFactor(2, 2);
+    m_mainSplitter->setSizes({390, 800, 330});
+    rootLayout->addWidget(m_mainSplitter, 1);
 
     m_log = new QPlainTextEdit;
     m_log->setObjectName("logPanel");
@@ -103,6 +113,12 @@ void MainWindow::buildUi()
 
     m_statusText = new QLabel(tr("就绪"));
     statusBar()->addWidget(m_statusText, 1);
+    m_progress = new QProgressBar;
+    m_progress->setObjectName("analysisProgress");
+    m_progress->setRange(0, 0);
+    m_progress->setFixedSize(120, 8);
+    m_progress->hide();
+    statusBar()->addPermanentWidget(m_progress);
     auto *engine = new QLabel(tr("解析引擎 Python Core  |  UI Qt 6.9"));
     engine->setObjectName("statusMeta");
     statusBar()->addPermanentWidget(engine);
@@ -144,6 +160,7 @@ QWidget *MainWindow::buildHeader()
     m_search->setClearButtonEnabled(true);
     m_search->setMinimumWidth(260);
     connect(m_search, &QLineEdit::returnPressed, this, &MainWindow::searchNext);
+    connect(m_search, &QLineEdit::textChanged, this, &MainWindow::filterProtocolTree);
     layout->addWidget(m_search);
 
     auto *open = commandButton(tr("打开文件"), "primaryButton");
@@ -152,6 +169,12 @@ QWidget *MainWindow::buildHeader()
     auto *reload = commandButton(tr("重新分析"));
     connect(reload, &QPushButton::clicked, this, &MainWindow::reloadCurrent);
     layout->addWidget(reload);
+
+    m_cancelButton = commandButton(tr("取消"));
+    m_cancelButton->setObjectName("dangerButton");
+    m_cancelButton->setEnabled(false);
+    connect(m_cancelButton, &QPushButton::clicked, this, &MainWindow::cancelAnalysis);
+    layout->addWidget(m_cancelButton);
 
     m_darkButton = commandButton(tr("夜间"));
     m_lightButton = commandButton(tr("浅色"));
@@ -205,6 +228,24 @@ QWidget *MainWindow::buildProtocolPanel()
     auto *hint = new QLabel(tr("展开节点可查看每个字段和值"));
     hint->setObjectName("sectionHint");
     layout->addWidget(hint);
+
+    auto *tools = new QWidget;
+    auto *toolsLayout = new QHBoxLayout(tools);
+    toolsLayout->setContentsMargins(0, 0, 0, 0);
+    toolsLayout->setSpacing(6);
+    m_issueFilter = new QCheckBox(tr("只看异常"));
+    connect(m_issueFilter, &QCheckBox::toggled, this, &MainWindow::filterProtocolTree);
+    toolsLayout->addWidget(m_issueFilter);
+    auto *expand = commandButton(tr("展开"));
+    expand->setMinimumHeight(28);
+    connect(expand, &QPushButton::clicked, this, [this] { m_protocolTree->expandAll(); });
+    toolsLayout->addWidget(expand);
+    auto *collapse = commandButton(tr("折叠"));
+    collapse->setMinimumHeight(28);
+    connect(collapse, &QPushButton::clicked, this, [this] { m_protocolTree->collapseAll(); });
+    toolsLayout->addWidget(collapse);
+    toolsLayout->addStretch();
+    layout->addWidget(tools);
 
     m_protocolTree = new QTreeWidget;
     m_protocolTree->setObjectName("protocolTree");
@@ -261,6 +302,7 @@ QWidget *MainWindow::buildWorkspace()
     m_framesTable->setAlternatingRowColors(true);
     m_framesTable->verticalHeader()->hide();
     m_framesTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
+    connect(m_framesTable, &QTableWidget::itemSelectionChanged, this, &MainWindow::onFrameSelectionChanged);
     m_tabs->addTab(m_framesTable, tr("帧列表"));
 
     m_timeline = new TimelineWidget;
@@ -281,7 +323,17 @@ QWidget *MainWindow::buildInspector()
     auto *layout = new QVBoxLayout(panel);
     layout->setContentsMargins(10, 10, 10, 10);
     layout->setSpacing(8);
-    layout->addWidget(sectionLabel(tr("诊断与属性")));
+    layout->addWidget(sectionLabel(tr("当前选择")));
+    auto *selectionHint = new QLabel(tr("节点、字段位置与语义详情"));
+    selectionHint->setObjectName("sectionHint");
+    layout->addWidget(selectionHint);
+    m_selectionDetails = new QPlainTextEdit;
+    m_selectionDetails->setObjectName("selectionDetails");
+    m_selectionDetails->setReadOnly(true);
+    m_selectionDetails->setMaximumHeight(260);
+    m_selectionDetails->setPlaceholderText(tr("选择协议节点或字段后显示详情"));
+    layout->addWidget(m_selectionDetails);
+    layout->addWidget(sectionLabel(tr("全局诊断")));
     auto *hint = new QLabel(tr("warning / error 与媒体探测摘要"));
     hint->setObjectName("sectionHint");
     layout->addWidget(hint);
@@ -299,6 +351,10 @@ void MainWindow::buildMenus()
     connect(open, &QAction::triggered, this, &MainWindow::chooseFile);
     auto *reload = fileMenu->addAction(tr("重新分析"), QKeySequence::Refresh);
     connect(reload, &QAction::triggered, this, &MainWindow::reloadCurrent);
+    auto *cancel = fileMenu->addAction(tr("取消当前分析"), QKeySequence(Qt::Key_Escape));
+    connect(cancel, &QAction::triggered, this, &MainWindow::cancelAnalysis);
+    m_recentMenu = fileMenu->addMenu(tr("最近文件"));
+    rebuildRecentMenu();
     fileMenu->addSeparator();
     auto *html = fileMenu->addAction(tr("导出 HTML 报告..."));
     connect(html, &QAction::triggered, this, &MainWindow::exportHtml);
@@ -318,12 +374,94 @@ void MainWindow::buildMenus()
     themes->addAction(light);
     connect(dark, &QAction::triggered, this, &MainWindow::setDarkTheme);
     connect(light, &QAction::triggered, this, &MainWindow::setLightTheme);
+    viewMenu->addSeparator();
+    viewMenu->addAction(tr("展开协议树"), QKeySequence("Ctrl+Shift+E"), m_protocolTree, &QTreeWidget::expandAll);
+    viewMenu->addAction(tr("折叠协议树"), QKeySequence("Ctrl+Shift+C"), m_protocolTree, &QTreeWidget::collapseAll);
+
+    auto *editMenu = menuBar()->addMenu(tr("编辑"));
+    editMenu->addAction(tr("复制当前 Offset"), QKeySequence("Ctrl+Shift+O"), this, &MainWindow::copyCurrentOffset);
+    editMenu->addAction(tr("复制当前值"), QKeySequence::Copy, this, &MainWindow::copyCurrentValue);
 
     auto *helpMenu = menuBar()->addMenu(tr("帮助"));
     helpMenu->addAction(tr("关于 AVScope"), this, [this] {
         QMessageBox::about(this, tr("关于 AVScope"),
                            tr("AVScope %1\nQt 6 现代桌面工作台\nPython 协议解析核心").arg(QApplication::applicationVersion()));
     });
+}
+
+void MainWindow::buildShortcuts()
+{
+    auto *focusSearch = new QShortcut(QKeySequence::Find, this);
+    connect(focusSearch, &QShortcut::activated, m_search, [this] { m_search->setFocus(); m_search->selectAll(); });
+    for (int index = 0; index < 5; ++index) {
+        auto *shortcut = new QShortcut(QKeySequence(QString("Ctrl+%1").arg(index + 1)), this);
+        connect(shortcut, &QShortcut::activated, this, [this, index] { m_tabs->setCurrentIndex(index); });
+    }
+}
+
+void MainWindow::addRecentFile(const QString &path)
+{
+    QStringList recent = m_settings.value("recentFiles").toStringList();
+    recent.removeAll(path);
+    recent.prepend(path);
+    while (recent.size() > 12)
+        recent.removeLast();
+    m_settings.setValue("recentFiles", recent);
+    rebuildRecentMenu();
+}
+
+void MainWindow::rebuildRecentMenu()
+{
+    if (!m_recentMenu)
+        return;
+    m_recentMenu->clear();
+    const QStringList recent = m_settings.value("recentFiles").toStringList();
+    bool added = false;
+    for (const QString &path : recent) {
+        if (!QFileInfo::exists(path))
+            continue;
+        added = true;
+        auto *action = m_recentMenu->addAction(QFileInfo(path).fileName());
+        action->setToolTip(path);
+        connect(action, &QAction::triggered, this, [this, path] { openPath(path); });
+    }
+    if (!added) {
+        auto *empty = m_recentMenu->addAction(tr("暂无最近文件"));
+        empty->setEnabled(false);
+    } else {
+        m_recentMenu->addSeparator();
+        m_recentMenu->addAction(tr("清空最近文件"), this, [this] {
+            m_settings.remove("recentFiles");
+            rebuildRecentMenu();
+        });
+    }
+}
+
+void MainWindow::restoreWorkspaceState()
+{
+    const QByteArray geometry = m_settings.value("windowGeometry").toByteArray();
+    if (!geometry.isEmpty())
+        restoreGeometry(geometry);
+    const QByteArray splitterState = m_settings.value("splitterState").toByteArray();
+    if (!splitterState.isEmpty())
+        m_mainSplitter->restoreState(splitterState);
+    m_tabs->setCurrentIndex(qBound(0, m_settings.value("currentTab", 0).toInt(), m_tabs->count() - 1));
+    if (qEnvironmentVariableIsEmpty("AVSCOPE_THEME"))
+        applyTheme(m_settings.value("theme", "dark").toString() != "light");
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (m_process->state() != QProcess::NotRunning) {
+        m_cancelRequested = true;
+        m_process->kill();
+        m_process->waitForFinished(1000);
+    }
+    m_settings.setValue("windowGeometry", saveGeometry());
+    m_settings.setValue("splitterState", m_mainSplitter->saveState());
+    m_settings.setValue("currentTab", m_tabs->currentIndex());
+    m_settings.sync();
+    QMainWindow::closeEvent(event);
 }
 
 void MainWindow::chooseFile()
@@ -339,6 +477,17 @@ void MainWindow::reloadCurrent()
         openPath(m_currentPath);
 }
 
+void MainWindow::cancelAnalysis()
+{
+    if (m_process->state() == QProcess::NotRunning)
+        return;
+    m_cancelRequested = true;
+    m_statusText->setText(tr("正在取消分析..."));
+    m_process->terminate();
+    if (!m_process->waitForFinished(1200))
+        m_process->kill();
+}
+
 void MainWindow::openPath(const QString &path)
 {
     const QFileInfo info(path);
@@ -352,6 +501,7 @@ void MainWindow::openPath(const QString &path)
     }
 
     m_currentPath = info.absoluteFilePath();
+    m_cancelRequested = false;
     QDir().mkpath(projectRoot() + "/tmp/qt-runtime");
     QFile::remove(analysisOutputPath());
     m_fileLabel->setText(info.fileName());
@@ -364,11 +514,19 @@ void MainWindow::openPath(const QString &path)
     environment.insert("TMP", projectRoot() + "/tmp");
     m_process->setProcessEnvironment(environment);
     m_process->setWorkingDirectory(projectRoot());
+    setAnalysisBusy(true);
     m_process->start(engineExecutable(), engineArguments({"analyze", m_currentPath, "--json", analysisOutputPath()}));
 }
 
 void MainWindow::analysisFinished(int exitCode, QProcess::ExitStatus status)
 {
+    setAnalysisBusy(false);
+    if (m_cancelRequested) {
+        m_cancelRequested = false;
+        m_statusText->setText(tr("分析已取消"));
+        m_log->appendPlainText(tr("[%1] 用户取消分析").arg(QTime::currentTime().toString("HH:mm:ss")));
+        return;
+    }
     if (status != QProcess::NormalExit || exitCode != 0) {
         const auto error = QString::fromUtf8(m_process->readAllStandardError());
         m_statusText->setText(tr("分析失败"));
@@ -389,8 +547,20 @@ void MainWindow::analysisFinished(int exitCode, QProcess::ExitStatus status)
     }
     loadDocument(document);
     const auto info = QFileInfo(m_currentPath);
+    addRecentFile(m_currentPath);
     m_statusText->setText(tr("%1  |  分析完成").arg(info.fileName()));
     m_log->appendPlainText(tr("[%1] 分析完成").arg(QTime::currentTime().toString("HH:mm:ss")));
+}
+
+void MainWindow::setAnalysisBusy(bool busy)
+{
+    m_cancelButton->setEnabled(busy);
+    m_progress->setVisible(busy);
+    m_search->setEnabled(!busy);
+    if (busy)
+        QApplication::setOverrideCursor(Qt::BusyCursor);
+    else if (QApplication::overrideCursor())
+        QApplication::restoreOverrideCursor();
 }
 
 void MainWindow::loadDocument(const QJsonDocument &document)
@@ -404,6 +574,7 @@ void MainWindow::loadDocument(const QJsonDocument &document)
 
     m_protocolTree->clear();
     populateProtocolTree(root);
+    filterProtocolTree();
     m_protocolTree->expandToDepth(1);
     if (auto *rootItem = m_protocolTree->topLevelItem(0)) {
         QTreeWidgetItem *selection = rootItem;
@@ -487,7 +658,10 @@ void MainWindow::onTreeSelectionChanged()
     if (selected.isEmpty())
         return;
     auto *item = selected.constFirst();
-    populateFields(item->data(0, NodeRole).toJsonObject());
+    const auto node = item->data(0, NodeRole).toJsonObject();
+    const auto field = item->data(0, FieldRole).toJsonObject();
+    populateFields(node);
+    showSelectionDetails(node, field);
     const qint64 offset = item->data(0, OffsetRole).toLongLong();
     const qint64 size = item->data(0, SizeRole).toLongLong();
     showHex(offset, size);
@@ -532,6 +706,13 @@ void MainWindow::onFieldSelectionChanged()
         return;
     const auto *item = selected.constFirst();
     showHex(item->data(OffsetRole).toLongLong(), item->data(SizeRole).toLongLong());
+    const int row = item->row();
+    const auto nodeItems = m_protocolTree->selectedItems();
+    if (!nodeItems.isEmpty()) {
+        const auto fields = nodeItems.constFirst()->data(0, NodeRole).toJsonObject().value("fields").toArray();
+        if (row >= 0 && row < fields.size())
+            showSelectionDetails(nodeItems.constFirst()->data(0, NodeRole).toJsonObject(), fields.at(row).toObject());
+    }
 }
 
 void MainWindow::populateFrames(const QJsonArray &frames)
@@ -546,11 +727,54 @@ void MainWindow::populateFrames(const QJsonArray &frames)
             QString::number(jsonInteger(frame.value("size"))), displayValue(frame.value("pts")), displayValue(frame.value("dts")),
             displayValue(frame.value("duration")), frame.value("frame_type").toString(), frame.value("keyframe").toBool() ? tr("是") : QString()
         };
-        for (int column = 0; column < values.size(); ++column)
-            m_framesTable->setItem(row, column, new QTableWidgetItem(values.at(column)));
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setData(OffsetRole, jsonInteger(frame.value("offset")));
+            cell->setData(SizeRole, jsonInteger(frame.value("size")));
+            m_framesTable->setItem(row, column, cell);
+        }
     }
     m_framesTable->resizeColumnsToContents();
     m_framesTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
+}
+
+void MainWindow::onFrameSelectionChanged()
+{
+    const auto selected = m_framesTable->selectedItems();
+    if (selected.isEmpty())
+        return;
+    const auto *item = selected.constFirst();
+    showHex(item->data(OffsetRole).toLongLong(), item->data(SizeRole).toLongLong());
+    m_statusText->setText(tr("帧 #%1  |  Offset 0x%2  |  %3 bytes")
+                              .arg(m_framesTable->item(item->row(), 0)->text())
+                              .arg(item->data(OffsetRole).toLongLong(), 0, 16)
+                              .arg(item->data(SizeRole).toLongLong()));
+}
+
+void MainWindow::showSelectionDetails(const QJsonObject &node, const QJsonObject &field)
+{
+    QStringList lines;
+    lines << tr("节点")
+          << tr("名称  %1").arg(node.value("name").toString())
+          << tr("类型  %1").arg(node.value("node_type").toString())
+          << tr("范围  0x%1 + %2 bytes").arg(jsonInteger(node.value("offset")), 0, 16).arg(jsonInteger(node.value("size")))
+          << tr("状态  %1").arg(node.value("severity").toString());
+    if (!node.value("description").toString().isEmpty())
+        lines << tr("说明  %1").arg(node.value("description").toString());
+    if (!field.isEmpty()) {
+        lines << "" << tr("字段")
+              << tr("名称  %1").arg(field.value("name").toString())
+              << tr("值    %1").arg(displayValue(field.value("value")))
+              << tr("Hex   %1").arg(field.value("hex_value").toString())
+              << tr("Offset  0x%1").arg(jsonInteger(field.value("offset")), 0, 16)
+              << tr("字节长度  %1").arg(jsonInteger(field.value("size")));
+        if (!field.value("bit_offset").isNull() || !field.value("bit_length").isNull())
+            lines << tr("Bit  %1 / %2").arg(jsonInteger(field.value("bit_offset"))).arg(jsonInteger(field.value("bit_length")));
+        lines << tr("状态  %1").arg(field.value("severity").toString());
+        if (!field.value("description").toString().isEmpty())
+            lines << tr("说明  %1").arg(field.value("description").toString());
+    }
+    m_selectionDetails->setPlainText(lines.join('\n'));
 }
 
 void MainWindow::populateDiagnostics(const QJsonArray &diagnostics, const QJsonObject &media)
@@ -629,6 +853,58 @@ void MainWindow::searchNext()
     m_statusText->setText(tr("未找到：%1").arg(query));
 }
 
+void MainWindow::filterProtocolTree()
+{
+    if (!m_protocolTree)
+        return;
+    const QString query = m_search ? m_search->text().trimmed() : QString();
+    const bool issuesOnly = m_issueFilter && m_issueFilter->isChecked();
+    for (int index = 0; index < m_protocolTree->topLevelItemCount(); ++index)
+        filterTreeItem(m_protocolTree->topLevelItem(index), query, issuesOnly);
+    if (!query.isEmpty() || issuesOnly)
+        m_protocolTree->expandAll();
+}
+
+bool MainWindow::filterTreeItem(QTreeWidgetItem *item, const QString &query, bool issuesOnly)
+{
+    bool childVisible = false;
+    for (int index = 0; index < item->childCount(); ++index)
+        childVisible = filterTreeItem(item->child(index), query, issuesOnly) || childVisible;
+
+    QString content;
+    for (int column = 0; column < item->columnCount(); ++column)
+        content += item->text(column) + ' ';
+    const bool queryMatch = query.isEmpty() || content.contains(query, Qt::CaseInsensitive);
+    const auto node = item->data(0, NodeRole).toJsonObject();
+    const auto field = item->data(0, FieldRole).toJsonObject();
+    const QString severity = field.isEmpty() ? node.value("severity").toString() : field.value("severity").toString();
+    const bool issueMatch = !issuesOnly || severity == "warning" || severity == "error" || childVisible;
+    const bool visible = childVisible || (queryMatch && issueMatch);
+    item->setHidden(!visible);
+    return visible;
+}
+
+void MainWindow::copyCurrentOffset()
+{
+    const auto selected = m_protocolTree->selectedItems();
+    if (selected.isEmpty())
+        return;
+    const qint64 offset = selected.constFirst()->data(0, OffsetRole).toLongLong();
+    QApplication::clipboard()->setText(QString("0x%1").arg(offset, 0, 16).toUpper());
+    m_statusText->setText(tr("已复制 Offset 0x%1").arg(offset, 0, 16).toUpper());
+}
+
+void MainWindow::copyCurrentValue()
+{
+    const auto selected = m_protocolTree->selectedItems();
+    if (selected.isEmpty())
+        return;
+    auto *item = selected.constFirst();
+    const QString value = item->data(0, FieldRole).toJsonObject().isEmpty() ? item->text(0) : item->text(2);
+    QApplication::clipboard()->setText(value);
+    m_statusText->setText(tr("已复制当前值"));
+}
+
 void MainWindow::exportHtml()
 {
     if (m_currentPath.isEmpty())
@@ -671,6 +947,7 @@ void MainWindow::setLightTheme() { applyTheme(false); }
 void MainWindow::applyTheme(bool dark)
 {
     m_dark = dark;
+    m_settings.setValue("theme", dark ? "dark" : "light");
     m_darkButton->setChecked(dark);
     m_lightButton->setChecked(!dark);
     const QString bg = dark ? "#0C1117" : "#F3F6F9";

@@ -1,14 +1,19 @@
 #pragma once
 
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QMainWindow>
 #include <QProcess>
+#include <QSettings>
 
 class QLabel;
+class QCheckBox;
 class QLineEdit;
+class QMenu;
 class QPlainTextEdit;
+class QProgressBar;
 class QPushButton;
-class QStackedWidget;
+class QSplitter;
 class QTableWidget;
 class QTabWidget;
 class QTreeWidget;
@@ -25,14 +30,20 @@ public:
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dropEvent(QDropEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
 
 private slots:
     void chooseFile();
     void reloadCurrent();
+    void cancelAnalysis();
     void analysisFinished(int exitCode, QProcess::ExitStatus status);
     void onTreeSelectionChanged();
     void onFieldSelectionChanged();
+    void onFrameSelectionChanged();
     void searchNext();
+    void filterProtocolTree();
+    void copyCurrentOffset();
+    void copyCurrentValue();
     void exportHtml();
     void exportJson();
     void setDarkTheme();
@@ -41,6 +52,7 @@ private slots:
 private:
     void buildUi();
     void buildMenus();
+    void buildShortcuts();
     QWidget *buildHeader();
     QWidget *buildSummaryStrip();
     QWidget *buildProtocolPanel();
@@ -53,7 +65,13 @@ private:
     void populateFields(const QJsonObject &node);
     void populateFrames(const QJsonArray &frames);
     void populateDiagnostics(const QJsonArray &diagnostics, const QJsonObject &media);
+    void showSelectionDetails(const QJsonObject &node, const QJsonObject &field = {});
     void showHex(qint64 offset, qint64 size = 1);
+    void setAnalysisBusy(bool busy);
+    void addRecentFile(const QString &path);
+    void rebuildRecentMenu();
+    void restoreWorkspaceState();
+    bool filterTreeItem(QTreeWidgetItem *item, const QString &query, bool issuesOnly);
     void runExport(const QString &format, const QString &outputPath);
     QString projectRoot() const;
     QString pythonExecutable() const;
@@ -68,19 +86,26 @@ private:
     static int countFields(const QJsonObject &node);
 
     bool m_dark = true;
+    bool m_cancelRequested = false;
     QString m_currentPath;
     QJsonDocument m_document;
     QProcess *m_process = nullptr;
+    QSettings m_settings;
+    QSplitter *m_mainSplitter = nullptr;
     QTreeWidget *m_protocolTree = nullptr;
     QTableWidget *m_fieldsTable = nullptr;
     QTableWidget *m_framesTable = nullptr;
     QPlainTextEdit *m_hexView = nullptr;
     QPlainTextEdit *m_preview = nullptr;
     QPlainTextEdit *m_diagnostics = nullptr;
+    QPlainTextEdit *m_selectionDetails = nullptr;
     QPlainTextEdit *m_log = nullptr;
     QTabWidget *m_tabs = nullptr;
     TimelineWidget *m_timeline = nullptr;
     QLineEdit *m_search = nullptr;
+    QCheckBox *m_issueFilter = nullptr;
+    QMenu *m_recentMenu = nullptr;
+    QProgressBar *m_progress = nullptr;
     QLabel *m_fileLabel = nullptr;
     QLabel *m_formatMetric = nullptr;
     QLabel *m_sizeMetric = nullptr;
@@ -89,4 +114,5 @@ private:
     QLabel *m_statusText = nullptr;
     QPushButton *m_darkButton = nullptr;
     QPushButton *m_lightButton = nullptr;
+    QPushButton *m_cancelButton = nullptr;
 };
