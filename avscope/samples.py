@@ -130,6 +130,7 @@ def _pcap_rtp_sample() -> bytes:
     packets = [
         _pcap_packet(0, _ethernet_ipv4_udp_rtp(sequence=100, timestamp=90000, marker=False, payload=b"\x65\x88\x84")),
         _pcap_packet(1, _ethernet_ipv4_udp_rtp(sequence=101, timestamp=93000, marker=True, payload=b"\x41\x9A\x22")),
+        _pcap_packet(2, _ethernet_ipv4_udp(_rtcp_compound_sample(), src_port=5005, dst_port=5005)),
     ]
     return global_header + b"".join(packets)
 
@@ -139,10 +140,14 @@ def _pcap_packet(ts_sec: int, payload: bytes) -> bytes:
 
 
 def _ethernet_ipv4_udp_rtp(sequence: int, timestamp: int, marker: bool, payload: bytes) -> bytes:
-    ethernet = b"\xAA\xBB\xCC\xDD\xEE\xFF" + b"\x11\x22\x33\x44\x55\x66" + b"\x08\x00"
     rtp = bytes([0x80, (0x80 if marker else 0x00) | 96]) + struct.pack(">HII", sequence, timestamp, 0x12345678) + payload
-    udp_length = 8 + len(rtp)
-    udp = struct.pack(">HHHH", 5004, 5004, udp_length, 0)
+    return _ethernet_ipv4_udp(rtp, src_port=5004, dst_port=5004)
+
+
+def _ethernet_ipv4_udp(payload: bytes, src_port: int, dst_port: int) -> bytes:
+    ethernet = b"\xAA\xBB\xCC\xDD\xEE\xFF" + b"\x11\x22\x33\x44\x55\x66" + b"\x08\x00"
+    udp_length = 8 + len(payload)
+    udp = struct.pack(">HHHH", src_port, dst_port, udp_length, 0)
     ip_total_length = 20 + udp_length
     ip_header = bytearray(
         b"\x45\x00"
@@ -153,7 +158,21 @@ def _ethernet_ipv4_udp_rtp(sequence: int, timestamp: int, marker: bool, payload:
     )
     checksum = _ipv4_checksum(bytes(ip_header))
     ip_header[10:12] = struct.pack(">H", checksum)
-    return ethernet + bytes(ip_header) + udp + rtp
+    return ethernet + bytes(ip_header) + udp + payload
+
+
+def _rtcp_compound_sample() -> bytes:
+    source_ssrc = 0x12345678
+    report_block = (
+        struct.pack(">I", source_ssrc)
+        + bytes([0])
+        + (0).to_bytes(3, "big")
+        + struct.pack(">IIII", 101, 90, 0x00010000, 0x00008000)
+    )
+    sender_info = struct.pack(">IIIIII", source_ssrc, 2_208_988_802, 0x80000000, 93000, 2, 6)
+    sender_report = bytes([0x81, 200]) + struct.pack(">H", 12) + sender_info + report_block
+    receiver_report = bytes([0x81, 201]) + struct.pack(">H", 7) + struct.pack(">I", 0x87654321) + report_block
+    return sender_report + receiver_report
 
 
 def _ipv4_checksum(header: bytes) -> int:

@@ -78,6 +78,17 @@ def diagnostics_with(result, severity: str) -> list:
     return [issue for issue in result.diagnostics if issue.severity.value == severity]
 
 
+def nodes_with_type(node: ParseNode, node_type: str) -> list[ParseNode]:
+    matches = [node] if node.node_type == node_type else []
+    for child in node.children:
+        matches.extend(nodes_with_type(child, node_type))
+    return matches
+
+
+def fields_by_name(node: ParseNode) -> dict[str, object]:
+    return {field.name: field.value for field in node.fields}
+
+
 class ParserTests(unittest.TestCase):
     def setUp(self):
         ROOT.mkdir(parents=True, exist_ok=True)
@@ -472,9 +483,11 @@ class ParserTests(unittest.TestCase):
         sample_dir = ROOT / "pcap_sample"
         generate_samples(sample_dir)
         result = self.analyzer.analyze(sample_dir / "sample.pcap")
-        self.assertEqual(result.media.format_name, "PCAP/RTP")
-        self.assertEqual(result.media.summary["packets"], 2)
+        self.assertEqual(result.media.format_name, "PCAP/RTP/RTCP")
+        self.assertEqual(result.media.summary["packets"], 3)
         self.assertEqual(result.media.summary["rtp_packets"], 2)
+        self.assertEqual(result.media.summary["rtcp_datagrams"], 1)
+        self.assertEqual(result.media.summary["rtcp_packets"], 2)
         self.assertEqual(result.media.summary["payload_type_counts"]["96"], 2)
         self.assertEqual(result.frames[0].pts, 1.0)
         self.assertEqual(result.frames[0].frame_type, "RTP PT=96")
@@ -489,11 +502,45 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(rtp_sequence["streams"]["0x12345678"]["first_sequence"], 100)
         self.assertEqual(rtp_sequence["series"][0]["sequence"], 100)
         self.assertTrue(rtp_sequence["series"][1]["marker"])
-        fields = {field.name: field.value for field in result.root.children[0].fields}
-        self.assertEqual(fields["src_ip"], "192.168.1.10")
-        self.assertEqual(fields["dst_ip"], "239.1.1.1")
-        self.assertEqual(fields["rtp_sequence"], 100)
-        self.assertEqual(fields["rtp_ssrc"], "0x12345678")
+        first_packet = result.root.children[0]
+        ethernet = nodes_with_type(first_packet, "ethernet")[0]
+        ipv4 = nodes_with_type(first_packet, "ipv4")[0]
+        udp = nodes_with_type(first_packet, "udp")[0]
+        rtp = nodes_with_type(first_packet, "rtp")[0]
+        self.assertEqual(fields_by_name(ethernet)["destination"], "AA:BB:CC:DD:EE:FF")
+        self.assertEqual(fields_by_name(ipv4)["source"], "192.168.1.10")
+        self.assertEqual(fields_by_name(ipv4)["destination"], "239.1.1.1")
+        self.assertEqual(fields_by_name(udp)["source_port"], 5004)
+        self.assertEqual(fields_by_name(rtp)["sequence_number"], 100)
+        self.assertEqual(fields_by_name(rtp)["ssrc"], "0x12345678")
+        self.assertTrue(all(field.hex_value for field in rtp.fields if field.size > 0 and field.name != "padding_size"))
+
+        rtcp = result.media.summary["rtcp"]
+        self.assertTrue(rtcp["available"])
+        self.assertEqual(rtcp["sender_reports"], 1)
+        self.assertEqual(rtcp["receiver_reports"], 1)
+        self.assertEqual(rtcp["report_blocks"], 2)
+        self.assertEqual(rtcp["ssrcs"], ["0x12345678", "0x87654321"])
+        self.assertEqual(rtcp["max_interarrival_jitter"], 90)
+        self.assertEqual(rtcp["max_delay_since_last_sr_seconds"], 0.5)
+        self.assertEqual(rtcp["packet_type_counts"], {"200": 1, "201": 1})
+        rtcp_packets = nodes_with_type(result.root, "rtcp_packet")
+        self.assertEqual(len(rtcp_packets), 2)
+        compound_fields = fields_by_name(nodes_with_type(result.root, "rtcp_compound")[0])
+        self.assertEqual(compound_fields["compound_packet_count"], 2)
+        self.assertEqual(compound_fields["compound_size_bytes"], 84)
+        sender_fields = fields_by_name(rtcp_packets[0])
+        self.assertEqual(sender_fields["packet_type"], 200)
+        self.assertEqual(sender_fields["sender_ssrc"], "0x12345678")
+        self.assertEqual(sender_fields["ntp_timestamp_seconds"], 2_208_988_802.5)
+        self.assertEqual(sender_fields["ntp_unix_seconds"], 2.5)
+        report_blocks = nodes_with_type(result.root, "rtcp_report_block")
+        self.assertEqual(len(report_blocks), 2)
+        report_fields = fields_by_name(report_blocks[0])
+        self.assertEqual(report_fields["fraction_lost"], 0)
+        self.assertEqual(report_fields["cumulative_packets_lost"], 0)
+        self.assertEqual(report_fields["extended_highest_sequence"], 101)
+        self.assertEqual(report_fields["delay_since_last_sr_seconds"], 0.5)
         html_path = ROOT / "pcap_rtp_report.html"
         csv_path = ROOT / "pcap_rtp_report.csv"
         json_path = ROOT / "pcap_rtp_report.json"
@@ -503,7 +550,9 @@ class ParserTests(unittest.TestCase):
         self.assertIn("RTP Sequence", html_path.read_text(encoding="utf-8"))
         self.assertIn("Timeline chart legend", html_path.read_text(encoding="utf-8"))
         self.assertIn("RTP sequence 曲线", html_path.read_text(encoding="utf-8"))
+        self.assertIn("RTCP 会话质量", html_path.read_text(encoding="utf-8"))
         self.assertIn("RTP seq=100", csv_path.read_text(encoding="utf-8-sig"))
+        self.assertIn("rtcp_summary", csv_path.read_text(encoding="utf-8-sig"))
         self.assertIn('"rtp_sequence": 100', json_path.read_text(encoding="utf-8"))
 
     def test_pcap_rtp_sequence_diagnostic(self):
@@ -515,13 +564,51 @@ class ParserTests(unittest.TestCase):
         second_sequence_offset = sequence_offset + 16 + int.from_bytes(data[24 + 8 : 24 + 12], "little")
         changed[second_sequence_offset : second_sequence_offset + 2] = (105).to_bytes(2, "big")
         result = self.analyzer.analyze(write(ROOT / "sequence_jump.pcap", bytes(changed)))
-        self.assertEqual(result.media.format_name, "PCAP/RTP")
+        self.assertEqual(result.media.format_name, "PCAP/RTP/RTCP")
         self.assertEqual(result.media.summary["sequence_warnings"], 1)
         rtp_sequence = result.media.summary["timeline_summary"]["rtp_sequence"]
         self.assertEqual(rtp_sequence["sequence_warnings"], 1)
         self.assertEqual(rtp_sequence["warnings"][0]["expected"], 101)
         self.assertEqual(rtp_sequence["warnings"][0]["current"], 105)
         self.assertTrue(any("RTP sequence 跳变" in issue.message for issue in diagnostics_with(result, "warning")))
+
+    def test_pcap_rtcp_loss_and_signed_cumulative_loss_diagnostic(self):
+        sample_dir = ROOT / "pcap_rtcp_loss_sample"
+        generate_samples(sample_dir)
+        data = bytearray((sample_dir / "sample.pcap").read_bytes())
+        packet_offset = 24
+        for _ in range(2):
+            packet_offset += 16 + int.from_bytes(data[packet_offset + 8 : packet_offset + 12], "little")
+        rtcp_offset = packet_offset + 16 + 14 + 20 + 8
+        first_block_offset = rtcp_offset + 28
+        data[first_block_offset + 4] = 64
+        data[first_block_offset + 5 : first_block_offset + 8] = (7).to_bytes(3, "big")
+        result = self.analyzer.analyze(write(ROOT / "rtcp_loss.pcap", bytes(data)))
+        self.assertEqual(result.media.summary["rtcp"]["max_fraction_lost"], 64)
+        self.assertEqual(result.media.summary["rtcp"]["max_fraction_lost_percent"], 25.0)
+        self.assertEqual(result.media.summary["rtcp"]["max_cumulative_packets_lost"], 7)
+        loss = next(issue for issue in diagnostics_with(result, "warning") if "RTCP 接收报告存在丢包" in issue.message)
+        self.assertEqual(loss.offset, first_block_offset + 4)
+        self.assertIn("25.00%", loss.message)
+
+        data[first_block_offset + 4] = 0
+        data[first_block_offset + 5 : first_block_offset + 8] = b"\xFF\xFF\xFE"
+        signed_result = self.analyzer.analyze(write(ROOT / "rtcp_signed_loss.pcap", bytes(data)))
+        signed_block = nodes_with_type(signed_result.root, "rtcp_report_block")[0]
+        self.assertEqual(fields_by_name(signed_block)["cumulative_packets_lost"], -2)
+
+    def test_pcap_rtcp_declared_length_out_of_bounds(self):
+        sample_dir = ROOT / "pcap_rtcp_length_sample"
+        generate_samples(sample_dir)
+        data = bytearray((sample_dir / "sample.pcap").read_bytes())
+        packet_offset = 24
+        for _ in range(2):
+            packet_offset += 16 + int.from_bytes(data[packet_offset + 8 : packet_offset + 12], "little")
+        rtcp_offset = packet_offset + 16 + 14 + 20 + 8
+        data[rtcp_offset + 2 : rtcp_offset + 4] = (0x7FFF).to_bytes(2, "big")
+        result = self.analyzer.analyze(write(ROOT / "rtcp_bad_length.pcap", bytes(data)))
+        self.assertTrue(any("RTCP packet length 越界" in issue.message for issue in diagnostics_with(result, "error")))
+        self.assertEqual(nodes_with_type(result.root, "rtcp_packet")[0].severity, Severity.ERROR)
 
     def test_flv_parser(self):
         sample_dir = ROOT / "flv_sample"
@@ -608,7 +695,7 @@ class ParserTests(unittest.TestCase):
 
         truncated_pcap = write(ROOT / "truncated.pcap", b"\xD4\xC3\xB2\xA1")
         result = self.analyzer.analyze(truncated_pcap)
-        self.assertEqual(result.media.format_name, "PCAP/RTP")
+        self.assertEqual(result.media.format_name, "PCAP/RTP/RTCP")
         self.assertTrue(diagnostics_with(result, "error"))
 
         truncated_flv = write(ROOT / "truncated.flv", b"FLV\x01\x05\x00\x00\x00\x09\x00\x00\x00\x00\x09\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00")

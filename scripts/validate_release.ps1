@@ -353,14 +353,25 @@ pcap = Analyzer().analyze(Path("G:/AVScope/samples/sample.pcap"))
 rtp = pcap.media.summary.get("timeline_summary", {}).get("rtp_sequence", {})
 if not rtp.get("available") or rtp.get("packets") != 2 or rtp.get("sequence_warnings") != 0:
     raise SystemExit(f"RTP sequence summary missing: {rtp}")
+rtcp = pcap.media.summary.get("rtcp", {})
+if (rtcp.get("sender_reports"), rtcp.get("receiver_reports"), rtcp.get("report_blocks")) != (1, 1, 2):
+    raise SystemExit(f"RTCP SR/RR summary missing: {rtcp}")
+if rtcp.get("max_interarrival_jitter") != 90 or rtcp.get("max_delay_since_last_sr_seconds") != 0.5:
+    raise SystemExit(f"RTCP quality summary mismatch: {rtcp}")
 pcap_html = out_dir / "pcap_rtp.html"
 pcap_csv = out_dir / "pcap_rtp.csv"
 export_html(pcap, pcap_html)
 export_csv(pcap, pcap_csv)
-if "RTP Sequence" not in pcap_html.read_text(encoding="utf-8"):
+pcap_html_text = pcap_html.read_text(encoding="utf-8")
+if "RTP Sequence" not in pcap_html_text:
     raise SystemExit("HTML RTP sequence summary missing")
-if "RTP seq=100" not in pcap_csv.read_text(encoding="utf-8-sig"):
+if "RTCP 会话质量" not in pcap_html_text:
+    raise SystemExit("HTML RTCP session quality summary missing")
+pcap_csv_text = pcap_csv.read_text(encoding="utf-8-sig")
+if "RTP seq=100" not in pcap_csv_text:
     raise SystemExit("CSV RTP sequence metadata missing")
+if "rtcp_summary" not in pcap_csv_text:
+    raise SystemExit("CSV RTCP session quality summary missing")
 ts = Analyzer().analyze(Path("G:/AVScope/samples/sample.ts"))
 pcr = ts.media.summary.get("timeline_summary", {}).get("pcr", {})
 if not pcr.get("available") or pcr.get("points") != 2:

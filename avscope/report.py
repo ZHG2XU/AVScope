@@ -91,6 +91,17 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                     "value": json.dumps(packet_stats, ensure_ascii=False),
                 }
             )
+        rtcp = result.media.summary.get("rtcp", {})
+        if rtcp.get("available"):
+            writer.writerow(
+                {
+                    "section": "rtcp_summary",
+                    "name": "RTCP session quality",
+                    "type": "summary",
+                    "size": rtcp.get("packets", ""),
+                    "value": json.dumps(rtcp, ensure_ascii=False),
+                }
+            )
         timeline_summary = result.media.summary.get("timeline_summary", {})
         if timeline_summary.get("available"):
             writer.writerow(
@@ -175,6 +186,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     if not timeline_summary.get("available"):
         timeline_summary = build_timeline_summary(result.frames, packets)
     stats_summary_html = _stats_summary_html(frame_stats, packet_stats)
+    rtcp_summary_html = _rtcp_summary_html(result.media.summary.get("rtcp", {}))
     timeline_summary_html = _timeline_summary_html(timeline_summary)
     timeline_chart_html = _timeline_chart_html(doc["frames"], packets)
     issue_labels = timeline_issue_label_map(timeline_summary)
@@ -425,6 +437,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
       <h2>统计摘要</h2>
       {stats_summary_html}
     </section>
+    {rtcp_summary_html}
     <section>
       <h2>音频波形</h2>
       {waveform_html}
@@ -541,6 +554,28 @@ def _notes_html(notes: str) -> str:
         return ""
     escaped = html.escape(notes)
     return f"<section><h2>用户备注</h2><pre>{escaped}</pre></section>"
+
+
+def _rtcp_summary_html(rtcp: dict) -> str:
+    if not rtcp.get("available"):
+        return ""
+    ssrcs = ", ".join(str(value) for value in rtcp.get("ssrcs", [])) or "-"
+    rows = [
+        ("RTCP Datagram / Packet", f"{rtcp.get('datagrams', 0)} / {rtcp.get('packets', 0)}"),
+        ("Sender Report / Receiver Report", f"{rtcp.get('sender_reports', 0)} / {rtcp.get('receiver_reports', 0)}"),
+        ("Report Block", rtcp.get("report_blocks", 0)),
+        ("SSRC", ssrcs),
+        ("最大丢包率", f"{float(rtcp.get('max_fraction_lost_percent', 0)):.2f}%"),
+        ("最大累计丢包", rtcp.get("max_cumulative_packets_lost", 0)),
+        ("最大 Interarrival Jitter", rtcp.get("max_interarrival_jitter", 0)),
+        ("最大 DLSR", f"{float(rtcp.get('max_delay_since_last_sr_seconds', 0)):.3f} s"),
+    ]
+    metrics = "".join(
+        f'<div class="metric"><div class="label">{html.escape(str(label))}</div>'
+        f'<div class="value">{html.escape(str(value))}</div></div>'
+        for label, value in rows
+    )
+    return f'<section><h2>RTCP 会话质量</h2><div class="overview">{metrics}</div></section>'
 
 
 def _waveform_html(waveform: dict) -> str:

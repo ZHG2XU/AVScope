@@ -121,6 +121,10 @@ void MediaPreviewWidget::paintEvent(QPaintEvent *)
         painter.drawImage(target, m_image);
     } else if (m_summary.value("waveform").toObject().value("available").toBool()) {
         drawWaveform(painter, visualArea.adjusted(18, 16, -18, -16));
+    } else if (m_summary.value("rtcp").toObject().value("available").toBool()) {
+        painter.setPen(muted);
+        painter.drawText(visualArea, Qt::AlignCenter,
+                         tr("RTCP 会话质量数据已解析\n可在下方摘要与协议树中检查报告详情"));
     } else {
         painter.setPen(muted);
         painter.drawText(visualArea, Qt::AlignCenter, tr("当前文件没有可解码画面或音频波形"));
@@ -188,6 +192,13 @@ void MediaPreviewWidget::drawSummary(QPainter &painter, const QRectF &area) cons
         values.append({"Peak", QString("%1 dBFS").arg(energy.value("peak_dbfs").toDouble(), 0, 'f', 2)});
         values.append({"RMS", QString("%1 dBFS").arg(energy.value("rms_dbfs").toDouble(), 0, 'f', 2)});
     }
+    const auto rtcp = m_summary.value("rtcp").toObject();
+    if (rtcp.value("available").toBool()) {
+        values.append({tr("SR / RR"), QString("%1 / %2").arg(rtcp.value("sender_reports").toInt()).arg(rtcp.value("receiver_reports").toInt())});
+        values.append({tr("最大丢包率"), QString("%1%").arg(rtcp.value("max_fraction_lost_percent").toDouble(), 0, 'f', 2)});
+        values.append({tr("最大 Jitter"), QString::number(rtcp.value("max_interarrival_jitter").toInt())});
+        values.append({tr("最大 DLSR"), QString("%1 s").arg(rtcp.value("max_delay_since_last_sr_seconds").toDouble(), 0, 'f', 3)});
+    }
     if (values.isEmpty()) values.append({tr("文件大小"), QString::number(m_media.value("size").toDouble()) + " B"});
 
     const int columns = qMin(4, values.size());
@@ -228,5 +239,11 @@ QString MediaPreviewWidget::visualCaption() const
     const auto waveform = m_summary.value("waveform").toObject();
     if (waveform.value("available").toBool())
         return tr("音频波形  %1 Hz  %2 声道").arg(waveform.value("sample_rate").toInt()).arg(waveform.value("channels").toInt());
+    const auto rtcp = m_summary.value("rtcp").toObject();
+    if (rtcp.value("available").toBool())
+        return tr("RTCP  %1 个控制包  %2 个报告块  %3 个 SSRC")
+            .arg(rtcp.value("packets").toInt())
+            .arg(rtcp.value("report_blocks").toInt())
+            .arg(rtcp.value("ssrcs").toArray().size());
     return tr("结构化媒体摘要");
 }

@@ -21,7 +21,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 协议树会将每个节点下的字段和值作为可展开子项直接展示，并用不同颜色区分数值、文本、Hex、布尔值和异常字段；树表支持横向滚动，便于查看长值。
 - 支持 Ctrl+O、Ctrl+R、Ctrl+F、Ctrl+G、Ctrl+B、F3、Ctrl+1~8、Ctrl+Shift+O 等快捷键，可直接跳转十进制/十六进制 Offset、添加书签、复制文件完整路径、当前值和 Offset。
 - 工具菜单提供时间戳计算器和码率计算器，便于换算 PTS/time_base、帧序号/FPS 和文件码率。
-- 自动识别 MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、PCAP/RTP、WAV、AAC ADTS、H.264 Annex-B、H.265 Annex-B、raw PCM、raw YUV。
+- 自动识别 MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、PCAP/RTP/RTCP、WAV、AAC ADTS、H.264 Annex-B、H.265 Annex-B、raw PCM、raw YUV。
 - 大文件路径使用 `ByteSource` 只读随机访问，测试覆盖 128MB+ 文件头部、中部、尾部窗口读取。
 - H.264 SPS/PPS 可解析 profile、level、SPS/PPS id、PPS 引用关系和推导宽高。
 - H.265 VPS/SPS/PPS 可解析 profile、level、VPS/SPS/PPS id、PPS 引用关系、位深和推导宽高。
@@ -33,7 +33,8 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - Matroska/WebM 可解析 EBML header、Segment/Info/Tracks/Cluster、DocType、时长、轨道、视频宽高和 SimpleBlock 帧。
 - MPEG-PS 可解析 pack header、system header、PES stream id、packet length、PTS/DTS 和 payload offset。
 - MPEG-TS 可解析 188 字节 packet、PID、payload start、adaptation control 和 continuity counter，统计 PID 分布，并诊断 continuity counter 跳变。
-- PCAP/RTP 可解析 PCAP global header、packet record、Ethernet/IPv4/UDP/RTP 字段、payload type、sequence、timestamp、SSRC，并诊断 RTP sequence 跳变。
+- PCAP/RTP/RTCP 按 PCAP record、Ethernet II、IPv4、UDP、RTP、RTCP Compound、Sender/Receiver Report 和 Report Block 分层展示；每层字段均带值、Offset、长度、原始 Hex 或位范围。
+- RTCP 支持 SR/RR 的 SSRC、NTP/RTP timestamp、发送包/字节数，以及接收报告的 fraction lost、24-bit signed cumulative lost、extended sequence、jitter、LSR 和 DLSR；可诊断版本错误、长度越界、报告截断和丢包。
 - AAC ADTS 可解析 profile、采样率、声道布局、帧时长、平均码率，并在字段表和 HTML 报告中显示 header 字段 bit offset/bit length。
 - WAV 可解析 PCM 格式参数、data 字节数、帧数、时长，并校验 byte_rate/block_align。
 - Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、大小端、有符号/无符号、宽高、像素格式和帧率。
@@ -43,7 +44,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 对解析器帧列表生成帧统计摘要，包含关键帧数、关键帧间隔、GOP 分组结构、平均帧大小、最大帧大小和帧类型分布。
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
 - 对 ffprobe packet 时间线生成 packet 统计摘要，包含 stream 数、packet 数、关键包数、平均/最大 packet 大小和 PTS 跨度。
-- PCAP/RTP 会在时间线摘要、预览页和 HTML/JSON/CSV 报告中显示 RTP sequence 曲线、SSRC 分组、marker 包数量和 sequence 跳变异常点，GUI/HTML 的 `Issue` 列会标注异常原因。
+- PCAP/RTP/RTCP 会在时间线摘要、预览页和 HTML/JSON/CSV 报告中显示 RTP sequence 曲线、SSRC 分组、marker 包数量和 sequence 跳变异常点；媒体预览与 HTML 报告另有 RTCP SR/RR、丢包率、jitter、DLSR 会话质量摘要，CSV 使用 `rtcp_summary` section。
 - 对含视频流的文件使用现有 FFmpeg 生成 PNG 预览帧，支持在 GUI 中按 1 秒步进生成上一/下一预览帧，预览缓存写入 `G:\AVScope\tmp\previews`。
 - 视频预览帧会附带 ffprobe 帧元信息，预览页显示当前帧 PTS/DTS、duration、帧类型、关键帧标记、帧大小、分辨率和像素格式，并可通过“分析 / 跳转预览时间”“跳转预览帧号”“上一关键帧预览”“下一关键帧预览”按秒、帧号或关键帧跳转。
 - 分析菜单可使用现有 FFmpeg 提取当前文件的首路音频、首路视频或首个关键帧 PNG。
@@ -51,7 +52,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 桌面端提供深色/浅色专业工作台主题、品牌图标、关键指标摘要条和空状态，导出 HTML 报告带结构化视觉样式；选中行使用独立的高对比文字色，避免与选中背景混淆。
 - Qt 工作台支持分析任务取消、最近文件、窗口/分栏/主题状态持久化、协议树实时搜索、只看异常、展开/折叠、节点与字段详情、字段/帧联动 Hex，以及复制当前值和 Offset；状态文件固定写入 `G:\AVScope\data\qt-settings.ini`。
 - Qt 工作台在打开 `.pcm`/`.yuv` 时提供原生 Raw 参数对话框并记住上次设置；“对比”菜单提供二进制、协议结构和帧级对比，差异按新增、删除、变化分组显示，双击带 Offset 的差异可定位左侧 Hex。
-- “媒体预览”页使用原生 Qt 画布显示 WAV/PCM 波形、Peak/RMS、Raw YUV 彩色画面和视频首帧，并将采样率、声道、位深、宽高、像素格式和帧率整理为可扫描的参数卡片。
+- “媒体预览”页使用原生 Qt 画布显示 WAV/PCM 波形、Peak/RMS、Raw YUV 彩色画面、视频首帧和 RTCP 会话状态，并将媒体参数或 SR/RR、丢包率、jitter、DLSR 整理为可扫描的指标卡片。
 - 媒体预览右上角提供上一/下一导航：视频按 1 秒异步步进，Raw YUV 按帧步进并显示当前帧号/总帧数；内置 `sample.yuv` 含 3 帧不同相位彩条，便于直接验收。
 - 分析、报告导出和三种文件对比统一使用异步侧车任务，运行期间界面保持响应，并可通过顶部“取消”或 `Esc` 终止；协议/帧差异会展开到具体属性的左右值。
 - “媒体流”页按流列出 index、类型、codec、profile、分辨率/声道、采样率、帧率、time_base、duration、bitrate 和像素/采样格式，便于快速比较多路音视频参数。
@@ -93,7 +94,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\deploy_qt.ps1
 PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1
 ```
 
-UI 验证会在 `G:\AVScope\tmp\qt-ui-validation` 留下深浅主题、时间线、媒体流、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复和协议对比截图，以及对应的数据契约 JSON，并检查媒体预览产物与异步任务约束。
+UI 验证会在 `G:\AVScope\tmp\qt-ui-validation` 留下深浅主题、PCAP 时间线、RTCP 会话预览、媒体流、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复和协议对比截图，以及对应的数据契约 JSON，并检查完整协议层节点/字段、媒体预览产物与异步任务约束。
 
 Qt 工具链复用电脑已有的 `E:\QT\6.9.0`、MinGW 13.1、CMake 和 Ninja，本轮没有安装新工具。旧 Tk 界面仅保留为未构建源码环境的兼容回退。
 

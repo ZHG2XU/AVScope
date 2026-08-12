@@ -159,7 +159,7 @@ def format_empty_state_text() -> str:
             "打开或拖入一个音视频文件开始分析。",
             "",
             "支持格式",
-            "MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、PCAP/RTP、WAV、AAC ADTS、H.264/H.265 Annex-B、PCM、YUV。",
+            "MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、PCAP/RTP/RTCP、WAV、AAC ADTS、H.264/H.265 Annex-B、PCM、YUV。",
             "",
             "常用验收入口",
             "打开示例文件: G:\\AVScope\\samples",
