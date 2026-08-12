@@ -46,11 +46,67 @@ if (-not (Test-Path -LiteralPath $timelineScreenshot)) {
 }
 Remove-Item Env:\AVSCOPE_START_TAB -ErrorAction SilentlyContinue
 
+$rawPcmScreenshot = "$output\raw-pcm.png"
+$rawPcmJson = "$output\raw-pcm.json"
+Remove-Item -LiteralPath $rawPcmScreenshot, $rawPcmJson -Force -ErrorAction SilentlyContinue
+$env:AVSCOPE_RAW_SAMPLE_RATE = "8000"
+$env:AVSCOPE_RAW_CHANNELS = "1"
+$env:AVSCOPE_RAW_BITS = "16"
+$env:AVSCOPE_RAW_ENDIAN = "little"
+$env:AVSCOPE_START_TAB = "4"
+$env:AVSCOPE_SCREENSHOT = $rawPcmScreenshot
+$rawPcmProcess = Start-Process -FilePath $executable -ArgumentList "$root\samples\sample.pcm" -WindowStyle Hidden -PassThru
+if (-not $rawPcmProcess.WaitForExit(10000)) {
+    $rawPcmProcess.Kill()
+    throw "Qt Raw PCM smoke test timed out"
+}
+if (-not (Test-Path -LiteralPath $rawPcmScreenshot)) {
+    throw "Qt Raw PCM screenshot was not generated"
+}
+Copy-Item -LiteralPath "$root\tmp\qt-runtime\current-analysis.json" -Destination $rawPcmJson -Force
+
+Remove-Item Env:\AVSCOPE_RAW_SAMPLE_RATE, Env:\AVSCOPE_RAW_CHANNELS, Env:\AVSCOPE_RAW_BITS, Env:\AVSCOPE_RAW_ENDIAN -ErrorAction SilentlyContinue
+$rawYuvScreenshot = "$output\raw-yuv.png"
+$rawYuvJson = "$output\raw-yuv.json"
+Remove-Item -LiteralPath $rawYuvScreenshot, $rawYuvJson -Force -ErrorAction SilentlyContinue
+$env:AVSCOPE_RAW_WIDTH = "64"
+$env:AVSCOPE_RAW_HEIGHT = "48"
+$env:AVSCOPE_RAW_PIXEL_FORMAT = "yuv420p"
+$env:AVSCOPE_RAW_FPS = "30"
+$env:AVSCOPE_SCREENSHOT = $rawYuvScreenshot
+$rawYuvProcess = Start-Process -FilePath $executable -ArgumentList "$root\samples\sample.yuv" -WindowStyle Hidden -PassThru
+if (-not $rawYuvProcess.WaitForExit(10000)) {
+    $rawYuvProcess.Kill()
+    throw "Qt Raw YUV smoke test timed out"
+}
+if (-not (Test-Path -LiteralPath $rawYuvScreenshot)) {
+    throw "Qt Raw YUV screenshot was not generated"
+}
+Copy-Item -LiteralPath "$root\tmp\qt-runtime\current-analysis.json" -Destination $rawYuvJson -Force
+
+Remove-Item Env:\AVSCOPE_RAW_WIDTH, Env:\AVSCOPE_RAW_HEIGHT, Env:\AVSCOPE_RAW_PIXEL_FORMAT, Env:\AVSCOPE_RAW_FPS, Env:\AVSCOPE_START_TAB -ErrorAction SilentlyContinue
+$compareScreenshot = "$output\compare-protocol.png"
+$compareJson = "$output\compare-protocol.json"
+Remove-Item -LiteralPath $compareScreenshot, $compareJson -Force -ErrorAction SilentlyContinue
+$env:AVSCOPE_COMPARE_MODE = "protocol"
+$env:AVSCOPE_COMPARE_PATH = "$root\samples\sample_changed.mp4"
+$env:AVSCOPE_SCREENSHOT = $compareScreenshot
+$compareProcess = Start-Process -FilePath $executable -ArgumentList "$root\samples\sample.mp4" -WindowStyle Hidden -PassThru
+if (-not $compareProcess.WaitForExit(10000)) {
+    $compareProcess.Kill()
+    throw "Qt protocol compare smoke test timed out"
+}
+if (-not (Test-Path -LiteralPath $compareScreenshot)) {
+    throw "Qt protocol compare screenshot was not generated"
+}
+Copy-Item -LiteralPath "$root\tmp\qt-runtime\compare-protocol.json" -Destination $compareJson -Force
+Remove-Item Env:\AVSCOPE_COMPARE_MODE, Env:\AVSCOPE_COMPARE_PATH -ErrorAction SilentlyContinue
+
 $env:PYTHONPATH = $root
-& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png')]; dims=[png_dimensions(p) for p in paths]; assert dims[0] == dims[1], dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; timeline=Path(r'$output/timeline-pcap.png'); assert png_dimensions(timeline)==dims[0] and timeline.stat().st_size > 50000; settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'timeline': str(timeline), 'dimensions': dims, 'dpi_scale': round(width / 1560, 2), 'settings': str(settings)})"
+& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png'),Path(r'$output/timeline-pcap.png'),Path(r'$output/raw-pcm.png'),Path(r'$output/raw-yuv.png'),Path(r'$output/compare-protocol.png')]; dims=[png_dimensions(p) for p in paths]; assert len(set(dims)) == 1, dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; assert all(p.stat().st_size > 50000 for p in paths), [(p.name,p.stat().st_size) for p in paths]; settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'dimensions': dims, 'dpi_scale': round(width / 1560, 2), 'settings': str(settings)})"
 if ($LASTEXITCODE -ne 0) { throw "Qt screenshot validation failed" }
 
-& "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; document=json.loads(Path(r'$root/tmp/qt-runtime/current-analysis.json').read_text(encoding='utf-8')); root=document['root']; assert root['children'] and root['children'][0]['fields']; print({'nodes': len(root['children']), 'first_fields': len(root['children'][0]['fields'])})"
+& "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; document=json.loads(Path(r'$root/tmp/qt-runtime/current-analysis.json').read_text(encoding='utf-8')); root=document['root']; assert root['children'] and root['children'][0]['fields']; pcm=json.loads(Path(r'$rawPcmJson').read_text(encoding='utf-8'))['media']['summary']; assert (pcm['sample_rate'],pcm['channels'],pcm['bits_per_sample'],pcm['endian']) == (8000,1,16,'little'), pcm; yuv=json.loads(Path(r'$rawYuvJson').read_text(encoding='utf-8'))['media']['summary']; assert (yuv['width'],yuv['height'],yuv['pixel_format'],yuv['fps']) == (64,48,'yuv420p',30.0), yuv; compare=json.loads(Path(r'$compareJson').read_text(encoding='utf-8')); assert len(compare['added']) == 1 and len(compare['changed']) >= 1, compare; print({'nodes': len(root['children']), 'first_fields': len(root['children'][0]['fields']), 'raw_pcm': {k:pcm[k] for k in ('sample_rate','channels','bits_per_sample','endian')}, 'raw_yuv': {k:yuv[k] for k in ('width','height','pixel_format','fps')}, 'protocol_compare': {k:len(compare[k]) for k in ('added','removed','changed')}})"
 if ($LASTEXITCODE -ne 0) { throw "Qt protocol tree data contract is incomplete" }
 
 Write-Output "Qt UI validation OK"

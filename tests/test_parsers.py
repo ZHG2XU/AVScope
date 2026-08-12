@@ -926,6 +926,20 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(yuv_summary["width"], 64)
         self.assertEqual(yuv_summary["height"], 48)
         self.assertEqual(yuv_summary["frames"], 1)
+        binary_path = ROOT / "binary_compare.json"
+        exit_code = cli_main(
+            [
+                "compare-binary",
+                str(sample_dir / "sample.mp4"),
+                str(sample_dir / "sample_changed.mp4"),
+                "--json",
+                str(binary_path),
+            ]
+        )
+        self.assertEqual(exit_code, 0)
+        binary_document = json.loads(binary_path.read_text(encoding="utf-8"))
+        self.assertEqual(binary_document["compare_type"], "binary")
+        self.assertTrue(binary_document["chunks"])
         protocol_path = ROOT / "protocol_compare.json"
         exit_code = cli_main(
             [

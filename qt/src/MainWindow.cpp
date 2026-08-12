@@ -6,7 +6,11 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QComboBox>
 #include <QDateTime>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QDir>
 #include <QDragEnterEvent>
 #include <QFile>
@@ -33,11 +37,13 @@
 #include <QSplitter>
 #include <QStatusBar>
 #include <QShortcut>
+#include <QSpinBox>
 #include <QTableWidget>
 #include <QTabWidget>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTime>
+#include <QTimer>
 #include <QToolBar>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -318,6 +324,22 @@ QWidget *MainWindow::buildWorkspace()
     m_preview->setReadOnly(true);
     m_preview->setLineWrapMode(QPlainTextEdit::WidgetWidth);
     m_tabs->addTab(m_preview, tr("媒体摘要"));
+
+    m_compareTree = new QTreeWidget;
+    m_compareTree->setColumnCount(5);
+    m_compareTree->setHeaderLabels({tr("状态"), tr("对象"), tr("属性"), tr("左侧"), tr("右侧")});
+    m_compareTree->setAlternatingRowColors(true);
+    m_compareTree->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_compareTree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_compareTree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_compareTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_compareTree->header()->setSectionResizeMode(3, QHeaderView::Stretch);
+    m_compareTree->header()->setSectionResizeMode(4, QHeaderView::Stretch);
+    connect(m_compareTree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem *item) {
+        const qint64 offset = item->data(0, OffsetRole).toLongLong();
+        if (offset >= 0) { showHex(offset, 1); m_tabs->setCurrentWidget(m_hexView); }
+    });
+    m_tabs->addTab(m_compareTree, tr("对比结果"));
     layout->addWidget(m_tabs);
     return panel;
 }
@@ -376,7 +398,15 @@ void MainWindow::buildMenus()
     auto *json = fileMenu->addAction(tr("导出 JSON 报告..."));
     connect(json, &QAction::triggered, this, &MainWindow::exportJson);
     fileMenu->addSeparator();
+    auto *snapshot = fileMenu->addAction(tr("保存工程快照..."), QKeySequence::Save);
+    connect(snapshot, &QAction::triggered, this, &MainWindow::saveProjectSnapshot);
+    fileMenu->addSeparator();
     fileMenu->addAction(tr("退出"), qApp, &QApplication::quit);
+
+    auto *compareMenu = menuBar()->addMenu(tr("对比"));
+    compareMenu->addAction(tr("二进制对比..."), this, &MainWindow::compareBinary);
+    compareMenu->addAction(tr("协议结构对比..."), this, &MainWindow::compareProtocol);
+    compareMenu->addAction(tr("帧级对比..."), this, &MainWindow::compareFrames);
 
     auto *viewMenu = menuBar()->addMenu(tr("视图"));
     auto *themes = new QActionGroup(this);
@@ -515,7 +545,12 @@ void MainWindow::openPath(const QString &path)
         return;
     }
 
+    bool rawAccepted = true;
+    const QStringList rawOptions = rawOptionsForPath(info.absoluteFilePath(), &rawAccepted);
+    if (!rawAccepted) return;
+
     m_currentPath = info.absoluteFilePath();
+    m_currentRawOptions = rawOptions;
     m_cancelRequested = false;
     QDir().mkpath(projectRoot() + "/tmp/qt-runtime");
     QFile::remove(analysisOutputPath());
@@ -530,7 +565,108 @@ void MainWindow::openPath(const QString &path)
     m_process->setProcessEnvironment(environment);
     m_process->setWorkingDirectory(projectRoot());
     setAnalysisBusy(true);
-    m_process->start(engineExecutable(), engineArguments({"analyze", m_currentPath, "--json", analysisOutputPath()}));
+    QStringList arguments = {"analyze", m_currentPath, "--json", analysisOutputPath()};
+    arguments.append(m_currentRawOptions);
+    m_process->start(engineExecutable(), engineArguments(arguments));
+}
+
+QStringList MainWindow::rawOptionsForPath(const QString &path, bool *accepted)
+{
+    *accepted = true;
+    const QString suffix = QFileInfo(path).suffix().toLower();
+    if (suffix != "pcm" && suffix != "yuv") return {};
+    if (suffix == "pcm" && !qEnvironmentVariableIsEmpty("AVSCOPE_RAW_SAMPLE_RATE")) {
+        QStringList preset = {"--sample-rate", qEnvironmentVariable("AVSCOPE_RAW_SAMPLE_RATE", "48000"),
+                              "--channels", qEnvironmentVariable("AVSCOPE_RAW_CHANNELS", "2"),
+                              "--bits-per-sample", qEnvironmentVariable("AVSCOPE_RAW_BITS", "16"),
+                              "--endian", qEnvironmentVariable("AVSCOPE_RAW_ENDIAN", "little")};
+        if (qEnvironmentVariableIntValue("AVSCOPE_RAW_UNSIGNED") != 0) preset << "--unsigned-pcm";
+        return preset;
+    }
+    if (suffix == "yuv" && !qEnvironmentVariableIsEmpty("AVSCOPE_RAW_WIDTH")) {
+        return {"--width", qEnvironmentVariable("AVSCOPE_RAW_WIDTH", "1920"),
+                "--height", qEnvironmentVariable("AVSCOPE_RAW_HEIGHT", "1080"),
+                "--pixel-format", qEnvironmentVariable("AVSCOPE_RAW_PIXEL_FORMAT", "yuv420p"),
+                "--fps", qEnvironmentVariable("AVSCOPE_RAW_FPS", "25")};
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(suffix == "pcm" ? tr("Raw PCM 参数") : tr("Raw YUV 参数"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *hint = new QLabel(suffix == "pcm"
+        ? tr("裸 PCM 没有头信息，请指定采样格式。参数会保存为下次默认值。")
+        : tr("裸 YUV 没有头信息，请指定画面格式。参数会保存为下次默认值。"));
+    hint->setWordWrap(true);
+    hint->setObjectName("sectionHint");
+    layout->addWidget(hint);
+    auto *form = new QFormLayout;
+    layout->addLayout(form);
+
+    QStringList result;
+    if (suffix == "pcm") {
+        auto *sampleRate = new QSpinBox;
+        sampleRate->setRange(1000, 768000);
+        sampleRate->setValue(m_settings.value("raw/pcmSampleRate", 48000).toInt());
+        auto *channels = new QSpinBox;
+        channels->setRange(1, 32);
+        channels->setValue(m_settings.value("raw/pcmChannels", 2).toInt());
+        auto *bits = new QComboBox;
+        bits->addItems({"8", "16", "24", "32", "64"});
+        bits->setCurrentText(m_settings.value("raw/pcmBits", "16").toString());
+        auto *endian = new QComboBox;
+        endian->addItems({"little", "big"});
+        endian->setCurrentText(m_settings.value("raw/pcmEndian", "little").toString());
+        auto *unsignedPcm = new QCheckBox(tr("无符号 PCM"));
+        unsignedPcm->setChecked(m_settings.value("raw/pcmUnsigned", false).toBool());
+        form->addRow(tr("采样率 (Hz)"), sampleRate);
+        form->addRow(tr("声道数"), channels);
+        form->addRow(tr("位深"), bits);
+        form->addRow(tr("端序"), endian);
+        form->addRow(QString(), unsignedPcm);
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        layout->addWidget(buttons);
+        if (dialog.exec() != QDialog::Accepted) { *accepted = false; return {}; }
+        m_settings.setValue("raw/pcmSampleRate", sampleRate->value());
+        m_settings.setValue("raw/pcmChannels", channels->value());
+        m_settings.setValue("raw/pcmBits", bits->currentText());
+        m_settings.setValue("raw/pcmEndian", endian->currentText());
+        m_settings.setValue("raw/pcmUnsigned", unsignedPcm->isChecked());
+        result = {"--sample-rate", QString::number(sampleRate->value()), "--channels", QString::number(channels->value()),
+                  "--bits-per-sample", bits->currentText(), "--endian", endian->currentText()};
+        if (unsignedPcm->isChecked()) result << "--unsigned-pcm";
+    } else {
+        auto *width = new QSpinBox;
+        width->setRange(1, 16384);
+        width->setValue(m_settings.value("raw/yuvWidth", 1920).toInt());
+        auto *height = new QSpinBox;
+        height->setRange(1, 16384);
+        height->setValue(m_settings.value("raw/yuvHeight", 1080).toInt());
+        auto *pixelFormat = new QComboBox;
+        pixelFormat->addItems({"yuv420p", "nv12", "nv21", "yuyv422"});
+        pixelFormat->setCurrentText(m_settings.value("raw/yuvPixelFormat", "yuv420p").toString());
+        auto *fps = new QDoubleSpinBox;
+        fps->setRange(0.001, 1000.0);
+        fps->setDecimals(3);
+        fps->setValue(m_settings.value("raw/yuvFps", 25.0).toDouble());
+        form->addRow(tr("宽度"), width);
+        form->addRow(tr("高度"), height);
+        form->addRow(tr("像素格式"), pixelFormat);
+        form->addRow(tr("帧率"), fps);
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        layout->addWidget(buttons);
+        if (dialog.exec() != QDialog::Accepted) { *accepted = false; return {}; }
+        m_settings.setValue("raw/yuvWidth", width->value());
+        m_settings.setValue("raw/yuvHeight", height->value());
+        m_settings.setValue("raw/yuvPixelFormat", pixelFormat->currentText());
+        m_settings.setValue("raw/yuvFps", fps->value());
+        result = {"--width", QString::number(width->value()), "--height", QString::number(height->value()),
+                  "--pixel-format", pixelFormat->currentText(), "--fps", QString::number(fps->value())};
+    }
+    return result;
 }
 
 void MainWindow::analysisFinished(int exitCode, QProcess::ExitStatus status)
@@ -565,6 +701,12 @@ void MainWindow::analysisFinished(int exitCode, QProcess::ExitStatus status)
     addRecentFile(m_currentPath);
     m_statusText->setText(tr("%1  |  分析完成").arg(info.fileName()));
     m_log->appendPlainText(tr("[%1] 分析完成").arg(QTime::currentTime().toString("HH:mm:ss")));
+    const QString autoMode = qEnvironmentVariable("AVSCOPE_COMPARE_MODE");
+    const QString autoPath = qEnvironmentVariable("AVSCOPE_COMPARE_PATH");
+    if (!m_autoCompareTriggered && !autoMode.isEmpty() && QFileInfo::exists(autoPath)) {
+        m_autoCompareTriggered = true;
+        QTimer::singleShot(0, this, [this, autoMode] { runCompare(autoMode); });
+    }
 }
 
 void MainWindow::setAnalysisBusy(bool busy)
@@ -968,6 +1110,121 @@ void MainWindow::exportJson()
     const auto path = QFileDialog::getSaveFileName(this, tr("导出 JSON 报告"), "G:/AVScope/tmp/AVScope-report.json", "JSON (*.json)");
     if (!path.isEmpty())
         runExport("json", path);
+}
+
+void MainWindow::compareBinary() { runCompare("binary"); }
+void MainWindow::compareProtocol() { runCompare("protocol"); }
+void MainWindow::compareFrames() { runCompare("frames"); }
+
+void MainWindow::runCompare(const QString &mode)
+{
+    if (m_currentPath.isEmpty()) {
+        QMessageBox::information(this, tr("对比"), tr("请先打开左侧文件。"));
+        return;
+    }
+    const QString configured = qEnvironmentVariable("AVSCOPE_COMPARE_PATH");
+    const QString other = QFileInfo::exists(configured) ? configured
+        : QFileDialog::getOpenFileName(this, tr("选择右侧对比文件"), QFileInfo(m_currentPath).absolutePath());
+    if (other.isEmpty()) return;
+    const QString command = mode == "binary" ? "compare-binary" : mode == "protocol" ? "compare-protocol" : "compare-frames";
+    const QString output = projectRoot() + QString("/tmp/qt-runtime/compare-%1.json").arg(mode);
+    QProcess process;
+    process.setWorkingDirectory(projectRoot());
+    auto environment = QProcessEnvironment::systemEnvironment();
+    environment.insert("PYTHONPATH", projectRoot());
+    environment.insert("TEMP", projectRoot() + "/tmp");
+    environment.insert("TMP", projectRoot() + "/tmp");
+    process.setProcessEnvironment(environment);
+    m_statusText->setText(tr("正在执行%1对比...").arg(mode));
+    process.start(engineExecutable(), engineArguments({command, m_currentPath, other, "--json", output}));
+    if (!process.waitForFinished(120000) || process.exitCode() != 0) {
+        QMessageBox::critical(this, tr("对比失败"), QString::fromUtf8(process.readAllStandardError()));
+        return;
+    }
+    QFile file(output);
+    if (!file.open(QIODevice::ReadOnly)) return;
+    QJsonParseError error;
+    const auto document = QJsonDocument::fromJson(file.readAll(), &error);
+    if (document.isNull()) {
+        QMessageBox::critical(this, tr("对比结果无效"), error.errorString());
+        return;
+    }
+    populateCompare(mode, document, other);
+    m_tabs->setCurrentWidget(m_compareTree);
+    m_statusText->setText(tr("对比完成：%1").arg(QFileInfo(other).fileName()));
+    m_log->appendPlainText(tr("[%1] %2对比 %3").arg(QTime::currentTime().toString("HH:mm:ss"), mode, other));
+}
+
+void MainWindow::populateCompare(const QString &mode, const QJsonDocument &document, const QString &otherPath)
+{
+    m_compareTree->clear();
+    const auto root = document.object();
+    auto *summary = new QTreeWidgetItem(m_compareTree);
+    summary->setText(0, root.value("equal").toBool(false) ? tr("相同") : tr("已完成"));
+    summary->setText(1, tr("%1  ↔  %2").arg(QFileInfo(m_currentPath).fileName(), QFileInfo(otherPath).fileName()));
+    summary->setText(2, mode);
+
+    if (mode == "binary") {
+        summary->setText(3, formatSize(jsonInteger(root.value("left_size"))));
+        summary->setText(4, formatSize(jsonInteger(root.value("right_size"))));
+        for (const auto &value : root.value("chunks").toArray()) {
+            const auto chunk = value.toObject();
+            auto *item = new QTreeWidgetItem(summary);
+            const qint64 offset = jsonInteger(chunk.value("offset"));
+            item->setText(0, tr("变化"));
+            item->setText(1, QString("0x%1").arg(offset, 0, 16).toUpper());
+            item->setText(2, tr("32 字节窗口"));
+            item->setText(3, chunk.value("left").toString());
+            item->setText(4, chunk.value("right").toString());
+            item->setData(0, OffsetRole, offset);
+        }
+    } else {
+        for (const auto &sectionName : {QString("added"), QString("removed"), QString("changed")}) {
+            const auto rows = root.value(sectionName).toArray();
+            auto *section = new QTreeWidgetItem(summary);
+            section->setText(0, sectionName.toUpper());
+            section->setText(1, tr("%1 项").arg(rows.size()));
+            const QColor color = sectionName == "added" ? QColor(m_dark ? "#73D2B3" : "#17785A")
+                                 : sectionName == "removed" ? QColor(m_dark ? "#FF7B81" : "#B42318")
+                                 : QColor(m_dark ? "#F5C567" : "#8A5A00");
+            section->setForeground(0, color);
+            for (const auto &value : rows) {
+                const auto row = value.toObject();
+                auto *item = new QTreeWidgetItem(section);
+                item->setText(0, sectionName);
+                item->setText(1, row.value("path").toString(QString("Frame #%1").arg(row.value("index").toInt())));
+                item->setText(2, tr("结构化差异"));
+                const auto changes = row.value("changes").toObject();
+                item->setText(3, QString::fromUtf8(QJsonDocument(changes).toJson(QJsonDocument::Compact)));
+                const qint64 offset = jsonInteger(row.value("offset"));
+                item->setData(0, OffsetRole, offset > 0 ? offset : -1);
+                for (int column = 0; column < item->columnCount(); ++column) item->setForeground(column, color);
+            }
+        }
+    }
+    m_compareTree->expandToDepth(1);
+}
+
+void MainWindow::saveProjectSnapshot()
+{
+    if (m_document.isNull() || m_currentPath.isEmpty()) return;
+    const QString suggested = QString("G:/AVScope/tmp/%1.avscope.json").arg(QFileInfo(m_currentPath).completeBaseName());
+    const QString path = QFileDialog::getSaveFileName(this, tr("保存工程快照"), suggested, tr("AVScope 工程 (*.avscope.json)"));
+    if (path.isEmpty()) return;
+    QJsonObject snapshot;
+    snapshot["schema_version"] = 1;
+    snapshot["saved_at"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    snapshot["source_path"] = m_currentPath;
+    snapshot["theme"] = m_dark ? "dark" : "light";
+    snapshot["current_tab"] = m_tabs->currentIndex();
+    snapshot["raw_options"] = QJsonArray::fromStringList(m_currentRawOptions);
+    snapshot["analysis"] = m_document.object();
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly) || file.write(QJsonDocument(snapshot).toJson(QJsonDocument::Indented)) < 0) {
+        QMessageBox::critical(this, tr("保存失败"), file.errorString());
+        return;
+    }
+    m_statusText->setText(tr("工程快照已保存：%1").arg(path));
 }
 
 void MainWindow::runExport(const QString &format, const QString &outputPath)

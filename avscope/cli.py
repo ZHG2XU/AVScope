@@ -64,6 +64,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "compare-binary":
         result = compare_binary(args.left, args.right)
         document = {
+            "compare_type": "binary",
+            "left_path": str(args.left),
+            "right_path": str(args.right),
             "equal": result.equal,
             "left_size": result.left_size,
             "right_size": result.right_size,

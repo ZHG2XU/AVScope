@@ -8,6 +8,7 @@
 
 class QLabel;
 class QCheckBox;
+class QComboBox;
 class QLineEdit;
 class QMenu;
 class QPlainTextEdit;
@@ -47,6 +48,10 @@ private slots:
     void copyCurrentValue();
     void exportHtml();
     void exportJson();
+    void compareBinary();
+    void compareProtocol();
+    void compareFrames();
+    void saveProjectSnapshot();
     void setDarkTheme();
     void setLightTheme();
 
@@ -74,6 +79,9 @@ private:
     void restoreWorkspaceState();
     bool filterTreeItem(QTreeWidgetItem *item, const QString &query, bool issuesOnly);
     void runExport(const QString &format, const QString &outputPath);
+    void runCompare(const QString &mode);
+    void populateCompare(const QString &mode, const QJsonDocument &document, const QString &otherPath);
+    QStringList rawOptionsForPath(const QString &path, bool *accepted);
     QString projectRoot() const;
     QString pythonExecutable() const;
     QString engineExecutable() const;
@@ -88,7 +96,9 @@ private:
 
     bool m_dark = true;
     bool m_cancelRequested = false;
+    bool m_autoCompareTriggered = false;
     QString m_currentPath;
+    QStringList m_currentRawOptions;
     QJsonDocument m_document;
     QProcess *m_process = nullptr;
     QSettings m_settings;
@@ -96,6 +106,7 @@ private:
     QTreeWidget *m_protocolTree = nullptr;
     QTableWidget *m_fieldsTable = nullptr;
     QTableWidget *m_framesTable = nullptr;
+    QTreeWidget *m_compareTree = nullptr;
     QPlainTextEdit *m_hexView = nullptr;
     QPlainTextEdit *m_preview = nullptr;
     QTableWidget *m_diagnosticsTable = nullptr;
