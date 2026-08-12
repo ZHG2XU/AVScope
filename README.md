@@ -53,17 +53,20 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 对 ffprobe packet 时间线生成 packet 统计摘要，包含 stream 数、packet 数、关键包数、平均/最大 packet 大小和 PTS 跨度。
 - PCAP/RTP/RTCP 会在时间线摘要、预览页和 HTML/JSON/CSV 报告中显示 RTP sequence 曲线、SSRC 分组、marker 包数量和 sequence 跳变异常点；媒体预览与 HTML 报告另有 RTCP SR/RR、丢包率、jitter、DLSR 会话质量摘要，CSV 使用 `rtcp_summary` section。
 - “传输会话”页提供可排序的端点/SSRC 会话表、会话级异常摘要和“只看异常会话”筛选；双击会话可跳到首个 RTP header，HTML/JSON/CSV 使用同一份 `transport_sessions` 数据，CSV 每路会话写入 `transport_session` section。
+- 打开 PCAP 文件后，可通过“视图 / 传输会话”或 `Ctrl+Alt+T` 进入传输分析；主表用于查看每路端点、SSRC、PT、序号范围、估算丢包、重复、乱序、Marker、码率、RTCP、Jitter 和 DLSR，双击任意会话定位首包 Hex。页内子标签可继续检查视频负载、信令协商、控制反馈、时序质量与拥塞反馈。
 - “传输会话”页内新增“视频负载”和“负载问题”子页，展示 H.264/H.265、SSRC、STAP-A/AP/FU、NALU 类型和完成/未完成分片；负载异常会同步提升对应会话状态，双击流或问题可定位 payload Hex。
 - “传输会话 / 信令协商”使用上下分栏展示 SIP 时序和去重后的 SDP PT 映射；H.264/H.265、音频编码使用不同文字色，双击 SIP 或 SDP 行可定位 Hex，会话质量页直接显示协商编码和 Clock Rate。
 - “传输会话 / 控制反馈”上下分栏展示 NACK/PLI/FIR 与 SDES/BYE；不同反馈类型使用高对比语义色，双击事件可定位 RTCP Hex，CNAME 和结束原因同步关联到 RTP SSRC 会话。
 - “传输会话 / 时序质量”上下分栏展示每路 SSRC 的 Clock Rate 来源、RFC 3550 Jitter、到达间隔范围、最大偏差与突发包明细；双击会话或事件可定位 RTP Header Hex。
 - “传输会话 / 拥塞反馈”展示 TWCC 反馈包、逐包接收状态与 REMB 带宽估计；未接收、Large Delta、Small Delta 使用红/黄/绿高对比语义色，双击可定位反馈 Header、Delta 或 REMB Hex。
 - “码流健康”页提供编码、状态、参数集、Slice/关键帧、问题数和分辨率变化指标，分为问题、参数集引用和分辨率事件三张表；问题与分辨率事件可双击定位 Hex。HTML 使用专用“H.26x 码流健康”区，CSV 写入 `codec_health_summary` 与 `codec_health_issue` section。
+- 打开 H.264/H.265 裸码流或含对应编码的 RTP PCAP 后，可通过“视图 / 码流健康”或 `Ctrl+0` 进入；先看顶部健康状态与问题数，再检查“问题”“参数集引用”“分辨率事件”，双击带 Offset 的问题或分辨率事件可回到对应 Hex。
 - 对含视频流的文件使用现有 FFmpeg 生成 PNG 预览帧，支持在 GUI 中按 1 秒步进生成上一/下一预览帧，预览缓存写入 `G:\AVScope\tmp\previews`。
 - 视频预览帧会附带 ffprobe 帧元信息，预览页显示当前帧 PTS/DTS、duration、帧类型、关键帧标记、帧大小、分辨率和像素格式，并可通过“分析 / 跳转预览时间”“跳转预览帧号”“上一关键帧预览”“下一关键帧预览”按秒、帧号或关键帧跳转。
 - 分析菜单可使用现有 FFmpeg 提取当前文件的首路音频、首路视频或首个关键帧 PNG。
 - 为 WAV/PCM 生成抽样波形摘要，并在预览页显示波形图、Peak/RMS 音频能量和裁剪样本数；GUI 可播放 WAV、Raw PCM 或含音频流文件的短片段，并可指定起始时间和时长。
 - 桌面端提供深色/浅色专业工作台主题、品牌图标、关键指标摘要条和空状态，导出 HTML 报告带结构化视觉样式；选中行使用独立的高对比文字色，避免与选中背景混淆。
+- Windows 可执行文件、窗口、任务栏和安装/卸载程序统一使用 AVScope 多尺寸品牌图标。
 - Qt 工作台支持分析任务取消、最近文件、窗口/分栏/主题状态持久化、协议树实时搜索、只看异常、展开/折叠、节点与字段详情、字段/帧联动 Hex，以及复制当前值和 Offset；浅色或夜间主题会在退出时保存并于下次启动恢复，状态文件固定写入 `G:\AVScope\data\qt-settings.ini`。
 - Qt 工作台在打开 `.pcm`/`.yuv` 时提供原生 Raw 参数对话框并记住上次设置；“对比”菜单提供二进制、协议结构和帧级对比。二进制对比使用完整左右双栏 Hex/ASCII、相同 Offset 对齐、同步滚动、差异/缺失字节高亮、Offset 跳转和上一/下一差异导航；结构差异继续按新增、删除、变化分组显示。
 - “媒体预览”页使用原生 Qt 画布显示 WAV/PCM 波形、Peak/RMS、Raw YUV 彩色画面、视频首帧和 RTCP 会话状态，并将媒体参数或 SR/RR、丢包率、jitter、DLSR 整理为可扫描的指标卡片。

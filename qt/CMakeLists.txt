@@ -5,6 +5,7 @@ project(AVScopeQt VERSION 0.2.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets)
 
@@ -18,6 +19,8 @@ qt_add_executable(AVScopeQt WIN32
     src/TimelineWidget.h
     src/HexCompareWidget.cpp
     src/HexCompareWidget.h
+    resources/avscope.qrc
+    resources/avscope.rc
 )
 
 target_link_libraries(AVScopeQt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)

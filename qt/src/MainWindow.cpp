@@ -29,6 +29,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QInputDialog>
+#include <QIcon>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
@@ -81,6 +82,7 @@ MainWindow::MainWindow(QWidget *parent)
       m_settings(QDir(qEnvironmentVariable("AVSCOPE_ROOT", "G:/AVScope")).filePath("data/qt-settings.ini"), QSettings::IniFormat)
 {
     setWindowTitle(tr("AVScope - 音视频协议分析工作台"));
+    setWindowIcon(QIcon(":/icons/avscope.png"));
     resize(1560, 940);
     setMinimumSize(1120, 720);
     setAcceptDrops(true);
@@ -534,8 +536,8 @@ QWidget *MainWindow::buildWorkspace()
     });
     m_tabs->addTab(m_compareTree, tr("结构对比"));
 
-    auto *transportPanel = new QWidget;
-    auto *transportLayout = new QVBoxLayout(transportPanel);
+    m_transportPanel = new QWidget;
+    auto *transportLayout = new QVBoxLayout(m_transportPanel);
     transportLayout->setContentsMargins(10, 10, 10, 10);
     transportLayout->setSpacing(8);
     auto *transportTools = new QHBoxLayout;
@@ -825,10 +827,10 @@ QWidget *MainWindow::buildWorkspace()
     twccLayout->addWidget(twccSplitter, 1);
     m_transportDetails->addTab(twccPanel, tr("拥塞反馈"));
     transportLayout->addWidget(m_transportDetails, 1);
-    m_tabs->addTab(transportPanel, tr("传输会话"));
+    m_tabs->addTab(m_transportPanel, tr("传输会话"));
 
-    auto *codecHealthPanel = new QWidget;
-    auto *codecHealthLayout = new QVBoxLayout(codecHealthPanel);
+    m_codecHealthPanel = new QWidget;
+    auto *codecHealthLayout = new QVBoxLayout(m_codecHealthPanel);
     codecHealthLayout->setContentsMargins(10, 10, 10, 10);
     codecHealthLayout->setSpacing(10);
     auto *codecMetrics = new QGridLayout;
@@ -889,7 +891,7 @@ QWidget *MainWindow::buildWorkspace()
     });
     codecDetails->addTab(m_codecResolutionsTable, tr("分辨率事件"));
     codecHealthLayout->addWidget(codecDetails, 1);
-    m_tabs->addTab(codecHealthPanel, tr("码流健康"));
+    m_tabs->addTab(m_codecHealthPanel, tr("码流健康"));
     layout->addWidget(m_tabs);
     return panel;
 }
@@ -1011,6 +1013,13 @@ void MainWindow::buildMenus()
     connect(m_darkThemeAction, &QAction::triggered, this, &MainWindow::setDarkTheme);
     connect(m_lightThemeAction, &QAction::triggered, this, &MainWindow::setLightTheme);
     viewMenu->addSeparator();
+    viewMenu->addAction(tr("传输会话"), QKeySequence("Ctrl+Alt+T"), this, [this] {
+        m_tabs->setCurrentWidget(m_transportPanel);
+    });
+    viewMenu->addAction(tr("码流健康"), QKeySequence("Ctrl+0"), this, [this] {
+        m_tabs->setCurrentWidget(m_codecHealthPanel);
+    });
+    viewMenu->addSeparator();
     viewMenu->addAction(tr("展开协议树"), QKeySequence("Ctrl+Shift+E"), m_protocolTree, &QTreeWidget::expandAll);
     viewMenu->addAction(tr("折叠协议树"), QKeySequence("Ctrl+Shift+C"), m_protocolTree, &QTreeWidget::collapseAll);
 
@@ -1041,8 +1050,6 @@ void MainWindow::buildShortcuts()
         auto *shortcut = new QShortcut(QKeySequence(QString("Ctrl+%1").arg(index + 1)), this);
         connect(shortcut, &QShortcut::activated, this, [this, index] { m_tabs->setCurrentIndex(index); });
     }
-    auto *codecHealthShortcut = new QShortcut(QKeySequence("Ctrl+0"), this);
-    connect(codecHealthShortcut, &QShortcut::activated, this, [this] { m_tabs->setCurrentIndex(10); });
 }
 
 void MainWindow::addRecentFile(const QString &path)

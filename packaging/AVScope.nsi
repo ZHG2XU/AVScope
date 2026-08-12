@@ -3,6 +3,8 @@ Name "AVScope"
 OutFile "G:\AVScope\dist\AVScope-Setup.exe"
 InstallDir "G:\AVScopeInstalled\AVScope"
 RequestExecutionLevel user
+Icon "G:\AVScope\qt\resources\avscope.ico"
+UninstallIcon "G:\AVScope\qt\resources\avscope.ico"
 
 !define APP_NAME "AVScope"
 !define APP_EXE "AVScope.exe"

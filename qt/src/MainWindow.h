@@ -147,6 +147,7 @@ private:
     QWidget *m_framesPanel = nullptr;
     QTableWidget *m_streamsTable = nullptr;
     QTableWidget *m_transportSessionsTable = nullptr;
+    QWidget *m_transportPanel = nullptr;
     QTableWidget *m_rtpVideoStreamsTable = nullptr;
     QTableWidget *m_rtpVideoIssuesTable = nullptr;
     QTableWidget *m_sipMessagesTable = nullptr;
@@ -160,6 +161,7 @@ private:
     QTableWidget *m_rembTable = nullptr;
     QTabWidget *m_transportDetails = nullptr;
     QTableWidget *m_codecIssuesTable = nullptr;
+    QWidget *m_codecHealthPanel = nullptr;
     QTableWidget *m_codecParametersTable = nullptr;
     QTableWidget *m_codecResolutionsTable = nullptr;
     QTableWidget *m_bookmarksTable = nullptr;

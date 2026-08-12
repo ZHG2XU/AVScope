@@ -8,6 +8,13 @@ $output = "$root\tmp\qt-ui-validation"
 & "$root\scripts\build_qt.ps1"
 if ($LASTEXITCODE -ne 0) { throw "Qt build validation failed" }
 
+Add-Type -AssemblyName System.Drawing
+$embeddedIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($executable)
+if ($null -eq $embeddedIcon -or $embeddedIcon.Width -lt 16 -or $embeddedIcon.Height -lt 16) {
+    throw "Qt executable does not contain a usable Windows application icon"
+}
+$embeddedIcon.Dispose()
+
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 $env:AVSCOPE_ROOT = $root
 $env:AVSCOPE_PYTHON = "E:\DevelopmentEnvironment\python\python.exe"

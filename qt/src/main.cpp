@@ -4,6 +4,7 @@
 #include <QFont>
 #include <QDir>
 #include <QFileInfo>
+#include <QIcon>
 #include <QStyleFactory>
 #include <QTimer>
 
@@ -14,6 +15,7 @@ int main(int argc, char *argv[])
     app.setApplicationDisplayName("AVScope");
     app.setOrganizationName("AVScope");
     app.setApplicationVersion(AVSCOPE_VERSION);
+    app.setWindowIcon(QIcon(":/icons/avscope.png"));
     app.setStyle(QStyleFactory::create("Fusion"));
 
     QFont font("Microsoft YaHei UI", 9);
