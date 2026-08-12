@@ -22,6 +22,12 @@ int main(int argc, char *argv[])
 
     MainWindow window;
     window.show();
+    bool widthOk = false;
+    bool heightOk = false;
+    const int requestedWidth = qEnvironmentVariableIntValue("AVSCOPE_WINDOW_WIDTH", &widthOk);
+    const int requestedHeight = qEnvironmentVariableIntValue("AVSCOPE_WINDOW_HEIGHT", &heightOk);
+    if (widthOk && heightOk)
+        window.resize(requestedWidth, requestedHeight);
     if (argc > 1) {
         window.openPath(QString::fromLocal8Bit(argv[1]));
     }

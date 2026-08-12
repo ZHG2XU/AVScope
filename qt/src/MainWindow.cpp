@@ -27,6 +27,7 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QInputDialog>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
@@ -387,7 +388,7 @@ void MainWindow::buildMenus()
     connect(open, &QAction::triggered, this, &MainWindow::chooseFile);
     auto *reload = fileMenu->addAction(tr("重新分析"), QKeySequence::Refresh);
     connect(reload, &QAction::triggered, this, &MainWindow::reloadCurrent);
-    auto *cancel = fileMenu->addAction(tr("取消当前分析"), QKeySequence(Qt::Key_Escape));
+    auto *cancel = fileMenu->addAction(tr("取消当前任务"), QKeySequence(Qt::Key_Escape));
     connect(cancel, &QAction::triggered, this, &MainWindow::cancelAnalysis);
     m_recentMenu = fileMenu->addMenu(tr("最近文件"));
     rebuildRecentMenu();
@@ -423,8 +424,11 @@ void MainWindow::buildMenus()
     viewMenu->addAction(tr("折叠协议树"), QKeySequence("Ctrl+Shift+C"), m_protocolTree, &QTreeWidget::collapseAll);
 
     auto *editMenu = menuBar()->addMenu(tr("编辑"));
+    editMenu->addAction(tr("跳转到 Offset..."), QKeySequence("Ctrl+G"), this, &MainWindow::jumpToOffset);
+    editMenu->addSeparator();
     editMenu->addAction(tr("复制当前 Offset"), QKeySequence("Ctrl+Shift+O"), this, &MainWindow::copyCurrentOffset);
     editMenu->addAction(tr("复制当前值"), QKeySequence::Copy, this, &MainWindow::copyCurrentValue);
+    editMenu->addAction(tr("复制文件完整路径"), QKeySequence("Ctrl+Alt+C"), this, &MainWindow::copyCurrentPath);
 
     auto *helpMenu = menuBar()->addMenu(tr("帮助"));
     helpMenu->addAction(tr("关于 AVScope"), this, [this] {
@@ -437,7 +441,9 @@ void MainWindow::buildShortcuts()
 {
     auto *focusSearch = new QShortcut(QKeySequence::Find, this);
     connect(focusSearch, &QShortcut::activated, m_search, [this] { m_search->setFocus(); m_search->selectAll(); });
-    for (int index = 0; index < 5; ++index) {
+    auto *findNext = new QShortcut(QKeySequence(Qt::Key_F3), this);
+    connect(findNext, &QShortcut::activated, this, &MainWindow::searchNext);
+    for (int index = 0; index < 6; ++index) {
         auto *shortcut = new QShortcut(QKeySequence(QString("Ctrl+%1").arg(index + 1)), this);
         connect(shortcut, &QShortcut::activated, this, [this, index] { m_tabs->setCurrentIndex(index); });
     }
@@ -1124,6 +1130,33 @@ void MainWindow::copyCurrentValue()
     m_statusText->setText(tr("已复制当前值"));
 }
 
+void MainWindow::copyCurrentPath()
+{
+    if (m_currentPath.isEmpty()) return;
+    QApplication::clipboard()->setText(QDir::toNativeSeparators(m_currentPath));
+    m_statusText->setText(tr("已复制文件完整路径"));
+}
+
+void MainWindow::jumpToOffset()
+{
+    if (m_currentPath.isEmpty()) return;
+    bool accepted = false;
+    const QString value = QInputDialog::getText(this, tr("跳转到 Offset"),
+        tr("输入十进制或十六进制位置（例如 539 或 0x21B）"), QLineEdit::Normal, "0x0", &accepted).trimmed();
+    if (!accepted || value.isEmpty()) return;
+    bool ok = false;
+    const qint64 offset = value.startsWith("0x", Qt::CaseInsensitive)
+        ? value.mid(2).toLongLong(&ok, 16) : value.toLongLong(&ok, 10);
+    const qint64 fileSize = QFileInfo(m_currentPath).size();
+    if (!ok || offset < 0 || offset >= fileSize) {
+        QMessageBox::warning(this, tr("Offset 无效"), tr("请输入 0 到 %1 之间的位置。").arg(qMax<qint64>(0, fileSize - 1)));
+        return;
+    }
+    showHex(offset, 1);
+    m_tabs->setCurrentWidget(m_hexView);
+    m_statusText->setText(tr("已跳转到 Offset 0x%1").arg(offset, 0, 16).toUpper());
+}
+
 void MainWindow::exportHtml()
 {
     if (m_currentPath.isEmpty())
@@ -1224,6 +1257,8 @@ void MainWindow::populateCompare(const QString &mode, const QJsonDocument &docum
                             };
                             detail->setText(3, sideText(pair.value("left")));
                             detail->setText(4, sideText(pair.value("right")));
+                            detail->setToolTip(3, detail->text(3));
+                            detail->setToolTip(4, detail->text(4));
                             for (int column = 0; column < detail->columnCount(); ++column) detail->setForeground(column, color);
                         } else if (!pair.isEmpty()) {
                             self(self, parent, pair, key);

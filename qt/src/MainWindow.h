@@ -47,6 +47,8 @@ private slots:
     void filterProtocolTree();
     void copyCurrentOffset();
     void copyCurrentValue();
+    void copyCurrentPath();
+    void jumpToOffset();
     void exportHtml();
     void exportJson();
     void compareBinary();

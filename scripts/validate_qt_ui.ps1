@@ -20,6 +20,8 @@ foreach ($theme in @("dark", "light")) {
     $screenshot = "$output\$theme.png"
     Remove-Item -LiteralPath $screenshot -Force -ErrorAction SilentlyContinue
     $env:AVSCOPE_THEME = $theme
+    $env:AVSCOPE_WINDOW_WIDTH = "1560"
+    $env:AVSCOPE_WINDOW_HEIGHT = "940"
     $env:AVSCOPE_SCREENSHOT = $screenshot
     $process = Start-Process -FilePath $executable -ArgumentList $sample -WindowStyle Hidden -PassThru
     if (-not $process.WaitForExit(10000)) {
@@ -30,6 +32,25 @@ foreach ($theme in @("dark", "light")) {
         throw "Qt $theme theme screenshot was not generated"
     }
 }
+
+$compactScreenshot = "$output\compact-1120x720.png"
+Remove-Item -LiteralPath $compactScreenshot -Force -ErrorAction SilentlyContinue
+$env:AVSCOPE_THEME = "dark"
+$env:AVSCOPE_WINDOW_WIDTH = "1120"
+$env:AVSCOPE_WINDOW_HEIGHT = "720"
+$env:AVSCOPE_START_TAB = "0"
+$env:AVSCOPE_SCREENSHOT = $compactScreenshot
+$compactProcess = Start-Process -FilePath $executable -ArgumentList $sample -WindowStyle Hidden -PassThru
+if (-not $compactProcess.WaitForExit(10000)) {
+    $compactProcess.Kill()
+    throw "Qt compact layout smoke test timed out"
+}
+if (-not (Test-Path -LiteralPath $compactScreenshot)) {
+    throw "Qt compact layout screenshot was not generated"
+}
+Remove-Item Env:\AVSCOPE_WINDOW_WIDTH, Env:\AVSCOPE_WINDOW_HEIGHT, Env:\AVSCOPE_START_TAB -ErrorAction SilentlyContinue
+$env:AVSCOPE_WINDOW_WIDTH = "1560"
+$env:AVSCOPE_WINDOW_HEIGHT = "940"
 
 $timelineScreenshot = "$output\timeline-pcap.png"
 Remove-Item -LiteralPath $timelineScreenshot -Force -ErrorAction SilentlyContinue
@@ -101,9 +122,10 @@ if (-not (Test-Path -LiteralPath $compareScreenshot)) {
 }
 Copy-Item -LiteralPath "$root\tmp\qt-runtime\compare-protocol.json" -Destination $compareJson -Force
 Remove-Item Env:\AVSCOPE_COMPARE_MODE, Env:\AVSCOPE_COMPARE_PATH -ErrorAction SilentlyContinue
+Remove-Item Env:\AVSCOPE_WINDOW_WIDTH, Env:\AVSCOPE_WINDOW_HEIGHT -ErrorAction SilentlyContinue
 
 $env:PYTHONPATH = $root
-& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png'),Path(r'$output/timeline-pcap.png'),Path(r'$output/raw-pcm.png'),Path(r'$output/raw-yuv.png'),Path(r'$output/compare-protocol.png')]; dims=[png_dimensions(p) for p in paths]; assert len(set(dims)) == 1, dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; assert all(p.stat().st_size > 50000 for p in paths), [(p.name,p.stat().st_size) for p in paths]; settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'dimensions': dims, 'dpi_scale': round(width / 1560, 2), 'settings': str(settings)})"
+& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png'),Path(r'$output/timeline-pcap.png'),Path(r'$output/raw-pcm.png'),Path(r'$output/raw-yuv.png'),Path(r'$output/compare-protocol.png')]; dims=[png_dimensions(p) for p in paths]; assert len(set(dims)) == 1, dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; assert all(p.stat().st_size > 50000 for p in paths), [(p.name,p.stat().st_size) for p in paths]; compact=Path(r'$compactScreenshot'); compact_dims=png_dimensions(compact); assert compact_dims == (1680,1080), compact_dims; assert compact.stat().st_size > 40000; settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'dimensions': dims, 'compact': {'path': str(compact), 'dimensions': compact_dims}, 'dpi_scale': round(width / 1560, 2), 'settings': str(settings)})"
 if ($LASTEXITCODE -ne 0) { throw "Qt screenshot validation failed" }
 
 & "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; document=json.loads(Path(r'$root/tmp/qt-runtime/current-analysis.json').read_text(encoding='utf-8')); root=document['root']; assert root['children'] and root['children'][0]['fields']; pcm=json.loads(Path(r'$rawPcmJson').read_text(encoding='utf-8'))['media']['summary']; assert (pcm['sample_rate'],pcm['channels'],pcm['bits_per_sample'],pcm['endian']) == (8000,1,16,'little'), pcm; yuv=json.loads(Path(r'$rawYuvJson').read_text(encoding='utf-8'))['media']['summary']; assert (yuv['width'],yuv['height'],yuv['pixel_format'],yuv['fps']) == (64,48,'yuv420p',30.0), yuv; compare=json.loads(Path(r'$compareJson').read_text(encoding='utf-8')); assert len(compare['added']) == 1 and len(compare['changed']) >= 1, compare; print({'nodes': len(root['children']), 'first_fields': len(root['children'][0]['fields']), 'raw_pcm': {k:pcm[k] for k in ('sample_rate','channels','bits_per_sample','endian')}, 'raw_yuv': {k:yuv[k] for k in ('width','height','pixel_format','fps')}, 'protocol_compare': {k:len(compare[k]) for k in ('added','removed','changed')}})"
