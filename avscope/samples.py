@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import struct
 from pathlib import Path
 
@@ -23,8 +24,8 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample.ps", _mpegps_sample()),
         _write(target / "sample.pcap", _pcap_rtp_sample()),
         _write(target / "sample.ts", _mpegts_sample()),
-        _write(target / "sample.pcm", b"\x00\x00\x10\x00\xf0\xff" * 64),
-        _write(target / "sample.yuv", b"\x10" * (64 * 48) + b"\x80" * (64 * 48 // 2)),
+        _write(target / "sample.pcm", _pcm_sample()),
+        _write(target / "sample.yuv", _yuv420p_color_bars()),
     ]
     return files
 
@@ -39,6 +40,43 @@ def _wav_sample() -> bytes:
     fmt = b"fmt " + struct.pack("<IHHIIHH", 16, 1, 1, 8000, 16000, 2, 16)
     data = b"data" + struct.pack("<I", len(pcm)) + pcm
     return b"RIFF" + struct.pack("<I", 4 + len(fmt) + len(data)) + b"WAVE" + fmt + data
+
+
+def _pcm_sample(sample_rate: int = 8000, frequency: float = 440.0, duration: float = 0.25) -> bytes:
+    frames = max(1, round(sample_rate * duration))
+    amplitude = 0.72 * ((1 << 15) - 1)
+    return b"".join(
+        struct.pack("<h", round(amplitude * math.sin(2.0 * math.pi * frequency * index / sample_rate)))
+        for index in range(frames)
+    )
+
+
+def _yuv420p_color_bars(width: int = 64, height: int = 48) -> bytes:
+    bars = [
+        (180, 128, 128),
+        (162, 44, 142),
+        (131, 156, 44),
+        (112, 72, 58),
+        (84, 184, 198),
+        (65, 100, 212),
+        (35, 212, 114),
+        (16, 128, 128),
+    ]
+    y_plane = bytearray(width * height)
+    uv_width = (width + 1) // 2
+    uv_height = (height + 1) // 2
+    u_plane = bytearray(uv_width * uv_height)
+    v_plane = bytearray(uv_width * uv_height)
+    for row in range(height):
+        for column in range(width):
+            bar = min(len(bars) - 1, column * len(bars) // width)
+            y_plane[row * width + column] = bars[bar][0]
+    for row in range(uv_height):
+        for column in range(uv_width):
+            bar = min(len(bars) - 1, column * 2 * len(bars) // width)
+            u_plane[row * uv_width + column] = bars[bar][1]
+            v_plane[row * uv_width + column] = bars[bar][2]
+    return bytes(y_plane + u_plane + v_plane)
 
 
 def _aac_sample() -> bytes:

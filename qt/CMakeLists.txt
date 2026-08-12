@@ -12,6 +12,8 @@ qt_add_executable(AVScopeQt WIN32
     src/main.cpp
     src/MainWindow.cpp
     src/MainWindow.h
+    src/MediaPreviewWidget.cpp
+    src/MediaPreviewWidget.h
     src/TimelineWidget.cpp
     src/TimelineWidget.h
 )

@@ -904,6 +904,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(pcm_summary["channels"], 1)
         self.assertEqual(pcm_summary["endian"], "big")
         self.assertFalse(pcm_summary["signed"])
+        self.assertGreater(pcm_summary["waveform"]["energy"]["peak_level"], 0.5)
         yuv_json = ROOT / "cli_yuv_report.json"
         exit_code = cli_main(
             [
@@ -917,6 +918,8 @@ class ParserTests(unittest.TestCase):
                 "yuv420p",
                 "--fps",
                 "30",
+                "--preview-dir",
+                str(ROOT / "cli-previews"),
                 "--json",
                 str(yuv_json),
             ]
@@ -926,6 +929,8 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(yuv_summary["width"], 64)
         self.assertEqual(yuv_summary["height"], 48)
         self.assertEqual(yuv_summary["frames"], 1)
+        self.assertTrue(yuv_summary["yuv_preview"]["available"])
+        self.assertTrue(Path(yuv_summary["yuv_preview"]["path"]).exists())
         binary_path = ROOT / "binary_compare.json"
         exit_code = cli_main(
             [
@@ -1490,6 +1495,8 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(result["height"], 48)
         ppm = Path(result["path"]).read_bytes()
         self.assertTrue(ppm.startswith(b"P6\n64 48\n255\n"))
+        rgb = ppm.split(b"\n", 3)[3]
+        self.assertGreater(len(set(zip(rgb[0::3], rgb[1::3], rgb[2::3]))), 4)
         self.assertEqual(result["frame_index"], 0)
         self.assertEqual(result["total_frames"], 1)
 

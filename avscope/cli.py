@@ -6,8 +6,10 @@ from pathlib import Path
 
 from avscope.analyzer import Analyzer
 from avscope.compare import compare_binary, compare_frames, compare_protocol, format_binary_compare, format_frame_compare
+from avscope.ffmpeg_preview import build_video_preview
 from avscope.report import export_csv, export_html, export_json
 from avscope.samples import generate_samples
+from avscope.yuv_preview import build_yuv_preview
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -30,6 +32,7 @@ def main(argv: list[str] | None = None) -> int:
     analyze.add_argument("--height", type=int, help="Raw YUV frame height")
     analyze.add_argument("--pixel-format", help="Raw YUV pixel format, such as yuv420p/nv12/yuyv422")
     analyze.add_argument("--fps", type=float, help="Raw YUV frame rate")
+    analyze.add_argument("--preview-dir", help="Generate GUI preview assets in this directory")
 
     binary = sub.add_parser("compare-binary", help="Compare two files byte by byte")
     binary.add_argument("left")
@@ -52,6 +55,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "analyze":
         result = Analyzer().analyze(args.file, _analyze_options(args))
+        if args.preview_dir:
+            _attach_previews(result, args.preview_dir)
         notes = _report_notes(args)
         if args.html:
             export_html(result, args.html, notes=notes)
@@ -126,6 +131,22 @@ def _report_notes(args: argparse.Namespace) -> str:
     if notes_file:
         notes.append(Path(notes_file).read_text(encoding="utf-8").strip())
     return "\n".join(note for note in notes if note)
+
+
+def _attach_previews(result, output_dir: str) -> None:
+    summary = result.media.summary
+    if result.media.format_name == "Raw YUV":
+        summary["yuv_preview"] = build_yuv_preview(
+            result.media.path,
+            summary.get("width", 0),
+            summary.get("height", 0),
+            summary.get("pixel_format", "yuv420p"),
+            output_dir=output_dir,
+        )
+        return
+    streams = summary.get("ffprobe", {}).get("streams", [])
+    if any(stream.get("codec_type") == "video" for stream in streams):
+        summary["video_preview"] = build_video_preview(result.media.path, output_dir=output_dir)
 
 
 if __name__ == "__main__":

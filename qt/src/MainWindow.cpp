@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "MediaPreviewWidget.h"
 #include "TimelineWidget.h"
 
 #include <QActionGroup>
@@ -320,10 +321,8 @@ QWidget *MainWindow::buildWorkspace()
     });
     m_tabs->addTab(m_timeline, tr("时间线"));
 
-    m_preview = new QPlainTextEdit;
-    m_preview->setReadOnly(true);
-    m_preview->setLineWrapMode(QPlainTextEdit::WidgetWidth);
-    m_tabs->addTab(m_preview, tr("媒体摘要"));
+    m_preview = new MediaPreviewWidget;
+    m_tabs->addTab(m_preview, tr("媒体预览"));
 
     m_compareTree = new QTreeWidget;
     m_compareTree->setColumnCount(5);
@@ -500,7 +499,6 @@ void MainWindow::closeEvent(QCloseEvent *event)
     if (m_process->state() != QProcess::NotRunning) {
         m_cancelRequested = true;
         m_process->kill();
-        m_process->waitForFinished(1000);
     }
     m_settings.setValue("windowGeometry", saveGeometry());
     m_settings.setValue("splitterState", m_mainSplitter->saveState());
@@ -527,10 +525,11 @@ void MainWindow::cancelAnalysis()
     if (m_process->state() == QProcess::NotRunning)
         return;
     m_cancelRequested = true;
-    m_statusText->setText(tr("正在取消分析..."));
+    m_statusText->setText(tr("正在取消任务..."));
     m_process->terminate();
-    if (!m_process->waitForFinished(1200))
-        m_process->kill();
+    QTimer::singleShot(1200, m_process, [this] {
+        if (m_process->state() != QProcess::NotRunning) m_process->kill();
+    });
 }
 
 void MainWindow::openPath(const QString &path)
@@ -558,16 +557,10 @@ void MainWindow::openPath(const QString &path)
     m_statusText->setText(tr("正在分析 %1...").arg(info.fileName()));
     m_log->appendPlainText(tr("[%1] 开始分析 %2").arg(QTime::currentTime().toString("HH:mm:ss"), m_currentPath));
 
-    auto environment = QProcessEnvironment::systemEnvironment();
-    environment.insert("PYTHONPATH", projectRoot());
-    environment.insert("TEMP", projectRoot() + "/tmp");
-    environment.insert("TMP", projectRoot() + "/tmp");
-    m_process->setProcessEnvironment(environment);
-    m_process->setWorkingDirectory(projectRoot());
-    setAnalysisBusy(true);
     QStringList arguments = {"analyze", m_currentPath, "--json", analysisOutputPath()};
     arguments.append(m_currentRawOptions);
-    m_process->start(engineExecutable(), engineArguments(arguments));
+    arguments << "--preview-dir" << projectRoot() + "/tmp/qt-previews";
+    startEngineTask("analysis", arguments);
 }
 
 QStringList MainWindow::rawOptionsForPath(const QString &path, bool *accepted)
@@ -672,17 +665,43 @@ QStringList MainWindow::rawOptionsForPath(const QString &path, bool *accepted)
 void MainWindow::analysisFinished(int exitCode, QProcess::ExitStatus status)
 {
     setAnalysisBusy(false);
+    const QString task = m_taskKind;
+    m_taskKind.clear();
     if (m_cancelRequested) {
         m_cancelRequested = false;
-        m_statusText->setText(tr("分析已取消"));
-        m_log->appendPlainText(tr("[%1] 用户取消分析").arg(QTime::currentTime().toString("HH:mm:ss")));
+        m_statusText->setText(tr("任务已取消"));
+        m_log->appendPlainText(tr("[%1] 用户取消任务").arg(QTime::currentTime().toString("HH:mm:ss")));
         return;
     }
     if (status != QProcess::NormalExit || exitCode != 0) {
         const auto error = QString::fromUtf8(m_process->readAllStandardError());
-        m_statusText->setText(tr("分析失败"));
+        const QString label = task == "compare" ? tr("对比") : task == "export" ? tr("导出") : tr("分析");
+        m_statusText->setText(tr("%1失败").arg(label));
         m_log->appendPlainText(tr("[错误] %1").arg(error));
-        QMessageBox::critical(this, tr("分析失败"), error.isEmpty() ? tr("解析进程异常退出。") : error);
+        QMessageBox::critical(this, tr("%1失败").arg(label), error.isEmpty() ? tr("侧车进程异常退出。") : error);
+        return;
+    }
+    if (task == "compare") {
+        QFile file(m_taskOutputPath);
+        if (!file.open(QIODevice::ReadOnly)) {
+            QMessageBox::critical(this, tr("读取失败"), tr("无法读取对比结果：%1").arg(m_taskOutputPath));
+            return;
+        }
+        QJsonParseError error;
+        const auto document = QJsonDocument::fromJson(file.readAll(), &error);
+        if (document.isNull()) {
+            QMessageBox::critical(this, tr("对比结果无效"), error.errorString());
+            return;
+        }
+        populateCompare(m_taskMode, document, m_taskOtherPath);
+        m_tabs->setCurrentWidget(m_compareTree);
+        m_statusText->setText(tr("对比完成：%1").arg(QFileInfo(m_taskOtherPath).fileName()));
+        m_log->appendPlainText(tr("[%1] %2 对比完成：%3").arg(QTime::currentTime().toString("HH:mm:ss"), m_taskMode, m_taskOtherPath));
+        return;
+    }
+    if (task == "export") {
+        m_log->appendPlainText(tr("[导出] %1").arg(m_taskOutputPath));
+        m_statusText->setText(tr("报告已导出：%1").arg(m_taskOutputPath));
         return;
     }
     QFile file(analysisOutputPath());
@@ -720,6 +739,24 @@ void MainWindow::setAnalysisBusy(bool busy)
         QApplication::restoreOverrideCursor();
 }
 
+void MainWindow::startEngineTask(const QString &kind, const QStringList &arguments)
+{
+    if (m_process->state() != QProcess::NotRunning) {
+        QMessageBox::information(this, tr("任务进行中"), tr("请等待当前任务结束，或先点击取消。"));
+        return;
+    }
+    auto environment = QProcessEnvironment::systemEnvironment();
+    environment.insert("PYTHONPATH", projectRoot());
+    environment.insert("TEMP", projectRoot() + "/tmp");
+    environment.insert("TMP", projectRoot() + "/tmp");
+    m_process->setProcessEnvironment(environment);
+    m_process->setWorkingDirectory(projectRoot());
+    m_cancelRequested = false;
+    m_taskKind = kind;
+    setAnalysisBusy(true);
+    m_process->start(engineExecutable(), engineArguments(arguments));
+}
+
 void MainWindow::loadDocument(const QJsonDocument &document)
 {
     m_document = document;
@@ -754,14 +791,7 @@ void MainWindow::loadDocument(const QJsonDocument &document)
     m_fileLabel->setToolTip(media.value("path").toString());
 
     const auto summary = media.value("summary").toObject();
-    QStringList lines;
-    lines << tr("文件：%1").arg(media.value("path").toString())
-          << tr("格式：%1").arg(media.value("format_name").toString())
-          << tr("大小：%1").arg(formatSize(jsonInteger(media.value("size"))))
-          << ""
-          << tr("结构化媒体摘要")
-          << QString::fromUtf8(QJsonDocument(summary).toJson(QJsonDocument::Indented));
-    m_preview->setPlainText(lines.join('\n'));
+    m_preview->setMedia(media);
     showHex(0, 1);
     const auto requestedTab = qEnvironmentVariable("AVSCOPE_START_TAB");
     if (!requestedTab.isEmpty()) {
@@ -1128,31 +1158,12 @@ void MainWindow::runCompare(const QString &mode)
     if (other.isEmpty()) return;
     const QString command = mode == "binary" ? "compare-binary" : mode == "protocol" ? "compare-protocol" : "compare-frames";
     const QString output = projectRoot() + QString("/tmp/qt-runtime/compare-%1.json").arg(mode);
-    QProcess process;
-    process.setWorkingDirectory(projectRoot());
-    auto environment = QProcessEnvironment::systemEnvironment();
-    environment.insert("PYTHONPATH", projectRoot());
-    environment.insert("TEMP", projectRoot() + "/tmp");
-    environment.insert("TMP", projectRoot() + "/tmp");
-    process.setProcessEnvironment(environment);
+    QFile::remove(output);
+    m_taskOutputPath = output;
+    m_taskMode = mode;
+    m_taskOtherPath = other;
     m_statusText->setText(tr("正在执行%1对比...").arg(mode));
-    process.start(engineExecutable(), engineArguments({command, m_currentPath, other, "--json", output}));
-    if (!process.waitForFinished(120000) || process.exitCode() != 0) {
-        QMessageBox::critical(this, tr("对比失败"), QString::fromUtf8(process.readAllStandardError()));
-        return;
-    }
-    QFile file(output);
-    if (!file.open(QIODevice::ReadOnly)) return;
-    QJsonParseError error;
-    const auto document = QJsonDocument::fromJson(file.readAll(), &error);
-    if (document.isNull()) {
-        QMessageBox::critical(this, tr("对比结果无效"), error.errorString());
-        return;
-    }
-    populateCompare(mode, document, other);
-    m_tabs->setCurrentWidget(m_compareTree);
-    m_statusText->setText(tr("对比完成：%1").arg(QFileInfo(other).fileName()));
-    m_log->appendPlainText(tr("[%1] %2对比 %3").arg(QTime::currentTime().toString("HH:mm:ss"), mode, other));
+    startEngineTask("compare", {command, m_currentPath, other, "--json", output});
 }
 
 void MainWindow::populateCompare(const QString &mode, const QJsonDocument &document, const QString &otherPath)
@@ -1193,16 +1204,37 @@ void MainWindow::populateCompare(const QString &mode, const QJsonDocument &docum
                 auto *item = new QTreeWidgetItem(section);
                 item->setText(0, sectionName);
                 item->setText(1, row.value("path").toString(QString("Frame #%1").arg(row.value("index").toInt())));
-                item->setText(2, tr("结构化差异"));
                 const auto changes = row.value("changes").toObject();
-                item->setText(3, QString::fromUtf8(QJsonDocument(changes).toJson(QJsonDocument::Compact)));
+                item->setText(2, changes.isEmpty() ? tr("对象") : tr("%1 项属性").arg(changes.size()));
                 const qint64 offset = jsonInteger(row.value("offset"));
                 item->setData(0, OffsetRole, offset > 0 ? offset : -1);
                 for (int column = 0; column < item->columnCount(); ++column) item->setForeground(column, color);
+
+                const auto addChanges = [&](auto &&self, QTreeWidgetItem *parent, const QJsonObject &object, const QString &prefix) -> void {
+                    for (auto it = object.begin(); it != object.end(); ++it) {
+                        const QString key = prefix.isEmpty() ? it.key() : prefix + "." + it.key();
+                        const auto pair = it.value().toObject();
+                        if (pair.contains("left") || pair.contains("right")) {
+                            auto *detail = new QTreeWidgetItem(parent);
+                            detail->setText(0, tr("变化"));
+                            detail->setText(2, key);
+                            const auto sideText = [](const QJsonValue &value) {
+                                const auto object = value.toObject();
+                                return object.contains("value") ? displayValue(object.value("value")) : displayValue(value);
+                            };
+                            detail->setText(3, sideText(pair.value("left")));
+                            detail->setText(4, sideText(pair.value("right")));
+                            for (int column = 0; column < detail->columnCount(); ++column) detail->setForeground(column, color);
+                        } else if (!pair.isEmpty()) {
+                            self(self, parent, pair, key);
+                        }
+                    }
+                };
+                addChanges(addChanges, item, changes, {});
             }
         }
     }
-    m_compareTree->expandToDepth(1);
+    m_compareTree->expandToDepth(2);
 }
 
 void MainWindow::saveProjectSnapshot()
@@ -1229,20 +1261,11 @@ void MainWindow::saveProjectSnapshot()
 
 void MainWindow::runExport(const QString &format, const QString &outputPath)
 {
-    QProcess process;
-    process.setWorkingDirectory(projectRoot());
-    auto environment = QProcessEnvironment::systemEnvironment();
-    environment.insert("PYTHONPATH", projectRoot());
-    environment.insert("TEMP", projectRoot() + "/tmp");
-    environment.insert("TMP", projectRoot() + "/tmp");
-    process.setProcessEnvironment(environment);
-    process.start(engineExecutable(), engineArguments({"analyze", m_currentPath, "--" + format, outputPath}));
-    if (!process.waitForFinished(120000) || process.exitCode() != 0) {
-        QMessageBox::critical(this, tr("导出失败"), QString::fromUtf8(process.readAllStandardError()));
-        return;
-    }
-    m_log->appendPlainText(tr("[导出] %1").arg(outputPath));
-    m_statusText->setText(tr("报告已导出：%1").arg(outputPath));
+    m_taskOutputPath = outputPath;
+    m_statusText->setText(tr("正在导出 %1 报告...").arg(format.toUpper()));
+    QStringList arguments = {"analyze", m_currentPath, "--" + format, outputPath};
+    arguments.append(m_currentRawOptions);
+    startEngineTask("export", arguments);
 }
 
 void MainWindow::setDarkTheme() { applyTheme(true); }
@@ -1298,6 +1321,7 @@ void MainWindow::applyTheme(bool dark)
         #logPanel { background: %3; color: %5; border: 1px solid %6; border-radius: 6px; }
     )").arg(bg, panel, panelAlt, text, muted, border, select, selectText, hover));
     m_timeline->setDarkTheme(dark);
+    m_preview->setDarkTheme(dark);
     if (!m_document.isNull())
         loadDocument(m_document);
 }

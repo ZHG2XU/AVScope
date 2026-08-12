@@ -20,6 +20,7 @@ class QTabWidget;
 class QTreeWidget;
 class QTreeWidgetItem;
 class TimelineWidget;
+class MediaPreviewWidget;
 
 class MainWindow final : public QMainWindow
 {
@@ -79,6 +80,7 @@ private:
     void restoreWorkspaceState();
     bool filterTreeItem(QTreeWidgetItem *item, const QString &query, bool issuesOnly);
     void runExport(const QString &format, const QString &outputPath);
+    void startEngineTask(const QString &kind, const QStringList &arguments);
     void runCompare(const QString &mode);
     void populateCompare(const QString &mode, const QJsonDocument &document, const QString &otherPath);
     QStringList rawOptionsForPath(const QString &path, bool *accepted);
@@ -97,6 +99,10 @@ private:
     bool m_dark = true;
     bool m_cancelRequested = false;
     bool m_autoCompareTriggered = false;
+    QString m_taskKind;
+    QString m_taskOutputPath;
+    QString m_taskMode;
+    QString m_taskOtherPath;
     QString m_currentPath;
     QStringList m_currentRawOptions;
     QJsonDocument m_document;
@@ -108,7 +114,7 @@ private:
     QTableWidget *m_framesTable = nullptr;
     QTreeWidget *m_compareTree = nullptr;
     QPlainTextEdit *m_hexView = nullptr;
-    QPlainTextEdit *m_preview = nullptr;
+    MediaPreviewWidget *m_preview = nullptr;
     QTableWidget *m_diagnosticsTable = nullptr;
     QPlainTextEdit *m_selectionDetails = nullptr;
     QPlainTextEdit *m_log = nullptr;
