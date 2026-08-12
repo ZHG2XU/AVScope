@@ -46,6 +46,10 @@ class _Stream:
     nal_type_counts: dict[str, int] = field(default_factory=dict)
     packetization_counts: dict[str, int] = field(default_factory=dict)
     fragment: _Fragment | None = None
+    negotiated_encoding: str = ""
+    clock_rate: int = 0
+    call_id: str = ""
+    mapping_source: str = ""
 
     def count_type(self, name: str) -> None:
         self.nal_type_counts[name] = self.nal_type_counts.get(name, 0) + 1
@@ -60,16 +64,33 @@ class RtpVideoPayloadAnalyzer:
         self._diagnostics: list[DiagnosticIssue] = []
         self._issues: list[dict[str, Any]] = []
 
-    def add_packet(self, packet: dict[str, Any], payload: bytes, rtp_node: ParseNode) -> dict[str, Any]:
+    def add_packet(
+        self,
+        packet: dict[str, Any],
+        payload: bytes,
+        rtp_node: ParseNode,
+        negotiated: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         key = _stream_key(packet)
         stream = self._streams.get(key) or _Stream(key)
-        codec = self._detect_codec(stream, int(packet.get("payload_type", 0)), payload)
+        codec = self._detect_codec(stream, int(packet.get("payload_type", 0)), payload, negotiated)
         if not codec:
-            return {"available": False}
+            return {
+                "available": False,
+                "negotiated_encoding": str((negotiated or {}).get("encoding", "")),
+                "clock_rate": int((negotiated or {}).get("clock_rate", 0) or 0),
+                "call_id": str((negotiated or {}).get("call_id", "")),
+                "mapping_source": str((negotiated or {}).get("mapping_source", "")),
+            }
         self._streams.setdefault(key, stream)
         if stream.codec and stream.codec != codec:
             self._issue(stream, f"RTP 视频负载编码从 {stream.codec} 切换为 {codec}", int(packet["payload_offset"]))
         stream.codec = codec
+        if negotiated:
+            stream.negotiated_encoding = str(negotiated.get("encoding", ""))
+            stream.clock_rate = int(negotiated.get("clock_rate", 0) or 0)
+            stream.call_id = str(negotiated.get("call_id", ""))
+            stream.mapping_source = str(negotiated.get("mapping_source", "SDP"))
         stream.packets += 1
         stream.payload_bytes += len(payload)
         stream.first_offset = int(packet["payload_offset"]) if stream.first_offset is None else stream.first_offset
@@ -87,7 +108,15 @@ class RtpVideoPayloadAnalyzer:
             rtp_node.severity = Severity.WARNING
             rtp_node.description = self._issues[-1]["message"]
         stream.packetization_counts[result["packetization"]] = stream.packetization_counts.get(result["packetization"], 0) + 1
-        return {"available": True, "codec": codec, **result}
+        return {
+            "available": True,
+            "codec": codec,
+            "negotiated_encoding": str((negotiated or {}).get("encoding", "")),
+            "clock_rate": int((negotiated or {}).get("clock_rate", 0) or 0),
+            "call_id": str((negotiated or {}).get("call_id", "")),
+            "mapping_source": str((negotiated or {}).get("mapping_source", "auto" if not negotiated else "SDP")),
+            **result,
+        }
 
     def finalize(self) -> tuple[dict[str, Any], list[DiagnosticIssue]]:
         for stream in self._streams.values():
@@ -116,6 +145,10 @@ class RtpVideoPayloadAnalyzer:
                     "nal_type_counts": dict(sorted(stream.nal_type_counts.items())),
                     "packetization_counts": dict(sorted(stream.packetization_counts.items())),
                     "status": "warning" if stream.issue_count else "normal",
+                    "negotiated_encoding": stream.negotiated_encoding,
+                    "clock_rate": stream.clock_rate,
+                    "call_id": stream.call_id,
+                    "mapping_source": stream.mapping_source or "auto",
                 }
             )
         summary = {
@@ -134,7 +167,21 @@ class RtpVideoPayloadAnalyzer:
         }
         return summary, list(self._diagnostics)
 
-    def _detect_codec(self, stream: _Stream, payload_type: int, payload: bytes) -> str:
+    def _detect_codec(
+        self,
+        stream: _Stream,
+        payload_type: int,
+        payload: bytes,
+        negotiated: dict[str, Any] | None,
+    ) -> str:
+        if negotiated:
+            encoding = str(negotiated.get("encoding", "")).lower()
+            if encoding in {"h264", "avc"}:
+                return "H.264"
+            if encoding in {"h265", "hevc"}:
+                return "H.265"
+            if encoding:
+                return ""
         mapped = self._payload_map.get(payload_type, "")
         if mapped in {"h264", "avc"}:
             return "H.264"

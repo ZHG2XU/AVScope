@@ -179,6 +179,54 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                         "severity": issue.get("severity", "warning"),
                     }
                 )
+        sip_sdp = result.media.summary.get("sip_sdp", {})
+        if sip_sdp.get("available"):
+            writer.writerow(
+                {
+                    "section": "sip_sdp_summary",
+                    "name": "SIP / SDP signaling",
+                    "type": "summary",
+                    "size": sip_sdp.get("message_count", 0),
+                    "value": json.dumps(sip_sdp, ensure_ascii=False),
+                    "severity": "warning" if sip_sdp.get("issue_count") else "normal",
+                }
+            )
+            for message in sip_sdp.get("messages", []):
+                writer.writerow(
+                    {
+                        "section": "sip_message",
+                        "name": message.get("start_line", ""),
+                        "type": message.get("kind", ""),
+                        "index": message.get("index", ""),
+                        "offset": f"0x{int(message.get('offset', 0)):X}",
+                        "size": message.get("size", ""),
+                        "key": message.get("call_id", ""),
+                        "value": json.dumps(message, ensure_ascii=False),
+                    }
+                )
+            for mapping in sip_sdp.get("unique_payload_mappings", sip_sdp.get("payload_mappings", [])):
+                writer.writerow(
+                    {
+                        "section": "sdp_payload_mapping",
+                        "name": mapping.get("encoding", ""),
+                        "type": mapping.get("media", ""),
+                        "offset": f"0x{int(mapping.get('offset', 0)):X}",
+                        "key": f"PT={mapping.get('payload_type', '')} port={mapping.get('port', '')}",
+                        "value": json.dumps(mapping, ensure_ascii=False),
+                    }
+                )
+            for index, issue in enumerate(sip_sdp.get("issues", [])):
+                writer.writerow(
+                    {
+                        "section": "sip_sdp_issue",
+                        "name": issue.get("message", ""),
+                        "type": issue.get("source", "sip_sdp"),
+                        "index": index,
+                        "offset": f"0x{int(issue.get('offset', 0)):X}",
+                        "value": json.dumps(issue, ensure_ascii=False),
+                        "severity": issue.get("severity", "warning"),
+                    }
+                )
         timeline_summary = result.media.summary.get("timeline_summary", {})
         if timeline_summary.get("available"):
             writer.writerow(
@@ -267,6 +315,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     transport_sessions_html = _transport_sessions_html(result.media.summary.get("transport_sessions", {}))
     codec_health_html = _codec_health_html(result.media.summary.get("codec_health", {}))
     rtp_video_html = _rtp_video_html(result.media.summary.get("rtp_video", {}))
+    sip_sdp_html = _sip_sdp_html(result.media.summary.get("sip_sdp", {}))
     timeline_summary_html = _timeline_summary_html(timeline_summary)
     timeline_chart_html = _timeline_chart_html(doc["frames"], packets)
     issue_labels = timeline_issue_label_map(timeline_summary)
@@ -521,6 +570,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     {transport_sessions_html}
     {codec_health_html}
     {rtp_video_html}
+    {sip_sdp_html}
     <section>
       <h2>音频波形</h2>
       {waveform_html}
@@ -827,6 +877,56 @@ def _rtp_video_html(video: dict) -> str:
         + "".join(rows) + "</table>"
     )
     return f'<section><h2>RTP H.264/H.265 视频负载</h2><div class="overview">{metric_html}</div>{table}{issues}</section>'
+
+
+def _sip_sdp_html(signaling: dict) -> str:
+    if not signaling.get("available"):
+        return ""
+    metrics = [
+        ("SIP 消息", signaling.get("message_count", 0)),
+        ("请求 / 响应", f"{signaling.get('requests', 0)} / {signaling.get('responses', 0)}"),
+        ("Call-ID", signaling.get("call_count", 0)),
+        ("SDP 媒体", signaling.get("media_count", 0)),
+        ("PT 映射", signaling.get("unique_mapping_count", signaling.get("mapping_count", 0))),
+        ("问题", signaling.get("issue_count", 0)),
+    ]
+    metric_html = "".join(
+        f'<div class="metric"><div class="label">{html.escape(str(label))}</div>'
+        f'<div class="value">{html.escape(str(value))}</div></div>'
+        for label, value in metrics
+    )
+    message_rows = "".join(
+        "<tr>"
+        f'<td>{item.get("index", "")}</td><td>{html.escape(str(item.get("kind", "")))}</td>'
+        f'<td>{html.escape(str(item.get("start_line", "")))}</td><td>{html.escape(str(item.get("call_id", "")))}</td>'
+        f'<td>{html.escape(str(item.get("cseq", "")))}</td><td>{"yes" if item.get("has_sdp") else "no"}</td>'
+        f'<td>0x{int(item.get("offset", 0)):X}</td></tr>'
+        for item in signaling.get("messages", [])
+    )
+    mapping_rows = "".join(
+        "<tr>"
+        f'<td>{html.escape(str(item.get("call_id", "")))}</td><td>{html.escape(str(item.get("media", "")))}</td>'
+        f'<td>{html.escape(str(item.get("connection_address", "")))}:{item.get("port", "")}</td>'
+        f'<td>{item.get("payload_type", "")}</td><td>{html.escape(str(item.get("encoding", "")))}</td>'
+        f'<td>{item.get("clock_rate", "")}</td><td>{html.escape(str(item.get("direction", "")))}</td>'
+        f'<td>{html.escape(str(item.get("fmtp", "")))}</td><td>0x{int(item.get("offset", 0)):X}</td></tr>'
+        for item in signaling.get("unique_payload_mappings", signaling.get("payload_mappings", []))
+    )
+    issues = "".join(
+        '<tr class="warning-row">'
+        f'<td>0x{int(item.get("offset", 0)):X}</td><td>{html.escape(str(item.get("message", "")))}</td></tr>'
+        for item in signaling.get("issues", [])
+    )
+    issue_table = "" if not issues else (
+        '<h3>信令问题</h3><table class="timeline-issues"><tr><th>Offset</th><th>问题</th></tr>' + issues + "</table>"
+    )
+    return (
+        f'<section><h2>SIP / SDP 信令协商</h2><div class="overview">{metric_html}</div>'
+        '<h3>SIP 消息</h3><table class="timeline-issues"><tr><th>#</th><th>类型</th><th>Start Line</th><th>Call-ID</th><th>CSeq</th><th>SDP</th><th>Offset</th></tr>'
+        + message_rows + '</table><h3>SDP Payload 映射</h3><table class="timeline-issues">'
+        '<tr><th>Call-ID</th><th>媒体</th><th>地址:端口</th><th>PT</th><th>编码</th><th>Clock</th><th>方向</th><th>FMTP</th><th>Offset</th></tr>'
+        + mapping_rows + "</table>" + issue_table + "</section>"
+    )
 
 
 def _waveform_html(waveform: dict) -> str:

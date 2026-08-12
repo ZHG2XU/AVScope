@@ -5,6 +5,7 @@ from avscope.models import FieldInfo, FrameInfo, ParseNode, ParseResult, Severit
 from avscope.parsers.base import FormatParser
 from avscope.parsers.common import error, media_info, root_node, warn
 from avscope.rtp_video import RtpVideoPayloadAnalyzer
+from avscope.sip_sdp import SipSdpAnalyzer
 from avscope.transport_sessions import TransportSessionTracker
 
 
@@ -71,7 +72,8 @@ class PcapRtpParser(FormatParser):
         payload_type_counts: dict[int, int] = {}
         rtcp_stats = _new_rtcp_stats()
         session_tracker = TransportSessionTracker()
-        video_analyzer = RtpVideoPayloadAnalyzer(options.get("rtp_payload_map"))
+        sip_analyzer = SipSdpAnalyzer()
+        rtp_descriptors: list[tuple[dict, int]] = []
         while offset + 16 <= source.size and packet_count < MAX_VISIBLE_PACKETS:
             record_header = source.read_at(offset, 16)
             ts_sec = _u32(record_header, 0, endian)
@@ -108,6 +110,7 @@ class PcapRtpParser(FormatParser):
                 included_len,
                 diagnostics,
                 rtcp_stats,
+                sip_analyzer,
             )
             parsed_rtp = parsed.get("rtp") if parsed else None
             if parsed_rtp:
@@ -118,8 +121,6 @@ class PcapRtpParser(FormatParser):
                 ssrc = parsed_rtp["ssrc"]
                 sequence = parsed_rtp["sequence"]
                 sequence_event = session_tracker.add_rtp(parsed_rtp)
-                payload = source.read_at(parsed_rtp["payload_offset"], parsed_rtp["payload_size"])
-                video_payload = video_analyzer.add_packet(parsed_rtp, payload, parsed_rtp["node"])
                 if sequence_event:
                     sequence_warnings += 1
                     message = _sequence_event_message(ssrc, sequence_event)
@@ -141,14 +142,10 @@ class PcapRtpParser(FormatParser):
                             "rtp_payload_type": payload_type,
                             "rtp_marker": bool(parsed_rtp["marker"]),
                             "rtp_sequence_event": sequence_event.get("kind") if sequence_event else "",
-                            "rtp_video_codec": video_payload.get("codec", ""),
-                            "rtp_packetization": video_payload.get("packetization", ""),
-                            "rtp_nal_types": video_payload.get("nal_types", []),
-                            "rtp_nal_units": video_payload.get("nal_units", 0),
-                            "rtp_video_status": video_payload.get("status", ""),
                         },
                     )
                 )
+                rtp_descriptors.append((parsed_rtp, len(frames) - 1))
             packet_count += 1
             offset = packet_end
 
@@ -157,8 +154,37 @@ class PcapRtpParser(FormatParser):
         elif offset < source.size:
             diagnostics.append(warn("PCAP 尾部存在未解析字节", offset, self.name))
 
+        sip_sdp, sip_diagnostics = sip_analyzer.finalize()
+        diagnostics.extend(sip_diagnostics)
+        video_analyzer = RtpVideoPayloadAnalyzer(options.get("rtp_payload_map"))
+        negotiated_packets: list[tuple[dict, dict[str, object]]] = []
+        for parsed_rtp, frame_index in rtp_descriptors:
+            negotiated = sip_analyzer.resolve_payload(parsed_rtp)
+            if negotiated:
+                negotiated_packets.append((parsed_rtp, negotiated))
+            payload = source.read_at(parsed_rtp["payload_offset"], parsed_rtp["payload_size"])
+            video_payload = video_analyzer.add_packet(parsed_rtp, payload, parsed_rtp["node"], negotiated)
+            metadata = frames[frame_index].metadata
+            metadata.update(
+                {
+                    "rtp_video_codec": video_payload.get("codec", ""),
+                    "rtp_packetization": video_payload.get("packetization", ""),
+                    "rtp_nal_types": video_payload.get("nal_types", []),
+                    "rtp_nal_units": video_payload.get("nal_units", 0),
+                    "rtp_video_status": video_payload.get("status", ""),
+                    "rtp_negotiated_encoding": video_payload.get("negotiated_encoding", ""),
+                    "rtp_clock_rate": video_payload.get("clock_rate", 0),
+                    "sip_call_id": video_payload.get("call_id", ""),
+                    "rtp_mapping_source": video_payload.get("mapping_source", ""),
+                }
+            )
+            clock_rate = int(video_payload.get("clock_rate", 0) or 0)
+            if clock_rate > 0:
+                frames[frame_index].pts = parsed_rtp["timestamp"] / clock_rate
+
         session_tracker.attach_rtcp(rtcp_stats)
         transport_sessions = session_tracker.summary()
+        _merge_sdp_transport_sessions(transport_sessions, negotiated_packets)
         rtp_video, video_diagnostics = video_analyzer.finalize()
         _merge_rtp_video_sessions(transport_sessions, rtp_video)
         diagnostics.extend(video_diagnostics)
@@ -174,6 +200,9 @@ class PcapRtpParser(FormatParser):
                 FieldInfo("sequence_warnings", sequence_warnings),
                 FieldInfo("rtp_video_streams", rtp_video["stream_count"]),
                 FieldInfo("rtp_video_issues", rtp_video["issue_count"]),
+                FieldInfo("sip_messages", sip_sdp["message_count"]),
+                FieldInfo("sdp_media", sip_sdp["media_count"]),
+                FieldInfo("sdp_payload_mappings", sip_sdp["mapping_count"]),
             ]
         )
         summary = {
@@ -186,6 +215,7 @@ class PcapRtpParser(FormatParser):
             "rtcp": rtcp_summary,
             "transport_sessions": transport_sessions,
             "rtp_video": rtp_video,
+            "sip_sdp": sip_sdp,
         }
         return ParseResult(media_info(source, self.name, **summary), root, frames=frames, diagnostics=diagnostics)
 
@@ -197,6 +227,7 @@ def _parse_network_packet(
     included_len: int,
     diagnostics: list,
     rtcp_stats: dict,
+    sip_analyzer: SipSdpAnalyzer,
 ) -> dict | None:
     packet_end = packet_offset + included_len
     if included_len < ETHERNET_HEADER_SIZE:
@@ -273,6 +304,12 @@ def _parse_network_packet(
     if payload_size < 2:
         return None
     payload = source.read_at(payload_offset, payload_size)
+    source_ip = _ip(ip[12:16])
+    destination_ip = _ip(ip[16:20])
+    if sip_analyzer.add_datagram(
+        payload, payload_offset, udp_node, source_ip, src_port, destination_ip, dst_port,
+    ):
+        return {"kind": "sip"}
     if _looks_like_rtcp(payload) or (_rtcp_header_candidate(payload) and src_port % 2 == 1 and dst_port % 2 == 1):
         rtcp_stats["datagrams"] += 1
         _parse_rtcp_compound(source, udp_node, payload_offset, payload_size, diagnostics, rtcp_stats)
@@ -281,8 +318,8 @@ def _parse_network_packet(
     if rtp:
         rtp.update(
             {
-                "source_ip": _ip(ip[12:16]),
-                "destination_ip": _ip(ip[16:20]),
+                "source_ip": source_ip,
+                "destination_ip": destination_ip,
                 "source_port": src_port,
                 "destination_port": dst_port,
             }
@@ -669,6 +706,33 @@ def _merge_rtp_video_sessions(transport: dict, video: dict) -> None:
     transport["warning_sessions"] = sum(item.get("status") == "warning" for item in transport.get("sessions", []))
     transport["video_streams"] = int(video.get("stream_count", 0))
     transport["video_warning_streams"] = int(video.get("warning_streams", 0))
+
+
+def _merge_sdp_transport_sessions(transport: dict, negotiated_packets: list[tuple[dict, dict]]) -> None:
+    sessions = {
+        (
+            item.get("source_ip"), item.get("source_port"), item.get("destination_ip"),
+            item.get("destination_port"), item.get("ssrc"),
+        ): item
+        for item in transport.get("sessions", [])
+    }
+    linked: set[int] = set()
+    for packet, mapping in negotiated_packets:
+        key = (
+            packet.get("source_ip"), packet.get("source_port"), packet.get("destination_ip"),
+            packet.get("destination_port"), f"0x{int(packet.get('ssrc', 0)):08X}",
+        )
+        session = sessions.get(key)
+        if not session:
+            continue
+        session["negotiated_media"] = mapping.get("media", "")
+        session["negotiated_encoding"] = mapping.get("encoding", "")
+        session["negotiated_clock_rate"] = int(mapping.get("clock_rate", 0) or 0)
+        session["sip_call_id"] = mapping.get("call_id", "")
+        session["sdp_media_port"] = int(mapping.get("media_port", 0) or 0)
+        session["mapping_source"] = mapping.get("mapping_source", "SDP")
+        linked.add(int(session.get("index", 0)))
+    transport["sdp_linked_sessions"] = len(linked)
 
 
 def _signed_24(data: bytes) -> int:

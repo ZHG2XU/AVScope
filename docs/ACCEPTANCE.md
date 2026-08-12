@@ -80,6 +80,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 20.1 打开 `G:\AVScope\samples\sample_rtp_anomalies.pcap` 并切换“传输会话”页，确认显示 2 路端点/SSRC 会话，其中 `0x12345678` 为警告且估算丢失、重复、乱序各为 1，`0xABCDEF01` 为正常；勾选“只看异常会话”后只保留 1 行，双击该行应跳到首个 RTP header。HTML 应包含“RTP / RTCP 传输会话”，CSV 应包含 `transport_session`。
 20.2 打开 `G:\AVScope\samples\sample_h264_issues.h264` 并按 `Ctrl+0`，确认“码流健康”显示 4 个问题、缺失 PPS 7、缺失 SPS 9，以及 `640x480 -> 320x240` 分辨率变化；双击问题应定位 Hex。打开 `sample_h265_issues.h265`，确认显示 5 个问题、缺失 PPS 7/SPS 8/VPS 9，以及 `640x360 -> 1280x720`。深浅主题下警告文字、普通文字和选中行文字均应清晰可辨；HTML 应包含“H.26x 码流健康”，CSV 应包含 `codec_health_summary` 和 `codec_health_issue`。
 20.3 打开 `G:\AVScope\samples\sample_rtp_video.pcap`，进入“传输会话 / 视频负载”，确认显示 3 路 SSRC、H.264/H.265、STAP-A/AP/FU、6 个 NALU、2 个完成分片和 1 个未完成分片；`0x33333333` 应提示“分片缺少起始包”并同步成为警告会话。双击流或负载问题应定位 Payload Hex；HTML 应包含“RTP H.264/H.265 视频负载”，CSV 应包含 `rtp_video_summary`、`rtp_video_stream` 和 `rtp_video_issue`。
+20.4 打开 `G:\AVScope\samples\sample_sip_sdp.pcap`，进入“传输会话 / 信令协商”，确认显示 3 条 SIP、2 个 Call-ID、5 个原始 SDP 媒体描述和 4 条去重 PT 映射；PT 96 在端口 5004/6004 应分别映射为 H264/H265，PT 97 映射为 PCMA/8000 且不能误入视频负载。会话质量页应显示 SDP 关联 3，音频 RTP timestamp 8000 应换算为 1.0 秒；双击 SIP/SDP 行应定位 Hex。HTML 应包含“SIP / SDP 信令协商”，CSV 应包含 `sip_sdp_summary`、`sip_message` 和 `sdp_payload_mapping`。
 21. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；`sample.pcm` 可设置采样率、声道、位深、大小端和有符号/无符号，关闭后再次打开时应沿用上次设置。
 22. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“媒体预览”页是否显示八段 Raw YUV 彩条、帧 1/3 和宽高/像素格式/帧率；点击右上角下一箭头应异步显示帧 2/3 且彩条相位变化。打开 `sample.pcm` 应显示可见正弦波形和采样参数；真实视频可用同一组箭头按 1 秒步进。
 23. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
@@ -95,7 +96,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 31. 打开 WAV 或真实多路音视频文件，在“媒体流”页检查每路流的 codec、profile、分辨率/声道、采样率、帧率、time_base、duration、bitrate 和像素/采样格式；音频与视频使用不同文字色。
 32. 打开损坏 MP4/FLV/AAC 等文件，在右侧诊断面板组合选择级别、来源和“有 Offset”，确认“显示 N / 总数”正确；点击带 Offset 的行应定位 Hex，右键“添加当前诊断为书签”应直接保存问题消息与来源。
 31. 检查 Qt 绿色版目录中存在 `platforms\qwindows.dll`、`engine\AVScopeEngine.exe`、`engine\_internal\ffprobe.exe`、`ffmpeg.exe` 和 `plugins\demo_magic.json`，并打开发布清单确认安装包、绿色版、源码包、Qt DLL、引擎与插件文件均记录 size 和 SHA256。
-32. 打开 `G:\AVScope\dist\sample-reports\sample_wav_report.html`、`sample_mp4_report.json` 和 `sample_rtp_video_report.html`，确认交付目录包含文件、封装及 RTP 视频负载示例分析报告。
+32. 打开 `G:\AVScope\dist\sample-reports\sample_wav_report.html`、`sample_mp4_report.json`、`sample_rtp_video_report.html` 和 `sample_sip_sdp_report.html`，确认交付目录包含文件、封装、RTP 视频负载及 SIP/SDP 示例分析报告。
 33. 打开 `G:\AVScope\dist\AVScope-validation-report.md`，确认一键验证通过项和关键产物大小已写入测试报告。
 34. 导出 HTML/JSON/CSV 报告并打开检查，确认可选用户备注会写入报告；HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含音频波形图、结构化统计摘要表、帧/packet 大小图和“帧列表”章节；CSV 应包含 `media`、`notes`、`diagnostic`、`timeline_issue`、`frame_stats`、`packet_stats`、`frame`、`packet`、`node`、`field` 等 section。
 35. 打开 `G:\AVScope\docs\KNOWN_ISSUES_AND_ROADMAP.md`，确认当前 MVP 边界和后续规划已有明确说明。

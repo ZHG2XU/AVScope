@@ -27,6 +27,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample.pcap", _pcap_rtp_sample()),
         _write(target / "sample_rtp_anomalies.pcap", _pcap_rtp_anomaly_sample()),
         _write(target / "sample_rtp_video.pcap", _pcap_rtp_video_sample()),
+        _write(target / "sample_sip_sdp.pcap", _pcap_sip_sdp_sample()),
         _write(target / "sample.ts", _mpegts_sample()),
         _write(target / "sample.pcm", _pcm_sample()),
         _write(target / "sample.yuv", _yuv420p_color_bars()),
@@ -238,6 +239,70 @@ def _pcap_rtp_video_sample() -> bytes:
     return global_header + b"".join(packets)
 
 
+def _pcap_sip_sdp_sample() -> bytes:
+    global_header = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
+    h264_sdp = (
+        "v=0\r\n"
+        "o=alice 1 1 IN IP4 192.168.1.10\r\n"
+        "s=AVScope H264 Call\r\n"
+        "c=IN IP4 239.1.1.1\r\n"
+        "t=0 0\r\n"
+        "m=video 5004 RTP/AVP 96\r\n"
+        "a=rtpmap:96 H264/90000\r\n"
+        "a=fmtp:96 packetization-mode=1;profile-level-id=42E01E\r\n"
+        "a=sendrecv\r\n"
+        "m=audio 5006 RTP/AVP 97 8\r\n"
+        "a=rtpmap:97 PCMA/8000\r\n"
+    )
+    h265_sdp = (
+        "v=0\r\n"
+        "o=bob 2 2 IN IP4 192.168.1.20\r\n"
+        "s=AVScope H265 Call\r\n"
+        "c=IN IP4 239.1.1.2\r\n"
+        "t=0 0\r\n"
+        "m=video 6004 RTP/AVP 96\r\n"
+        "a=rtpmap:96 H265/90000\r\n"
+        "a=fmtp:96 profile-id=1\r\n"
+        "a=recvonly\r\n"
+    )
+    invite_h264 = _sip_message(
+        "INVITE sip:viewer@example.com SIP/2.0", "call-h264@example.com", "1 INVITE", h264_sdp,
+    )
+    answer_h264 = _sip_message(
+        "SIP/2.0 200 OK", "call-h264@example.com", "1 INVITE", h264_sdp,
+    )
+    invite_h265 = _sip_message(
+        "INVITE sip:hevc@example.com SIP/2.0", "call-h265@example.com", "9 INVITE", h265_sdp,
+    )
+    h264_payload = b"\x65" + make_h264_slice_header(pps_id=0, slice_type=2)
+    h265_payload = bytes([19 << 1, 0x01]) + make_h265_slice_header(pps_id=0, irap=True)
+    audio_payload = b"\x65\x88\x84\x21"
+    packets = [
+        _pcap_packet(0, _ethernet_ipv4_udp(invite_h264, src_port=5060, dst_port=5060)),
+        _pcap_packet(1, _ethernet_ipv4_udp(answer_h264, src_port=5060, dst_port=5060)),
+        _pcap_packet(2, _ethernet_ipv4_udp(invite_h265, src_port=5060, dst_port=5060)),
+        _pcap_packet(3, _ethernet_ipv4_udp_rtp(100, 90000, True, h264_payload, ssrc=0x44444444, src_port=5004, dst_port=5004)),
+        _pcap_packet(4, _ethernet_ipv4_udp_rtp(200, 180000, True, h265_payload, ssrc=0x55555555, src_port=6004, dst_port=6004, destination_ip=(239, 1, 1, 2))),
+        _pcap_packet(5, _ethernet_ipv4_udp_rtp(300, 8000, True, audio_payload, ssrc=0x66666666, src_port=5006, dst_port=5006, payload_type=97)),
+    ]
+    return global_header + b"".join(packets)
+
+
+def _sip_message(start_line: str, call_id: str, cseq: str, sdp: str) -> bytes:
+    body = sdp.encode("utf-8")
+    headers = (
+        f"{start_line}\r\n"
+        "Via: SIP/2.0/UDP 192.168.1.10:5060;branch=z9hG4bK-avscope\r\n"
+        "From: <sip:source@example.com>;tag=source\r\n"
+        "To: <sip:viewer@example.com>\r\n"
+        f"Call-ID: {call_id}\r\n"
+        f"CSeq: {cseq}\r\n"
+        "Content-Type: application/sdp\r\n"
+        f"Content-Length: {len(body)}\r\n\r\n"
+    ).encode("utf-8")
+    return headers + body
+
+
 def _pcap_packet(ts_sec: int, payload: bytes) -> bytes:
     return struct.pack("<IIII", ts_sec, 0, len(payload), len(payload)) + payload
 
@@ -250,12 +315,19 @@ def _ethernet_ipv4_udp_rtp(
     ssrc: int = 0x12345678,
     src_port: int = 5004,
     dst_port: int = 5004,
+    payload_type: int = 96,
+    destination_ip: tuple[int, int, int, int] = (239, 1, 1, 1),
 ) -> bytes:
-    rtp = bytes([0x80, (0x80 if marker else 0x00) | 96]) + struct.pack(">HII", sequence, timestamp, ssrc) + payload
-    return _ethernet_ipv4_udp(rtp, src_port=src_port, dst_port=dst_port)
+    rtp = bytes([0x80, (0x80 if marker else 0x00) | (payload_type & 0x7F)]) + struct.pack(">HII", sequence, timestamp, ssrc) + payload
+    return _ethernet_ipv4_udp(rtp, src_port=src_port, dst_port=dst_port, destination_ip=destination_ip)
 
 
-def _ethernet_ipv4_udp(payload: bytes, src_port: int, dst_port: int) -> bytes:
+def _ethernet_ipv4_udp(
+    payload: bytes,
+    src_port: int,
+    dst_port: int,
+    destination_ip: tuple[int, int, int, int] = (239, 1, 1, 1),
+) -> bytes:
     ethernet = b"\xAA\xBB\xCC\xDD\xEE\xFF" + b"\x11\x22\x33\x44\x55\x66" + b"\x08\x00"
     udp_length = 8 + len(payload)
     udp = struct.pack(">HHHH", src_port, dst_port, udp_length, 0)
@@ -265,7 +337,7 @@ def _ethernet_ipv4_udp(payload: bytes, src_port: int, dst_port: int) -> bytes:
         + struct.pack(">H", ip_total_length)
         + b"\x00\x01\x00\x00\x40\x11\x00\x00"
         + bytes([192, 168, 1, 10])
-        + bytes([239, 1, 1, 1])
+        + bytes(destination_ip)
     )
     checksum = _ipv4_checksum(bytes(ip_header))
     ip_header[10:12] = struct.pack(">H", checksum)

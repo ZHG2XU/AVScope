@@ -18,6 +18,9 @@ DEFAULT_OUTPUTS = [
     "sample_rtp_video_report.html",
     "sample_rtp_video_report.json",
     "sample_rtp_video_report.csv",
+    "sample_sip_sdp_report.html",
+    "sample_sip_sdp_report.json",
+    "sample_sip_sdp_report.csv",
     "sample_protocol_compare.json",
     "sample_frame_compare.json",
 ]
@@ -46,6 +49,13 @@ def build_sample_reports(root: str | Path, output_dir: str | Path) -> list[Path]
     export_html(rtp_video_result, output_path / "sample_rtp_video_report.html", notes=rtp_note)
     export_json(rtp_video_result, output_path / "sample_rtp_video_report.json", notes=rtp_note)
     export_csv(rtp_video_result, output_path / "sample_rtp_video_report.csv", notes=rtp_note)
+
+    sip_sdp = root_path / "samples" / "sample_sip_sdp.pcap"
+    sip_sdp_result = analyzer.analyze(sip_sdp)
+    sip_note = "AVScope 交付示例报告：SIP/SDP Call-ID、媒体协商与动态 PT 映射。"
+    export_html(sip_sdp_result, output_path / "sample_sip_sdp_report.html", notes=sip_note)
+    export_json(sip_sdp_result, output_path / "sample_sip_sdp_report.json", notes=sip_note)
+    export_csv(sip_sdp_result, output_path / "sample_sip_sdp_report.csv", notes=sip_note)
 
     changed_mp4 = root_path / "samples" / "sample_changed.mp4"
     protocol_compare = compare_protocol(mp4, changed_mp4)

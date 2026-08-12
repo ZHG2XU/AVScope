@@ -782,6 +782,83 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(malformed_summary["issue_count"], 1)
         self.assertIn("STAP-A NALU 长度越界", malformed_diagnostics[0].message)
 
+    def test_pcap_sip_sdp_dynamic_payload_mapping(self):
+        sample_dir = ROOT / "pcap_sip_sdp"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample_sip_sdp.pcap")
+        signaling = result.media.summary["sip_sdp"]
+        self.assertTrue(signaling["available"])
+        self.assertEqual((signaling["message_count"], signaling["requests"], signaling["responses"]), (3, 2, 1))
+        self.assertEqual(signaling["call_count"], 2)
+        self.assertEqual(signaling["media_count"], 5)
+        self.assertEqual(signaling["mapping_count"], 7)
+        self.assertEqual(signaling["unique_mapping_count"], 4)
+        self.assertEqual(signaling["issue_count"], 0)
+        call_ids = {call["call_id"] for call in signaling["calls"]}
+        self.assertEqual(call_ids, {"call-h264@example.com", "call-h265@example.com"})
+        pt96 = [item for item in signaling["unique_payload_mappings"] if item["payload_type"] == 96]
+        self.assertEqual({(item["port"], item["encoding"]) for item in pt96}, {(5004, "H264"), (6004, "H265")})
+        self.assertTrue(any(item["encoding"] == "PCMA" and item["clock_rate"] == 8000 for item in signaling["payload_mappings"]))
+
+        video = result.media.summary["rtp_video"]
+        self.assertEqual(video["stream_count"], 2)
+        self.assertEqual(video["codecs"], ["H.264", "H.265"])
+        self.assertEqual({item["mapping_source"] for item in video["streams"]}, {"SDP"})
+        self.assertEqual({item["call_id"] for item in video["streams"]}, call_ids)
+        self.assertEqual(len(result.frames), 3)
+        self.assertEqual(result.frames[0].metadata["rtp_negotiated_encoding"], "H264")
+        self.assertEqual(result.frames[1].metadata["rtp_negotiated_encoding"], "H265")
+        self.assertEqual(result.frames[2].metadata["rtp_negotiated_encoding"], "PCMA")
+        self.assertEqual(result.frames[2].metadata["rtp_video_codec"], "")
+        self.assertEqual(result.frames[2].metadata["rtp_clock_rate"], 8000)
+        self.assertEqual(result.frames[2].pts, 1.0)
+        transport = result.media.summary["transport_sessions"]
+        self.assertEqual(transport["sdp_linked_sessions"], 3)
+        encodings = {item["ssrc"]: item["negotiated_encoding"] for item in transport["sessions"]}
+        self.assertEqual(encodings["0x44444444"], "H264")
+        self.assertEqual(encodings["0x55555555"], "H265")
+        self.assertEqual(encodings["0x66666666"], "PCMA")
+        self.assertEqual(len(nodes_with_type(result.root, "sip")), 3)
+        self.assertEqual(len(nodes_with_type(result.root, "sdp_media")), 5)
+        self.assertEqual(len(nodes_with_type(result.root, "sdp_rtpmap")), 5)
+        sip_fields = fields_by_name(nodes_with_type(result.root, "sip")[0])
+        self.assertEqual(sip_fields["header.Call-ID"], "call-h264@example.com")
+        self.assertEqual(sip_fields["header.Content-Type"], "application/sdp")
+        sdp_fields = [field for field in nodes_with_type(result.root, "sdp")[0].fields if field.name.startswith("sdp.")]
+        self.assertGreaterEqual(len(sdp_fields), 10)
+        self.assertTrue(all(field.size > 0 and field.hex_value for field in sdp_fields))
+
+        raw = (sample_dir / "sample_sip_sdp.pcap").read_bytes()
+        first_mapping = nodes_with_type(result.root, "sdp_rtpmap")[0]
+        self.assertEqual(raw[first_mapping.offset:first_mapping.offset + len("a=rtpmap:96 H264/90000")], b"a=rtpmap:96 H264/90000")
+        html_path = ROOT / "sip_sdp.html"
+        csv_path = ROOT / "sip_sdp.csv"
+        export_html(result, html_path)
+        export_csv(result, csv_path)
+        self.assertIn("SIP / SDP 信令协商", html_path.read_text(encoding="utf-8"))
+        self.assertIn("call-h265@example.com", html_path.read_text(encoding="utf-8"))
+        with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            sections = [row["section"] for row in csv.DictReader(handle)]
+        self.assertEqual(sections.count("sip_sdp_summary"), 1)
+        self.assertEqual(sections.count("sip_message"), 3)
+        self.assertEqual(sections.count("sdp_payload_mapping"), 4)
+
+    def test_sip_sdp_malformed_content_length_and_missing_rtpmap(self):
+        body = "v=0\r\no=x 1 1 IN IP4 10.0.0.1\r\ns=x\r\nc=IN IP4 239.1.1.9\r\nt=0 0\r\nm=video 7004 RTP/AVP 110\r\n"
+        payload = (
+            "INVITE sip:x SIP/2.0\r\nCall-ID: broken-call\r\nCSeq: 1 INVITE\r\n"
+            "Content-Type: application/sdp\r\nContent-Length: 1\r\n\r\n" + body
+        ).encode("utf-8")
+        from avscope.sip_sdp import SipSdpAnalyzer
+        analyzer = SipSdpAnalyzer()
+        parent = ParseNode("UDP", "udp", 0, len(payload))
+        self.assertTrue(analyzer.add_datagram(payload, 100, parent, "10.0.0.1", 5060, "10.0.0.2", 5060))
+        summary, diagnostics = analyzer.finalize()
+        self.assertEqual(summary["issue_count"], 2)
+        messages = [item.message for item in diagnostics]
+        self.assertTrue(any("Content-Length 不一致" in message for message in messages))
+        self.assertTrue(any("动态 PT=110 缺少" in message for message in messages))
+
     def test_transport_session_sequence_wraparound(self):
         tracker = TransportSessionTracker()
         base = {
@@ -1087,6 +1164,7 @@ class ParserTests(unittest.TestCase):
         self.assertIn("sample.mp4", samples)
         self.assertIn("sample_rtp_anomalies.pcap", samples)
         self.assertIn("sample_rtp_video.pcap", samples)
+        self.assertIn("sample_sip_sdp.pcap", samples)
         self.assertIn("sample_h264_issues.h264", samples)
         empty_state = format_empty_state_text()
         self.assertIn("工作区待命", empty_state)
@@ -1332,9 +1410,16 @@ class ParserTests(unittest.TestCase):
         self.assertIn("sample_rtp_video_report.html", names)
         self.assertIn("sample_rtp_video_report.json", names)
         self.assertIn("sample_rtp_video_report.csv", names)
+        self.assertIn("sample_sip_sdp_report.html", names)
+        self.assertIn("sample_sip_sdp_report.json", names)
+        self.assertIn("sample_sip_sdp_report.csv", names)
         self.assertIn(
             "RTP H.264/H.265 视频负载",
             (report_root / "dist" / "sample-reports" / "sample_rtp_video_report.html").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            "SIP / SDP 信令协商",
+            (report_root / "dist" / "sample-reports" / "sample_sip_sdp_report.html").read_text(encoding="utf-8"),
         )
         self.assertIn("sample_protocol_compare.json", names)
         for path in outputs:

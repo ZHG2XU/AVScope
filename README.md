@@ -37,6 +37,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - RTCP 支持 SR/RR 的 SSRC、NTP/RTP timestamp、发送包/字节数，以及接收报告的 fraction lost、24-bit signed cumulative lost、extended sequence、jitter、LSR 和 DLSR；可诊断版本错误、长度越界、报告截断和丢包。
 - RTP/RTCP 会按源/目的 IP、端口和 SSRC 聚合为传输会话，支持 16-bit sequence 回绕，并分别统计估算丢包、重复包、乱序、marker、payload 字节/码率及关联 RTCP 报告质量。
 - RTP 视频负载支持 RFC 6184 H.264 Single NALU、STAP-A、FU-A，以及 RFC 7798 H.265 Single NALU、AP、FU；按 SSRC 汇总 codec、packetization、NALU 类型和分片完成度，并诊断缺起始包、缺结束包、序号断裂、timestamp 切换及聚合长度越界。
+- PCAP 支持 SIP/2.0 请求/响应、Call-ID、CSeq、Content-Type/Length 及全部 Header 字段，并解析 SDP `c=`、`m=`、`a=rtpmap`、`a=fmtp`、方向和所有原始行；动态 PT 按媒体地址/端口作用域映射到 RTP，避免同一 PT 跨会话冲突及音频误判为视频，同时使用协商 Clock Rate 修正 RTP 时间线秒值。
 - AAC ADTS 可解析 profile、采样率、声道布局、帧时长、平均码率，并在字段表和 HTML 报告中显示 header 字段 bit offset/bit length。
 - WAV 可解析 PCM 格式参数、data 字节数、帧数、时长，并校验 byte_rate/block_align。
 - Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、大小端、有符号/无符号、宽高、像素格式和帧率。
@@ -49,6 +50,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - PCAP/RTP/RTCP 会在时间线摘要、预览页和 HTML/JSON/CSV 报告中显示 RTP sequence 曲线、SSRC 分组、marker 包数量和 sequence 跳变异常点；媒体预览与 HTML 报告另有 RTCP SR/RR、丢包率、jitter、DLSR 会话质量摘要，CSV 使用 `rtcp_summary` section。
 - “传输会话”页提供可排序的端点/SSRC 会话表、会话级异常摘要和“只看异常会话”筛选；双击会话可跳到首个 RTP header，HTML/JSON/CSV 使用同一份 `transport_sessions` 数据，CSV 每路会话写入 `transport_session` section。
 - “传输会话”页内新增“视频负载”和“负载问题”子页，展示 H.264/H.265、SSRC、STAP-A/AP/FU、NALU 类型和完成/未完成分片；负载异常会同步提升对应会话状态，双击流或问题可定位 payload Hex。
+- “传输会话 / 信令协商”使用上下分栏展示 SIP 时序和去重后的 SDP PT 映射；H.264/H.265、音频编码使用不同文字色，双击 SIP 或 SDP 行可定位 Hex，会话质量页直接显示协商编码和 Clock Rate。
 - “码流健康”页提供编码、状态、参数集、Slice/关键帧、问题数和分辨率变化指标，分为问题、参数集引用和分辨率事件三张表；问题与分辨率事件可双击定位 Hex。HTML 使用专用“H.26x 码流健康”区，CSV 写入 `codec_health_summary` 与 `codec_health_issue` section。
 - 对含视频流的文件使用现有 FFmpeg 生成 PNG 预览帧，支持在 GUI 中按 1 秒步进生成上一/下一预览帧，预览缓存写入 `G:\AVScope\tmp\previews`。
 - 视频预览帧会附带 ffprobe 帧元信息，预览页显示当前帧 PTS/DTS、duration、帧类型、关键帧标记、帧大小、分辨率和像素格式，并可通过“分析 / 跳转预览时间”“跳转预览帧号”“上一关键帧预览”“下一关键帧预览”按秒、帧号或关键帧跳转。
@@ -99,7 +101,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\deploy_qt.ps1
 PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1
 ```
 
-UI 验证会在 `G:\AVScope\tmp\qt-ui-validation` 留下深浅主题、PCAP 时间线、RTCP 会话预览、异常传输会话筛选、RTP H.264/H.265 视频负载、H.264 深色/H.265 浅色码流健康、媒体流、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复和协议对比截图，以及对应的数据契约 JSON，并检查完整协议层节点/字段、媒体预览产物与异步任务约束。
+UI 验证会在 `G:\AVScope\tmp\qt-ui-validation` 留下深浅主题、PCAP 时间线、RTCP 会话预览、异常传输会话筛选、RTP H.264/H.265 视频负载、SIP/SDP 信令协商、H.264 深色/H.265 浅色码流健康、媒体流、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复和协议对比截图，以及对应的数据契约 JSON，并检查完整协议层节点/字段、媒体预览产物与异步任务约束。
 
 Qt 工具链复用电脑已有的 `E:\QT\6.9.0`、MinGW 13.1、CMake 和 Ninja，本轮没有安装新工具。旧 Tk 界面仅保留为未构建源码环境的兼容回退。
 

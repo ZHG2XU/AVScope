@@ -470,6 +470,57 @@ QWidget *MainWindow::buildWorkspace()
         m_statusText->setText(tr("RTP 视频负载问题  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     m_transportDetails->addTab(m_rtpVideoIssuesTable, tr("负载问题"));
+
+    auto *signalingPanel = new QWidget;
+    auto *signalingLayout = new QVBoxLayout(signalingPanel);
+    signalingLayout->setContentsMargins(8, 8, 8, 8);
+    signalingLayout->setSpacing(7);
+    m_sipSdpSummary = new QLabel(tr("当前文件没有 SIP/SDP 信令"));
+    m_sipSdpSummary->setObjectName("sectionHint");
+    m_sipSdpSummary->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    signalingLayout->addWidget(m_sipSdpSummary);
+    auto *signalingSplitter = new QSplitter(Qt::Vertical);
+    m_sipMessagesTable = new QTableWidget;
+    m_sipMessagesTable->setColumnCount(8);
+    m_sipMessagesTable->setHorizontalHeaderLabels({
+        "#", tr("类型"), tr("方法 / 状态"), "Call-ID", "CSeq", tr("源 -> 目的"), "SDP", "Offset"
+    });
+    m_sipMessagesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_sipMessagesTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_sipMessagesTable->setAlternatingRowColors(true);
+    m_sipMessagesTable->verticalHeader()->hide();
+    m_sipMessagesTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_sipMessagesTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    m_sipMessagesTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Stretch);
+    connect(m_sipMessagesTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 32);
+        m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("SIP 信令  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    signalingSplitter->addWidget(m_sipMessagesTable);
+    m_sdpMappingsTable = new QTableWidget;
+    m_sdpMappingsTable->setColumnCount(9);
+    m_sdpMappingsTable->setHorizontalHeaderLabels({
+        "Call-ID", tr("媒体"), tr("地址 : 端口"), "PT", tr("编码"), "Clock", tr("声道"), tr("方向"), "FMTP"
+    });
+    m_sdpMappingsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_sdpMappingsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_sdpMappingsTable->setAlternatingRowColors(true);
+    m_sdpMappingsTable->verticalHeader()->hide();
+    m_sdpMappingsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_sdpMappingsTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_sdpMappingsTable->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Stretch);
+    connect(m_sdpMappingsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 32);
+        m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("SDP 媒体协商  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    signalingSplitter->addWidget(m_sdpMappingsTable);
+    signalingSplitter->setSizes({260, 300});
+    signalingLayout->addWidget(signalingSplitter, 1);
+    m_transportDetails->addTab(signalingPanel, tr("信令协商"));
     transportLayout->addWidget(m_transportDetails, 1);
     m_tabs->addTab(transportPanel, tr("传输会话"));
 
@@ -1116,6 +1167,7 @@ void MainWindow::loadDocument(const QJsonDocument &document)
     populateStreams(media.value("summary").toObject().value("ffprobe").toObject().value("streams").toArray());
     populateTransportSessions(media.value("summary").toObject().value("transport_sessions").toObject());
     populateRtpVideo(media.value("summary").toObject().value("rtp_video").toObject());
+    populateSipSdp(media.value("summary").toObject().value("sip_sdp").toObject());
     populateCodecHealth(media.value("summary").toObject().value("codec_health").toObject());
     populateDiagnostics(diagnostics, media);
     m_timeline->setData(frames, media.value("summary").toObject().value("timeline_summary").toObject());
@@ -1324,6 +1376,10 @@ void MainWindow::populateTransportSessions(const QJsonObject &transport)
         const auto payloadTypes = session.value("payload_types").toArray();
         QStringList ptValues;
         for (const auto &value : payloadTypes) ptValues << displayValue(value);
+        const QString negotiatedEncoding = session.value("negotiated_encoding").toString();
+        const qint64 negotiatedClock = jsonInteger(session.value("negotiated_clock_rate"));
+        if (!negotiatedEncoding.isEmpty())
+            ptValues << tr("%1 @%2").arg(negotiatedEncoding).arg(negotiatedClock);
         const QString sequenceRange = tr("%1 -> %2")
             .arg(jsonInteger(session.value("first_sequence")))
             .arg(jsonInteger(session.value("last_sequence")));
@@ -1368,14 +1424,15 @@ void MainWindow::populateTransportSessions(const QJsonObject &transport)
     const int count = jsonInteger(transport.value("session_count"));
     const int warnings = jsonInteger(transport.value("warning_sessions"));
     m_transportSummary->setText(
-        tr("会话 %1  |  RTP %2 包  |  Payload %3  |  估算丢失 %4  |  重复 %5  |  乱序 %6  |  RTCP 关联 %7")
+        tr("会话 %1  |  RTP %2 包  |  Payload %3  |  估算丢失 %4  |  重复 %5  |  乱序 %6  |  RTCP 关联 %7  |  SDP 关联 %8")
             .arg(count)
             .arg(jsonInteger(transport.value("total_rtp_packets")))
             .arg(formatSize(jsonInteger(transport.value("total_payload_bytes"))))
             .arg(jsonInteger(transport.value("estimated_lost_packets")))
             .arg(jsonInteger(transport.value("duplicate_packets")))
             .arg(jsonInteger(transport.value("reordered_packets")))
-            .arg(jsonInteger(transport.value("rtcp_linked_sessions"))));
+            .arg(jsonInteger(transport.value("rtcp_linked_sessions")))
+            .arg(jsonInteger(transport.value("sdp_linked_sessions"))));
     m_transportIssuesOnly->setEnabled(warnings > 0);
     if (!qEnvironmentVariableIsEmpty("AVSCOPE_TRANSPORT_ISSUES_ONLY"))
         m_transportIssuesOnly->setChecked(qEnvironmentVariableIntValue("AVSCOPE_TRANSPORT_ISSUES_ONLY") != 0);
@@ -1475,6 +1532,79 @@ void MainWindow::populateRtpVideo(const QJsonObject &video)
         QJsonObject state{{"streams", streams.size()}, {"issues", issues.size()}, {"nal_units", video.value("nal_units")},
                           {"completed_fragments", video.value("completed_fragments")},
                           {"incomplete_fragments", video.value("incomplete_fragments")}, {"codecs", video.value("codecs")}};
+        QFile file(statePath);
+        QDir().mkpath(QFileInfo(statePath).absolutePath());
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+    }
+}
+
+void MainWindow::populateSipSdp(const QJsonObject &signaling)
+{
+    if (!m_sipMessagesTable || !m_sdpMappingsTable || !m_sipSdpSummary) return;
+    const auto messages = signaling.value("messages").toArray();
+    const auto mappings = signaling.value("unique_payload_mappings").toArray();
+    m_sipMessagesTable->setRowCount(messages.size());
+    for (int row = 0; row < messages.size(); ++row) {
+        const auto message = messages.at(row).toObject();
+        const qint64 offset = jsonInteger(message.value("offset"));
+        const bool response = message.value("kind").toString() == "response";
+        const int statusCode = static_cast<int>(jsonInteger(message.value("status_code")));
+        const QString methodStatus = response
+            ? tr("%1 %2").arg(statusCode).arg(message.value("start_line").toString().section(' ', 2))
+            : message.value("method").toString();
+        const QStringList values = {
+            QString::number(row), response ? tr("响应") : tr("请求"), methodStatus,
+            message.value("call_id").toString(), message.value("cseq").toString(),
+            tr("%1 -> %2").arg(message.value("source_endpoint").toString(), message.value("destination_endpoint").toString()),
+            message.value("has_sdp").toBool() ? tr("是") : tr("否"),
+            QString("0x%1").arg(offset, 0, 16).toUpper(),
+        };
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setData(OffsetRole, offset);
+            cell->setToolTip(message.value("start_line").toString());
+            if (statusCode >= 400) cell->setForeground(QColor(m_dark ? "#FF8A92" : "#B4232F"));
+            else if (response) cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
+            else if (column == 2) cell->setForeground(QColor(m_dark ? "#7CC9F3" : "#176A99"));
+            m_sipMessagesTable->setItem(row, column, cell);
+        }
+    }
+
+    m_sdpMappingsTable->setRowCount(mappings.size());
+    for (int row = 0; row < mappings.size(); ++row) {
+        const auto mapping = mappings.at(row).toObject();
+        const qint64 offset = jsonInteger(mapping.value("offset"));
+        const QString encoding = mapping.value("encoding").toString();
+        const QStringList values = {
+            mapping.value("call_id").toString(), mapping.value("media").toString(),
+            tr("%1 : %2").arg(mapping.value("connection_address").toString()).arg(jsonInteger(mapping.value("port"))),
+            displayValue(mapping.value("payload_type")), encoding, displayValue(mapping.value("clock_rate")),
+            displayValue(mapping.value("channels")), mapping.value("direction").toString(), mapping.value("fmtp").toString(),
+        };
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setData(OffsetRole, offset);
+            cell->setToolTip(mapping.value("rtpmap").toString());
+            if (column == 4 && (encoding == "H264" || encoding == "H265"))
+                cell->setForeground(QColor(m_dark ? "#7CC9F3" : "#176A99"));
+            else if (column == 4)
+                cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
+            m_sdpMappingsTable->setItem(row, column, cell);
+        }
+    }
+    m_sipSdpSummary->setText(
+        messages.isEmpty() ? tr("当前文件没有 SIP/SDP 信令")
+                           : tr("SIP %1 条  |  请求 %2  |  响应 %3  |  Call-ID %4  |  SDP 媒体 %5  |  PT 映射 %6")
+                                 .arg(messages.size()).arg(jsonInteger(signaling.value("requests")))
+                                 .arg(jsonInteger(signaling.value("responses"))).arg(jsonInteger(signaling.value("call_count")))
+                                 .arg(jsonInteger(signaling.value("media_count"))).arg(mappings.size()));
+
+    const QString statePath = qEnvironmentVariable("AVSCOPE_SIP_SDP_STATE");
+    if (!statePath.isEmpty()) {
+        QJsonObject state{{"messages", messages.size()}, {"calls", signaling.value("call_count")},
+                          {"media", signaling.value("media_count")}, {"mappings", mappings.size()},
+                          {"issues", signaling.value("issue_count")}};
         QFile file(statePath);
         QDir().mkpath(QFileInfo(statePath).absolutePath());
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
