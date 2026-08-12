@@ -40,6 +40,7 @@ private slots:
     void onTreeSelectionChanged();
     void onFieldSelectionChanged();
     void onFrameSelectionChanged();
+    void onDiagnosticSelectionChanged();
     void searchNext();
     void filterProtocolTree();
     void copyCurrentOffset();
@@ -97,7 +98,7 @@ private:
     QTableWidget *m_framesTable = nullptr;
     QPlainTextEdit *m_hexView = nullptr;
     QPlainTextEdit *m_preview = nullptr;
-    QPlainTextEdit *m_diagnostics = nullptr;
+    QTableWidget *m_diagnosticsTable = nullptr;
     QPlainTextEdit *m_selectionDetails = nullptr;
     QPlainTextEdit *m_log = nullptr;
     QTabWidget *m_tabs = nullptr;

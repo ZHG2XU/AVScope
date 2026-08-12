@@ -31,8 +31,23 @@ foreach ($theme in @("dark", "light")) {
     }
 }
 
+$timelineScreenshot = "$output\timeline-pcap.png"
+Remove-Item -LiteralPath $timelineScreenshot -Force -ErrorAction SilentlyContinue
+$env:AVSCOPE_THEME = "dark"
+$env:AVSCOPE_START_TAB = "3"
+$env:AVSCOPE_SCREENSHOT = $timelineScreenshot
+$timelineProcess = Start-Process -FilePath $executable -ArgumentList "$root\samples\sample.pcap" -WindowStyle Hidden -PassThru
+if (-not $timelineProcess.WaitForExit(10000)) {
+    $timelineProcess.Kill()
+    throw "Qt timeline smoke test timed out"
+}
+if (-not (Test-Path -LiteralPath $timelineScreenshot)) {
+    throw "Qt timeline screenshot was not generated"
+}
+Remove-Item Env:\AVSCOPE_START_TAB -ErrorAction SilentlyContinue
+
 $env:PYTHONPATH = $root
-& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png')]; dims=[png_dimensions(p) for p in paths]; assert dims[0] == dims[1], dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; assert all(p.stat().st_size > 50000 for p in paths); settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'dimensions': dims, 'dpi_scale': round(width / 1560, 2), 'settings': str(settings)})"
+& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png')]; dims=[png_dimensions(p) for p in paths]; assert dims[0] == dims[1], dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; timeline=Path(r'$output/timeline-pcap.png'); assert png_dimensions(timeline)==dims[0] and timeline.stat().st_size > 50000; settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'timeline': str(timeline), 'dimensions': dims, 'dpi_scale': round(width / 1560, 2), 'settings': str(settings)})"
 if ($LASTEXITCODE -ne 0) { throw "Qt screenshot validation failed" }
 
 & "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; document=json.loads(Path(r'$root/tmp/qt-runtime/current-analysis.json').read_text(encoding='utf-8')); root=document['root']; assert root['children'] and root['children'][0]['fields']; print({'nodes': len(root['children']), 'first_fields': len(root['children'][0]['fields'])})"

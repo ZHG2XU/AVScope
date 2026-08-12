@@ -306,6 +306,12 @@ QWidget *MainWindow::buildWorkspace()
     m_tabs->addTab(m_framesTable, tr("帧列表"));
 
     m_timeline = new TimelineWidget;
+    connect(m_timeline, &TimelineWidget::frameSelected, this, [this](int row) {
+        if (row < 0 || row >= m_framesTable->rowCount()) return;
+        m_framesTable->selectRow(row);
+        m_framesTable->scrollToItem(m_framesTable->item(row, 0));
+        m_tabs->setCurrentWidget(m_framesTable);
+    });
     m_tabs->addTab(m_timeline, tr("时间线"));
 
     m_preview = new QPlainTextEdit;
@@ -337,10 +343,19 @@ QWidget *MainWindow::buildInspector()
     auto *hint = new QLabel(tr("warning / error 与媒体探测摘要"));
     hint->setObjectName("sectionHint");
     layout->addWidget(hint);
-    m_diagnostics = new QPlainTextEdit;
-    m_diagnostics->setReadOnly(true);
-    m_diagnostics->setLineWrapMode(QPlainTextEdit::WidgetWidth);
-    layout->addWidget(m_diagnostics, 1);
+    m_diagnosticsTable = new QTableWidget;
+    m_diagnosticsTable->setColumnCount(4);
+    m_diagnosticsTable->setHorizontalHeaderLabels({tr("级别"), tr("来源"), tr("Offset"), tr("问题")});
+    m_diagnosticsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_diagnosticsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_diagnosticsTable->setAlternatingRowColors(true);
+    m_diagnosticsTable->verticalHeader()->hide();
+    m_diagnosticsTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_diagnosticsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_diagnosticsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_diagnosticsTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    connect(m_diagnosticsTable, &QTableWidget::itemSelectionChanged, this, &MainWindow::onDiagnosticSelectionChanged);
+    layout->addWidget(m_diagnosticsTable, 1);
     return panel;
 }
 
@@ -588,7 +603,7 @@ void MainWindow::loadDocument(const QJsonDocument &document)
     }
     populateFrames(frames);
     populateDiagnostics(diagnostics, media);
-    m_timeline->setFrames(frames);
+    m_timeline->setData(frames, media.value("summary").toObject().value("timeline_summary").toObject());
 
     m_formatMetric->setText(media.value("format_name").toString("--"));
     m_sizeMetric->setText(formatSize(jsonInteger(media.value("size"))));
@@ -606,6 +621,13 @@ void MainWindow::loadDocument(const QJsonDocument &document)
           << QString::fromUtf8(QJsonDocument(summary).toJson(QJsonDocument::Indented));
     m_preview->setPlainText(lines.join('\n'));
     showHex(0, 1);
+    const auto requestedTab = qEnvironmentVariable("AVSCOPE_START_TAB");
+    if (!requestedTab.isEmpty()) {
+        bool ok = false;
+        const int index = requestedTab.toInt(&ok);
+        if (ok && index >= 0 && index < m_tabs->count())
+            m_tabs->setCurrentIndex(index);
+    }
 }
 
 void MainWindow::populateProtocolTree(const QJsonObject &node, QTreeWidgetItem *parent)
@@ -779,21 +801,46 @@ void MainWindow::showSelectionDetails(const QJsonObject &node, const QJsonObject
 
 void MainWindow::populateDiagnostics(const QJsonArray &diagnostics, const QJsonObject &media)
 {
-    QStringList lines;
-    lines << tr("媒体探测") << tr("格式  %1").arg(media.value("format_name").toString())
-          << tr("大小  %1").arg(formatSize(jsonInteger(media.value("size")))) << "" << tr("诊断结果");
+    m_diagnosticsTable->setRowCount(qMax(1, diagnostics.size()));
     if (diagnostics.isEmpty()) {
-        lines << tr("[通过] 未发现 warning / error");
-    } else {
-        for (const auto &value : diagnostics) {
-            const auto issue = value.toObject();
-            QString offset;
-            if (!issue.value("offset").isNull())
-                offset = QString("  @0x%1").arg(jsonInteger(issue.value("offset")), 0, 16).toUpper();
-            lines << QString("[%1] %2%3").arg(issue.value("severity").toString().toUpper(), issue.value("message").toString(), offset);
+        const QStringList values = {tr("通过"), media.value("format_name").toString(), QString(), tr("未发现 warning / error")};
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
+            m_diagnosticsTable->setItem(0, column, cell);
+        }
+        return;
+    }
+    for (int row = 0; row < diagnostics.size(); ++row) {
+        const auto issue = diagnostics.at(row).toObject();
+        const QString severity = issue.value("severity").toString();
+        const bool hasOffset = !issue.value("offset").isNull();
+        const qint64 offset = hasOffset ? jsonInteger(issue.value("offset")) : -1;
+        const QStringList values = {
+            severity.toUpper(), issue.value("source").toString(),
+            hasOffset ? QString("0x%1").arg(offset, 0, 16).toUpper() : QString(), issue.value("message").toString()
+        };
+        const QColor color = severity == "error" ? QColor(m_dark ? "#FF7B81" : "#B42318")
+                                                   : QColor(m_dark ? "#F5C567" : "#8A5A00");
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setForeground(color);
+            cell->setToolTip(issue.value("message").toString());
+            cell->setData(OffsetRole, offset);
+            m_diagnosticsTable->setItem(row, column, cell);
         }
     }
-    m_diagnostics->setPlainText(lines.join('\n'));
+}
+
+void MainWindow::onDiagnosticSelectionChanged()
+{
+    const auto selected = m_diagnosticsTable->selectedItems();
+    if (selected.isEmpty()) return;
+    const qint64 offset = selected.constFirst()->data(OffsetRole).toLongLong();
+    if (offset < 0) return;
+    showHex(offset, 1);
+    m_tabs->setCurrentWidget(m_hexView);
+    m_statusText->setText(tr("诊断定位到 Offset 0x%1").arg(offset, 0, 16).toUpper());
 }
 
 void MainWindow::showHex(qint64 offset, qint64 size)
