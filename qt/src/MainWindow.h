@@ -96,6 +96,8 @@ private:
     void filterDiagnostics(const QString &formatName);
     void showSelectionDetails(const QJsonObject &node, const QJsonObject &field = {});
     void showHex(qint64 offset, qint64 size = 1);
+    void renderHexPage(qint64 pageStart, qint64 focusOffset = -1, qint64 focusSize = 1);
+    void updateHexNavigation();
     void setAnalysisBusy(bool busy);
     void addRecentFile(const QString &path);
     void rebuildRecentMenu();
@@ -133,6 +135,8 @@ private:
     double m_previewPosition = 0.0;
     int m_previewFrame = 0;
     qint64 m_hexOffset = 0;
+    qint64 m_hexPageStart = 0;
+    qint64 m_hexPageSize = 4 * 1024;
     QJsonDocument m_document;
     QProcess *m_process = nullptr;
     QSettings m_settings;
@@ -161,7 +165,13 @@ private:
     QTableWidget *m_bookmarksTable = nullptr;
     QTreeWidget *m_compareTree = nullptr;
     HexCompareWidget *m_hexCompare = nullptr;
+    QWidget *m_hexPanel = nullptr;
     QPlainTextEdit *m_hexView = nullptr;
+    QLineEdit *m_hexOffsetEdit = nullptr;
+    QComboBox *m_hexPageSizeCombo = nullptr;
+    QLabel *m_hexRangeLabel = nullptr;
+    QPushButton *m_hexPreviousPage = nullptr;
+    QPushButton *m_hexNextPage = nullptr;
     MediaPreviewWidget *m_preview = nullptr;
     QTableWidget *m_diagnosticsTable = nullptr;
     QComboBox *m_diagnosticSeverityFilter = nullptr;

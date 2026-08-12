@@ -291,12 +291,63 @@ QWidget *MainWindow::buildWorkspace()
     m_tabs->setDocumentMode(true);
     m_tabs->setMovable(true);
 
+    m_hexPanel = new QWidget;
+    auto *hexLayout = new QVBoxLayout(m_hexPanel);
+    hexLayout->setContentsMargins(8, 8, 8, 8);
+    hexLayout->setSpacing(6);
+    auto *hexTools = new QHBoxLayout;
+    m_hexPreviousPage = commandButton(tr("上一页"));
+    m_hexPreviousPage->setToolTip(tr("查看前一页 Hex 数据"));
+    m_hexNextPage = commandButton(tr("下一页"));
+    m_hexNextPage->setToolTip(tr("查看后一页 Hex 数据"));
+    m_hexOffsetEdit = new QLineEdit;
+    m_hexOffsetEdit->setPlaceholderText(tr("Offset，例如 0x1000"));
+    m_hexOffsetEdit->setClearButtonEnabled(true);
+    m_hexOffsetEdit->setMaximumWidth(180);
+    m_hexPageSizeCombo = new QComboBox;
+    m_hexPageSizeCombo->addItem(tr("1 KiB / 页"), 1024);
+    m_hexPageSizeCombo->addItem(tr("4 KiB / 页"), 4 * 1024);
+    m_hexPageSizeCombo->addItem(tr("16 KiB / 页"), 16 * 1024);
+    m_hexPageSizeCombo->addItem(tr("64 KiB / 页"), 64 * 1024);
+    m_hexPageSizeCombo->setCurrentIndex(1);
+    m_hexRangeLabel = new QLabel(tr("尚未打开文件"));
+    m_hexRangeLabel->setObjectName("sectionHint");
+    m_hexRangeLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    hexTools->addWidget(m_hexPreviousPage);
+    hexTools->addWidget(m_hexNextPage);
+    hexTools->addWidget(m_hexOffsetEdit);
+    hexTools->addWidget(m_hexPageSizeCombo);
+    hexTools->addWidget(m_hexRangeLabel, 1);
+    hexLayout->addLayout(hexTools);
+
     m_hexView = new QPlainTextEdit;
     m_hexView->setReadOnly(true);
     m_hexView->setLineWrapMode(QPlainTextEdit::NoWrap);
     m_hexView->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
     m_hexView->setPlaceholderText(tr("选择协议节点或字段后显示对应 Hex 区域"));
-    m_tabs->addTab(m_hexView, tr("Hex"));
+    hexLayout->addWidget(m_hexView, 1);
+    connect(m_hexPreviousPage, &QPushButton::clicked, this, [this] {
+        renderHexPage(qMax<qint64>(0, m_hexPageStart - m_hexPageSize));
+    });
+    connect(m_hexNextPage, &QPushButton::clicked, this, [this] {
+        renderHexPage(m_hexPageStart + m_hexPageSize);
+    });
+    connect(m_hexOffsetEdit, &QLineEdit::returnPressed, this, [this] {
+        QString text = m_hexOffsetEdit->text().trimmed();
+        int base = 10;
+        if (text.startsWith("0x", Qt::CaseInsensitive)) {
+            text.remove(0, 2);
+            base = 16;
+        }
+        bool ok = false;
+        const qint64 offset = text.toLongLong(&ok, base);
+        if (ok) showHex(offset, 1);
+    });
+    connect(m_hexPageSizeCombo, &QComboBox::currentIndexChanged, this, [this] {
+        m_hexPageSize = m_hexPageSizeCombo->currentData().toLongLong();
+        showHex(m_hexOffset, 1);
+    });
+    m_tabs->addTab(m_hexPanel, tr("Hex"));
 
     m_fieldsTable = new QTableWidget;
     m_fieldsTable->setColumnCount(7);
@@ -336,7 +387,7 @@ QWidget *MainWindow::buildWorkspace()
     connect(m_framesTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         if (!item) return;
         showHex(item->data(OffsetRole).toLongLong(), item->data(SizeRole).toLongLong());
-        m_tabs->setCurrentWidget(m_hexView);
+        m_tabs->setCurrentWidget(m_hexPanel);
     });
     connect(previousFrameButton, &QPushButton::clicked, this, [this] {
         if (m_framesTable->rowCount() > 0) m_framesTable->selectRow(qMax(0, m_framesTable->currentRow() - 1));
@@ -428,7 +479,7 @@ QWidget *MainWindow::buildWorkspace()
         const qint64 offset = item ? item->data(OffsetRole).toLongLong() : -1;
         if (offset >= 0) {
             showHex(offset, 1);
-            m_tabs->setCurrentWidget(m_hexView);
+            m_tabs->setCurrentWidget(m_hexPanel);
         }
     });
     m_tabs->addTab(m_streamsTable, tr("媒体流"));
@@ -479,7 +530,7 @@ QWidget *MainWindow::buildWorkspace()
     m_compareTree->header()->setSectionResizeMode(4, QHeaderView::Stretch);
     connect(m_compareTree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem *item) {
         const qint64 offset = item->data(0, OffsetRole).toLongLong();
-        if (offset >= 0) { showHex(offset, 1); m_tabs->setCurrentWidget(m_hexView); }
+        if (offset >= 0) { showHex(offset, 1); m_tabs->setCurrentWidget(m_hexPanel); }
     });
     m_tabs->addTab(m_compareTree, tr("结构对比"));
 
@@ -512,7 +563,7 @@ QWidget *MainWindow::buildWorkspace()
     connect(m_transportSessionsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
         showHex(offset, 12);
-        m_tabs->setCurrentWidget(m_hexView);
+        m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("传输会话首包  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     m_transportDetails = new QTabWidget;
@@ -544,7 +595,7 @@ QWidget *MainWindow::buildWorkspace()
     connect(m_rtpVideoStreamsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
         showHex(offset, 12);
-        m_tabs->setCurrentWidget(m_hexView);
+        m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("RTP 视频负载  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     videoPayloadLayout->addWidget(m_rtpVideoStreamsTable, 1);
@@ -563,7 +614,7 @@ QWidget *MainWindow::buildWorkspace()
     connect(m_rtpVideoIssuesTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
         showHex(offset, 8);
-        m_tabs->setCurrentWidget(m_hexView);
+        m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("RTP 视频负载问题  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     m_transportDetails->addTab(m_rtpVideoIssuesTable, tr("负载问题"));
@@ -592,7 +643,7 @@ QWidget *MainWindow::buildWorkspace()
     connect(m_sipMessagesTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
         showHex(offset, 32);
-        m_tabs->setCurrentWidget(m_hexView);
+        m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("SIP 信令  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     signalingSplitter->addWidget(m_sipMessagesTable);
@@ -611,7 +662,7 @@ QWidget *MainWindow::buildWorkspace()
     connect(m_sdpMappingsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
         showHex(offset, 32);
-        m_tabs->setCurrentWidget(m_hexView);
+        m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("SDP 媒体协商  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     signalingSplitter->addWidget(m_sdpMappingsTable);
@@ -639,7 +690,7 @@ QWidget *MainWindow::buildWorkspace()
     m_rtcpFeedbackTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     connect(m_rtcpFeedbackTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
-        showHex(offset, 16); m_tabs->setCurrentWidget(m_hexView);
+        showHex(offset, 16); m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("RTCP 控制反馈  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     feedbackSplitter->addWidget(m_rtcpFeedbackTable);
@@ -654,7 +705,7 @@ QWidget *MainWindow::buildWorkspace()
     m_rtcpMetadataTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
     connect(m_rtcpMetadataTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
-        showHex(offset, 16); m_tabs->setCurrentWidget(m_hexView);
+        showHex(offset, 16); m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("RTCP 会话事件  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     feedbackSplitter->addWidget(m_rtcpMetadataTable);
@@ -686,7 +737,7 @@ QWidget *MainWindow::buildWorkspace()
     m_rtpTimingTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     connect(m_rtpTimingTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
-        showHex(offset, 12); m_tabs->setCurrentWidget(m_hexView);
+        showHex(offset, 12); m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("RTP 时序会话  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     timingSplitter->addWidget(m_rtpTimingTable);
@@ -703,7 +754,7 @@ QWidget *MainWindow::buildWorkspace()
     m_rtpTimingEventsTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
     connect(m_rtpTimingEventsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
-        showHex(offset, 12); m_tabs->setCurrentWidget(m_hexView);
+        showHex(offset, 12); m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("RTP 突发延迟  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     timingSplitter->addWidget(m_rtpTimingEventsTable);
@@ -734,7 +785,7 @@ QWidget *MainWindow::buildWorkspace()
     m_twccFeedbackTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     connect(m_twccFeedbackTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
-        showHex(offset, 28); m_tabs->setCurrentWidget(m_hexView);
+        showHex(offset, 28); m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("TWCC 拥塞反馈  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     twccSplitter->addWidget(m_twccFeedbackTable);
@@ -749,7 +800,7 @@ QWidget *MainWindow::buildWorkspace()
     m_twccPacketsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     connect(m_twccPacketsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
-        showHex(offset, 2); m_tabs->setCurrentWidget(m_hexView);
+        showHex(offset, 2); m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("TWCC 包状态  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     twccSplitter->addWidget(m_twccPacketsTable);
@@ -766,7 +817,7 @@ QWidget *MainWindow::buildWorkspace()
     m_rembTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     connect(m_rembTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
-        showHex(offset, 24); m_tabs->setCurrentWidget(m_hexView);
+        showHex(offset, 24); m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("REMB 带宽估计  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     twccSplitter->addWidget(m_rembTable);
@@ -806,7 +857,7 @@ QWidget *MainWindow::buildWorkspace()
     connect(m_codecIssuesTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
         showHex(offset, 8);
-        m_tabs->setCurrentWidget(m_hexView);
+        m_tabs->setCurrentWidget(m_hexPanel);
         m_statusText->setText(tr("码流问题定位  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     codecDetails->addTab(m_codecIssuesTable, tr("问题"));
@@ -834,7 +885,7 @@ QWidget *MainWindow::buildWorkspace()
     connect(m_codecResolutionsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
         const qint64 offset = item->data(OffsetRole).toLongLong();
         showHex(offset, 8);
-        m_tabs->setCurrentWidget(m_hexView);
+        m_tabs->setCurrentWidget(m_hexPanel);
     });
     codecDetails->addTab(m_codecResolutionsTable, tr("分辨率事件"));
     codecHealthLayout->addWidget(codecDetails, 1);
@@ -1459,7 +1510,17 @@ void MainWindow::loadDocument(const QJsonDocument &document)
 
     const auto summary = media.value("summary").toObject();
     m_preview->setMedia(media);
-    showHex(0, 1);
+    const int requestedHexPageSize = qEnvironmentVariableIntValue("AVSCOPE_HEX_PAGE_SIZE");
+    if (requestedHexPageSize > 0) {
+        const int pageSizeIndex = m_hexPageSizeCombo->findData(requestedHexPageSize);
+        if (pageSizeIndex >= 0) {
+            QSignalBlocker blocker(m_hexPageSizeCombo);
+            m_hexPageSizeCombo->setCurrentIndex(pageSizeIndex);
+            m_hexPageSize = requestedHexPageSize;
+        }
+    }
+    const int requestedHexPage = qMax(0, qEnvironmentVariableIntValue("AVSCOPE_HEX_PAGE"));
+    renderHexPage(static_cast<qint64>(requestedHexPage) * m_hexPageSize);
     const auto requestedTab = qEnvironmentVariable("AVSCOPE_START_TAB");
     if (!requestedTab.isEmpty()) {
         bool ok = false;
@@ -2476,19 +2537,41 @@ void MainWindow::onDiagnosticSelectionChanged()
     const qint64 offset = selected.constFirst()->data(OffsetRole).toLongLong();
     if (offset < 0) return;
     showHex(offset, 1);
-    m_tabs->setCurrentWidget(m_hexView);
+    m_tabs->setCurrentWidget(m_hexPanel);
     m_statusText->setText(tr("诊断定位到 Offset 0x%1").arg(offset, 0, 16).toUpper());
 }
 
 void MainWindow::showHex(qint64 offset, qint64 size)
 {
-    m_hexOffset = qMax<qint64>(0, offset);
-    QFile file(m_currentPath);
-    if (!file.open(QIODevice::ReadOnly))
+    const qint64 fileSize = QFileInfo(m_currentPath).size();
+    if (fileSize <= 0) {
+        m_hexView->clear();
+        updateHexNavigation();
         return;
-    const qint64 start = qMax<qint64>(0, (offset / 16) * 16 - 64);
-    file.seek(start);
-    const QByteArray data = file.read(16 * 48);
+    }
+    m_hexOffset = qBound<qint64>(0, offset, fileSize - 1);
+    const qint64 pageStart = (m_hexOffset / m_hexPageSize) * m_hexPageSize;
+    renderHexPage(pageStart, m_hexOffset, size);
+}
+
+void MainWindow::renderHexPage(qint64 pageStart, qint64 focusOffset, qint64 focusSize)
+{
+    QFile file(m_currentPath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        m_hexView->clear();
+        updateHexNavigation();
+        return;
+    }
+    const qint64 fileSize = file.size();
+    if (fileSize <= 0) {
+        m_hexView->clear();
+        updateHexNavigation();
+        return;
+    }
+    const qint64 lastPageStart = ((fileSize - 1) / m_hexPageSize) * m_hexPageSize;
+    m_hexPageStart = qBound<qint64>(0, (pageStart / m_hexPageSize) * m_hexPageSize, lastPageStart);
+    file.seek(m_hexPageStart);
+    const QByteArray data = file.read(m_hexPageSize);
     QStringList lines;
     for (int lineOffset = 0; lineOffset < data.size(); lineOffset += 16) {
         const QByteArray chunk = data.mid(lineOffset, 16);
@@ -2499,16 +2582,61 @@ void MainWindow::showHex(qint64 offset, qint64 size)
             const auto value = static_cast<unsigned char>(byte);
             ascii += value >= 32 && value <= 126 ? QChar(value) : QChar('.');
         }
-        const QString address = QString("%1").arg(start + lineOffset, 8, 16, QLatin1Char('0')).toUpper();
+        const QString address = QString("%1").arg(m_hexPageStart + lineOffset, 12, 16, QLatin1Char('0')).toUpper();
         lines << QString("%1  %2  |%3|").arg(address, hex.join(' ').leftJustified(47, ' '), ascii);
     }
     m_hexView->setPlainText(lines.join('\n'));
-    const int line = qBound(0, static_cast<int>((offset - start) / 16), qMax(0, lines.size() - 1));
-    QTextCursor cursor(m_hexView->document()->findBlockByLineNumber(line));
-    cursor.select(QTextCursor::LineUnderCursor);
-    m_hexView->setTextCursor(cursor);
-    m_hexView->centerCursor();
-    m_hexView->setToolTip(tr("选中范围：0x%1，%2 bytes").arg(offset, 0, 16).arg(size));
+    if (focusOffset >= m_hexPageStart && focusOffset < m_hexPageStart + data.size()) {
+        m_hexOffset = focusOffset;
+        const int line = qBound(0, static_cast<int>((focusOffset - m_hexPageStart) / 16), qMax(0, lines.size() - 1));
+        QTextCursor cursor(m_hexView->document()->findBlockByLineNumber(line));
+        cursor.select(QTextCursor::LineUnderCursor);
+        m_hexView->setTextCursor(cursor);
+        m_hexView->centerCursor();
+        m_hexView->setToolTip(tr("选中范围：0x%1，%2 bytes").arg(focusOffset, 0, 16).arg(focusSize));
+    } else {
+        m_hexOffset = m_hexPageStart;
+        m_hexView->moveCursor(QTextCursor::Start);
+        m_hexView->setToolTip(tr("当前页从 Offset 0x%1 开始").arg(m_hexPageStart, 0, 16).toUpper());
+    }
+    updateHexNavigation();
+}
+
+void MainWindow::updateHexNavigation()
+{
+    const qint64 fileSize = QFileInfo(m_currentPath).size();
+    const qint64 end = fileSize > 0 ? qMin(fileSize, m_hexPageStart + m_hexPageSize) : 0;
+    m_hexPreviousPage->setEnabled(fileSize > 0 && m_hexPageStart > 0);
+    m_hexNextPage->setEnabled(fileSize > 0 && end < fileSize);
+    m_hexOffsetEdit->setEnabled(fileSize > 0);
+    m_hexPageSizeCombo->setEnabled(fileSize > 0);
+    m_hexOffsetEdit->setText(fileSize > 0 ? QString("0x%1").arg(m_hexOffset, 0, 16).toUpper() : QString());
+    m_hexRangeLabel->setText(fileSize > 0
+        ? tr("可见 0x%1 - 0x%2  ·  文件 %3  ·  第 %4 / %5 页")
+              .arg(m_hexPageStart, 0, 16)
+              .arg(qMax<qint64>(m_hexPageStart, end - 1), 0, 16)
+              .arg(formatSize(fileSize))
+              .arg(m_hexPageStart / m_hexPageSize + 1)
+              .arg((fileSize + m_hexPageSize - 1) / m_hexPageSize)
+              .toUpper()
+        : tr("尚未打开可读取的文件"));
+    const QString statePath = qEnvironmentVariable("AVSCOPE_HEX_STATE");
+    if (!statePath.isEmpty() && fileSize > 0) {
+        QJsonObject state;
+        state["path"] = QDir::toNativeSeparators(m_currentPath);
+        state["file_size"] = static_cast<double>(fileSize);
+        state["page_size"] = static_cast<double>(m_hexPageSize);
+        state["page_index"] = static_cast<double>(m_hexPageStart / m_hexPageSize);
+        state["page_count"] = static_cast<double>((fileSize + m_hexPageSize - 1) / m_hexPageSize);
+        state["start_offset"] = static_cast<double>(m_hexPageStart);
+        state["end_offset"] = static_cast<double>(qMax<qint64>(m_hexPageStart, end - 1));
+        state["previous_enabled"] = m_hexPreviousPage->isEnabled();
+        state["next_enabled"] = m_hexNextPage->isEnabled();
+        QFile stateFile(statePath);
+        QDir().mkpath(QFileInfo(statePath).absolutePath());
+        if (stateFile.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            stateFile.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+    }
 }
 
 qint64 MainWindow::currentOffset() const
@@ -2618,7 +2746,7 @@ void MainWindow::jumpToOffset()
         return;
     }
     showHex(offset, 1);
-    m_tabs->setCurrentWidget(m_hexView);
+    m_tabs->setCurrentWidget(m_hexPanel);
     m_statusText->setText(tr("已跳转到 Offset 0x%1").arg(offset, 0, 16).toUpper());
 }
 
@@ -2656,7 +2784,7 @@ void MainWindow::onBookmarkActivated()
     if (row < 0 || row >= m_bookmarks.size()) return;
     const qint64 offset = jsonInteger(m_bookmarks.at(row).toObject().value("offset"));
     showHex(offset, 1);
-    m_tabs->setCurrentWidget(m_hexView);
+    m_tabs->setCurrentWidget(m_hexPanel);
     m_statusText->setText(tr("书签定位到 Offset 0x%1").arg(offset, 0, 16).toUpper());
 }
 

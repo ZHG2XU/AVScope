@@ -67,6 +67,41 @@ if (-not (Test-Path -LiteralPath $timelineScreenshot)) {
 }
 Remove-Item Env:\AVSCOPE_START_TAB -ErrorAction SilentlyContinue
 
+$singleHexScreenshot = "$output\single-hex-page-2.png"
+$singleHexLastScreenshot = "$output\single-hex-last-page.png"
+$singleHexState = "$output\single-hex-page-2-state.json"
+$singleHexLastState = "$output\single-hex-last-page-state.json"
+Remove-Item -LiteralPath $singleHexScreenshot, $singleHexLastScreenshot, $singleHexState, $singleHexLastState -Force -ErrorAction SilentlyContinue
+$env:AVSCOPE_START_TAB = "0"
+$env:AVSCOPE_HEX_PAGE_SIZE = "4096"
+$env:AVSCOPE_HEX_PAGE = "1"
+$env:AVSCOPE_HEX_STATE = $singleHexState
+$env:AVSCOPE_RAW_WIDTH = "64"
+$env:AVSCOPE_RAW_HEIGHT = "48"
+$env:AVSCOPE_RAW_PIXEL_FORMAT = "yuv420p"
+$env:AVSCOPE_RAW_FPS = "30"
+$env:AVSCOPE_SCREENSHOT = $singleHexScreenshot
+$singleHexProcess = Start-Process -FilePath $executable -ArgumentList "$root\samples\sample.yuv" -WindowStyle Hidden -PassThru
+if (-not $singleHexProcess.WaitForExit(10000)) {
+    $singleHexProcess.Kill()
+    throw "Qt single-file Hex pagination smoke test timed out"
+}
+if (-not (Test-Path -LiteralPath $singleHexScreenshot, $singleHexState)) {
+    throw "Qt single-file Hex pagination screenshot or state was not generated"
+}
+$env:AVSCOPE_HEX_PAGE = "3"
+$env:AVSCOPE_HEX_STATE = $singleHexLastState
+$env:AVSCOPE_SCREENSHOT = $singleHexLastScreenshot
+$singleHexLastProcess = Start-Process -FilePath $executable -ArgumentList "$root\samples\sample.yuv" -WindowStyle Hidden -PassThru
+if (-not $singleHexLastProcess.WaitForExit(10000)) {
+    $singleHexLastProcess.Kill()
+    throw "Qt single-file Hex last-page smoke test timed out"
+}
+if (-not (Test-Path -LiteralPath $singleHexLastScreenshot, $singleHexLastState)) {
+    throw "Qt single-file Hex last-page screenshot or state was not generated"
+}
+Remove-Item Env:\AVSCOPE_START_TAB, Env:\AVSCOPE_HEX_PAGE_SIZE, Env:\AVSCOPE_HEX_PAGE, Env:\AVSCOPE_HEX_STATE, Env:\AVSCOPE_RAW_WIDTH, Env:\AVSCOPE_RAW_HEIGHT, Env:\AVSCOPE_RAW_PIXEL_FORMAT, Env:\AVSCOPE_RAW_FPS -ErrorAction SilentlyContinue
+
 $rtcpPreviewScreenshot = "$output\pcap-rtcp-preview.png"
 $rtcpPreviewJson = "$output\pcap-rtcp-preview.json"
 Remove-Item -LiteralPath $rtcpPreviewScreenshot, $rtcpPreviewJson -Force -ErrorAction SilentlyContinue
@@ -383,11 +418,17 @@ Remove-Item Env:\AVSCOPE_COMPARE_MODE, Env:\AVSCOPE_COMPARE_PATH, Env:\AVSCOPE_H
 Remove-Item Env:\AVSCOPE_WINDOW_WIDTH, Env:\AVSCOPE_WINDOW_HEIGHT -ErrorAction SilentlyContinue
 
 $env:PYTHONPATH = $root
-& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png'),Path(r'$output/timeline-pcap.png'),Path(r'$output/pcap-rtcp-preview.png'),Path(r'$output/transport-sessions.png'),Path(r'$output/rtp-video-payload.png'),Path(r'$output/sip-sdp-signaling.png'),Path(r'$output/rtcp-feedback.png'),Path(r'$output/rtp-timing.png'),Path(r'$output/rtcp-twcc.png'),Path(r'$output/codec-health-h264.png'),Path(r'$output/codec-health-h265.png'),Path(r'$output/media-streams.png'),Path(r'$output/diagnostic-filter.png'),Path(r'$output/raw-pcm.png'),Path(r'$output/raw-yuv.png'),Path(r'$output/raw-yuv-frame-2.png'),Path(r'$output/project-snapshot.png'),Path(r'$output/compare-protocol.png'),Path(r'$hexCompareScreenshot')]; dims=[png_dimensions(p) for p in paths]; assert len(set(dims)) == 1, dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; assert all(p.stat().st_size > 50000 for p in paths), [(p.name,p.stat().st_size) for p in paths]; compact=Path(r'$compactScreenshot'); compact_dims=png_dimensions(compact); assert compact_dims == (1680,1080), compact_dims; assert compact.stat().st_size > 40000; settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'dimensions': dims, 'compact': {'path': str(compact), 'dimensions': compact_dims}, 'dpi_scale': round(width / 1560, 2), 'settings': str(settings)})"
+& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png'),Path(r'$output/timeline-pcap.png'),Path(r'$singleHexScreenshot'),Path(r'$output/pcap-rtcp-preview.png'),Path(r'$output/transport-sessions.png'),Path(r'$output/rtp-video-payload.png'),Path(r'$output/sip-sdp-signaling.png'),Path(r'$output/rtcp-feedback.png'),Path(r'$output/rtp-timing.png'),Path(r'$output/rtcp-twcc.png'),Path(r'$output/codec-health-h264.png'),Path(r'$output/codec-health-h265.png'),Path(r'$output/media-streams.png'),Path(r'$output/diagnostic-filter.png'),Path(r'$output/raw-pcm.png'),Path(r'$output/raw-yuv.png'),Path(r'$output/raw-yuv-frame-2.png'),Path(r'$output/project-snapshot.png'),Path(r'$output/compare-protocol.png'),Path(r'$hexCompareScreenshot')]; dims=[png_dimensions(p) for p in paths]; assert len(set(dims)) == 1, dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; assert all(p.stat().st_size > 50000 for p in paths), [(p.name,p.stat().st_size) for p in paths]; scale=width/1560; compact=Path(r'$compactScreenshot'); compact_dims=png_dimensions(compact); expected_compact=(round(1120*scale),round(720*scale)); assert compact_dims == expected_compact, (compact_dims,expected_compact); assert compact.stat().st_size > 40000; settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'dimensions': dims, 'compact': {'path': str(compact), 'dimensions': compact_dims}, 'dpi_scale': round(scale, 2), 'settings': str(settings)})"
 if ($LASTEXITCODE -ne 0) { throw "Qt screenshot validation failed" }
 
 & "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; document=json.loads(Path(r'$root/tmp/qt-runtime/current-analysis.json').read_text(encoding='utf-8')); root=document['root']; assert root['children'] and root['children'][0]['fields']; streams=json.loads(Path(r'$streamsJson').read_text(encoding='utf-8'))['media']['summary']['ffprobe']['streams']; assert len(streams)==1 and streams[0]['codec_name']=='pcm_s16le' and streams[0]['sample_rate']=='8000', streams; diagnostic=json.loads(Path(r'$diagnosticJson').read_text(encoding='utf-8')); issues=[i for i in diagnostic['diagnostics'] if i['severity']=='warning' and i.get('offset') is not None]; assert issues and any('chunk offset' in i['message'] for i in issues), issues; state=json.loads(Path(r'$diagnosticState').read_text(encoding='utf-8')); assert state=={'visible':1,'total':3,'severity':'warning','source':'all','offset_only':True}, state; pcm=json.loads(Path(r'$rawPcmJson').read_text(encoding='utf-8'))['media']['summary']; assert (pcm['sample_rate'],pcm['channels'],pcm['bits_per_sample'],pcm['endian']) == (8000,1,16,'little'), pcm; yuv=json.loads(Path(r'$rawYuvJson').read_text(encoding='utf-8'))['media']['summary']; assert (yuv['width'],yuv['height'],yuv['pixel_format'],yuv['fps'],yuv['frames']) == (64,48,'yuv420p',30.0,3), yuv; yuv_next=json.loads(Path(r'$rawYuvNextJson').read_text(encoding='utf-8'))['media']['summary']['yuv_preview']; assert yuv_next['frame_index']==1 and yuv_next['total_frames']==3, yuv_next; snapshot=json.loads(Path(r'$snapshotPath').read_text(encoding='utf-8')); assert snapshot['analysis']['root']['children'] and snapshot['source_path'].endswith('sample.mp4') and len(snapshot['bookmarks'])==2; compare=json.loads(Path(r'$compareJson').read_text(encoding='utf-8')); assert len(compare['added']) == 1 and len(compare['changed']) >= 1, compare; print({'nodes': len(root['children']), 'first_fields': len(root['children'][0]['fields']), 'media_streams': streams, 'diagnostic_filter': state, 'raw_pcm': {k:pcm[k] for k in ('sample_rate','channels','bits_per_sample','endian')}, 'raw_yuv': {k:yuv[k] for k in ('width','height','pixel_format','fps','frames')}, 'yuv_navigation': yuv_next['frame_index'], 'project_snapshot': {'source':snapshot['source_path'],'bookmarks':len(snapshot['bookmarks'])}, 'protocol_compare': {k:len(compare[k]) for k in ('added','removed','changed')}})"
 if ($LASTEXITCODE -ne 0) { throw "Qt protocol tree data contract is incomplete" }
+
+& "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; state=json.loads(Path(r'$singleHexState').read_text(encoding='utf-8')); assert state=={'path':r'G:\AVScope\samples\sample.yuv','file_size':13824,'page_size':4096,'page_index':1,'page_count':4,'start_offset':4096,'end_offset':8191,'previous_enabled':True,'next_enabled':True}, state; print({'single_hex_pagination':state})"
+if ($LASTEXITCODE -ne 0) { throw "Qt single-file Hex pagination contract is incomplete" }
+
+& "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; state=json.loads(Path(r'$singleHexLastState').read_text(encoding='utf-8')); assert state['page_index']==3 and state['page_count']==4 and state['start_offset']==12288 and state['end_offset']==13823 and state['previous_enabled'] is True and state['next_enabled'] is False, state; print({'single_hex_last_page':state})"
+if ($LASTEXITCODE -ne 0) { throw "Qt single-file Hex last-page contract is incomplete" }
 
 & "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; result=json.loads(Path(r'$hexCompareJson').read_text(encoding='utf-8')); state=json.loads(Path(r'$hexCompareState').read_text(encoding='utf-8')); assert result['left_size']==555 and result['right_size']==563 and len(result['chunks'])==2, result; assert state['difference_count']==2 and state['focus_offset']==538 and state['window_offset']==0 and state['synchronized_scrolling'] is True, state; assert state['left_path'].endswith('sample.mp4') and state['right_path'].endswith('sample_changed.mp4'), state; print({'binary_hex_compare': state})"
 if ($LASTEXITCODE -ne 0) { throw "Qt dual-pane Hex compare contract is incomplete" }
