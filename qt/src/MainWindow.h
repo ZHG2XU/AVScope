@@ -150,6 +150,7 @@ private:
     QTableWidget *m_rtpTimingEventsTable = nullptr;
     QTableWidget *m_twccFeedbackTable = nullptr;
     QTableWidget *m_twccPacketsTable = nullptr;
+    QTableWidget *m_rembTable = nullptr;
     QTabWidget *m_transportDetails = nullptr;
     QTableWidget *m_codecIssuesTable = nullptr;
     QTableWidget *m_codecParametersTable = nullptr;

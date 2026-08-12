@@ -618,7 +618,7 @@ QWidget *MainWindow::buildWorkspace()
     auto *twccLayout = new QVBoxLayout(twccPanel);
     twccLayout->setContentsMargins(8, 8, 8, 8);
     twccLayout->setSpacing(7);
-    m_twccSummary = new QLabel(tr("当前文件没有 TWCC 拥塞反馈"));
+    m_twccSummary = new QLabel(tr("当前文件没有 TWCC / REMB 拥塞反馈"));
     m_twccSummary->setObjectName("sectionHint");
     m_twccSummary->setTextInteractionFlags(Qt::TextSelectableByMouse);
     twccLayout->addWidget(m_twccSummary);
@@ -656,7 +656,24 @@ QWidget *MainWindow::buildWorkspace()
         m_statusText->setText(tr("TWCC 包状态  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
     twccSplitter->addWidget(m_twccPacketsTable);
-    twccSplitter->setSizes({250, 300});
+    m_rembTable = new QTableWidget;
+    m_rembTable->setColumnCount(8);
+    m_rembTable->setHorizontalHeaderLabels({
+        tr("发送者 SSRC"), tr("目标 SSRC"), tr("码率"), tr("指数"), tr("尾数"), tr("目标数"), tr("媒体 SSRC"), "Offset"
+    });
+    m_rembTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_rembTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_rembTable->setAlternatingRowColors(true);
+    m_rembTable->verticalHeader()->hide();
+    m_rembTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_rembTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    connect(m_rembTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 24); m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("REMB 带宽估计  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    twccSplitter->addWidget(m_rembTable);
+    twccSplitter->setSizes({210, 250, 170});
     twccLayout->addWidget(twccSplitter, 1);
     m_transportDetails->addTab(twccPanel, tr("拥塞反馈"));
     transportLayout->addWidget(m_transportDetails, 1);
@@ -1762,7 +1779,8 @@ void MainWindow::populateRtcpFeedback(const QJsonObject &rtcp)
     if (!m_rtcpFeedbackTable || !m_rtcpMetadataTable || !m_rtcpFeedbackSummary) return;
     QJsonArray feedback;
     for (const auto &value : rtcp.value("feedback_events").toArray()) {
-        if (value.toObject().value("kind").toString() != "TWCC") feedback.append(value);
+        const auto kind = value.toObject().value("kind").toString();
+        if (kind != "TWCC" && kind != "REMB") feedback.append(value);
     }
     const auto sdes = rtcp.value("sdes_chunks").toArray();
     const auto bye = rtcp.value("bye_events").toArray();
@@ -1924,12 +1942,14 @@ void MainWindow::populateRtpTiming(const QJsonObject &transport)
 
 void MainWindow::populateTwcc(const QJsonObject &rtcp)
 {
-    if (!m_twccFeedbackTable || !m_twccPacketsTable || !m_twccSummary) return;
+    if (!m_twccFeedbackTable || !m_twccPacketsTable || !m_rembTable || !m_twccSummary) return;
     const auto events = rtcp.value("twcc_events").toArray();
+    const auto rembEvents = rtcp.value("remb_events").toArray();
     m_twccFeedbackTable->setRowCount(events.size());
     int packetCount = 0;
     for (const auto &value : events) packetCount += value.toObject().value("packets").toArray().size();
     m_twccPacketsTable->setRowCount(packetCount);
+    m_rembTable->setRowCount(rembEvents.size());
     int packetRow = 0;
     for (int row = 0; row < events.size(); ++row) {
         const auto event = events.at(row).toObject();
@@ -1973,17 +1993,40 @@ void MainWindow::populateTwcc(const QJsonObject &rtcp)
             ++packetRow;
         }
     }
+    for (int row = 0; row < rembEvents.size(); ++row) {
+        const auto event = rembEvents.at(row).toObject();
+        const qint64 offset = jsonInteger(event.value("offset"));
+        QStringList targets;
+        for (const auto &value : event.value("target_ssrcs").toArray())
+            targets << QString("0x%1").arg(jsonInteger(value), 8, 16, QLatin1Char('0')).toUpper();
+        const QStringList values = {
+            QString("0x%1").arg(jsonInteger(event.value("sender_ssrc")), 8, 16, QLatin1Char('0')).toUpper(),
+            targets.join(", "), tr("%1 Mbps").arg(event.value("bitrate_mbps").toDouble(), 0, 'f', 3),
+            displayValue(event.value("bitrate_exponent")), displayValue(event.value("bitrate_mantissa")),
+            displayValue(event.value("ssrc_count")),
+            QString("0x%1").arg(jsonInteger(event.value("media_ssrc")), 8, 16, QLatin1Char('0')).toUpper(),
+            QString("0x%1").arg(offset, 0, 16).toUpper(),
+        };
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column)); cell->setData(OffsetRole, offset);
+            if (column == 2) cell->setForeground(QColor(m_dark ? "#7CC9F3" : "#176A99"));
+            else if (column == 1) cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
+            m_rembTable->setItem(row, column, cell);
+        }
+    }
     m_twccSummary->setText(
-        events.isEmpty() ? tr("当前文件没有 TWCC 拥塞反馈")
-        : tr("反馈 %1  |  收到 %2  |  丢失 %3  |  最大 Delta %4 ms")
+        events.isEmpty() && rembEvents.isEmpty() ? tr("当前文件没有 TWCC / REMB 拥塞反馈")
+        : tr("TWCC %1  |  收到 %2  |  丢失 %3  |  最大 Delta %4 ms  |  REMB %5  |  最低带宽 %6 Mbps")
               .arg(events.size()).arg(jsonInteger(rtcp.value("twcc_received_packets")))
               .arg(jsonInteger(rtcp.value("twcc_lost_packets")))
-              .arg(rtcp.value("twcc_max_abs_delta_ms").toDouble(), 0, 'f', 3));
+              .arg(rtcp.value("twcc_max_abs_delta_ms").toDouble(), 0, 'f', 3)
+              .arg(rembEvents.size()).arg(jsonInteger(rtcp.value("remb_min_bitrate_bps")) / 1'000'000.0, 0, 'f', 3));
     const QString statePath = qEnvironmentVariable("AVSCOPE_TWCC_STATE");
     if (!statePath.isEmpty()) {
         QJsonObject state{{"events", events.size()}, {"received", rtcp.value("twcc_received_packets")},
                           {"lost", rtcp.value("twcc_lost_packets")}, {"max_delta_ms", rtcp.value("twcc_max_abs_delta_ms")},
-                          {"packets", packetCount}};
+                          {"packets", packetCount}, {"remb", rembEvents.size()},
+                          {"remb_min_bps", rtcp.value("remb_min_bitrate_bps")}};
         QFile file(statePath); QDir().mkpath(QFileInfo(statePath).absolutePath());
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
     }

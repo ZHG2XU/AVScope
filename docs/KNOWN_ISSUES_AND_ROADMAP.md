@@ -7,7 +7,7 @@
 - 当前版本是可安装 MVP，不是完整播放器；视频预览支持按 1 秒生成上一/下一预览帧、按秒跳转预览时间、按帧号跳转、上一/下一关键帧预览并显示当前帧元信息，音频预览支持 Peak/RMS 能量摘要和按起始时间/时长播放短片段，暂不提供连续播放列表或精确逐帧解码控制。
 - MP4、H.264、H.265 的字段解析覆盖常用排障字段；H.26x 已支持参数集引用链、关键帧前参数集和分辨率变化健康诊断，深层级 Slice 语法、GOP 图和解码质量指标仍需后续扩展。
 - Raw YUV 当前支持 `yuv420p`、`nv12`、`nv21`、`yuyv422` 逐帧预览，暂不支持所有像素格式。
-- PCAP/RTP/RTCP 当前支持按端点与 SSRC 聚合会话、sequence 回绕、估算丢包/重复/乱序、marker 和 payload 码率，支持 RTCP Compound、SR/RR、SDES/BYE、Generic NACK、PLI/FIR、TWCC、H.264/H.265 Single/Aggregation/FU 视频负载，以及 SIP/SDP 动态 PT 与 Clock Rate 关联；暂未扩展到 REMB/XR、RTSP/GB28181 专用信令和 TCP SIP 重组。
+- PCAP/RTP/RTCP 当前支持按端点与 SSRC 聚合会话、sequence 回绕、估算丢包/重复/乱序、marker 和 payload 码率，支持 RTCP Compound、SR/RR、SDES/BYE、Generic NACK、PLI/FIR、TWCC/REMB、H.264/H.265 Single/Aggregation/FU 视频负载，以及 SIP/SDP 动态 PT 与 Clock Rate 关联；暂未扩展到 RTCP XR、RTSP/GB28181 专用信令和 TCP SIP 重组。
 - 插件系统当前提供声明式魔数识别和字段模板示例，暂不执行第三方代码插件。
 - 安装包默认安装到 `G:\AVScopeInstalled\AVScope`，不创建桌面或开始菜单快捷方式，以避免写入 C 盘用户目录。
 - 大文件验证覆盖 128MB+ 随机访问和窗口读取；10GB 级文件仍建议在真实验收环境追加手工压力测试。
@@ -39,5 +39,6 @@
 - 新增 RTCP 控制反馈分析，支持 SDES CNAME、BYE 原因、Generic NACK PID/BLP 丢失序号展开、PLI 和 FIR sequence；反馈与 RTP SSRC 会话关联，Qt 提供控制反馈上下分栏，HTML/JSON/CSV 与专用 PCAP 样例同步覆盖。
 - 新增 RTP 时序质量分析，按静态 PT/SDP Clock Rate 计算 RFC 3550 Jitter、到达/媒体间隔、最大偏差和 20 ms 突发事件；Qt、全局诊断、HTML/JSON/CSV 与专用音频 RTP 样例同步覆盖。
 - 新增 WebRTC RTCP TWCC 拥塞反馈分析，支持 Run Length/Status Vector Chunk、Small/Large Delta、逐包接收状态与累计接收时间；Qt 提供独立拥塞反馈页，并附专用 PCAP、HTML/JSON/CSV 报告。
+- 新增 REMB 接收端带宽估计，解析目标 SSRC、exponent/mantissa 和精确码率，关联 RTP 会话并与 TWCC 共同呈现在拥塞反馈页及报告中。
 - GUI 时间线页已叠加 PTS/DTS 曲线、码率曲线、GOP 分段、RTP sequence 曲线、PCR 曲线和异常标记，时间戳、RTP sequence 与带行号 PCR 异常会在表格中高亮并通过 `Issue` 列说明原因，同时提供“只看时间线异常”筛选；预览页会显示时间线曲线摘要和统一的时间线异常原因摘要；HTML 报告会汇总时间戳、RTP sequence 和 PCR 异常清单，并在帧列表/Packet 时间线中标注 `Issue` 原因，宽表在窄屏下可横向滚动；CSV 导出会写入可筛选的 `timeline_issue` section；HTML/JSON/CSV 导出已包含同一份结构化数据，PCAP/RTP/RTCP 还会显示 sequence 曲线、跳变点与 RTCP 会话质量，MPEG-TS 会显示 PCR 曲线。
 - 后续仍建议继续扩展 RTP sequence 多流对齐视图、后台索引、取消任务和 10GB 级自动化压力测试。

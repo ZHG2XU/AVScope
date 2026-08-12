@@ -769,6 +769,8 @@ class ParserTests(unittest.TestCase):
         result = self.analyzer.analyze(sample_dir / "sample_rtcp_twcc.pcap")
         rtcp = result.media.summary["rtcp"]
         self.assertEqual(rtcp["twcc_event_count"], 1)
+        self.assertEqual(rtcp["remb_event_count"], 1)
+        self.assertEqual((rtcp["remb_min_bitrate_bps"], rtcp["remb_max_bitrate_bps"]), (2_500_000, 2_500_000))
         self.assertEqual(rtcp["twcc_received_packets"], 4)
         self.assertEqual(rtcp["twcc_lost_packets"], 1)
         self.assertEqual(rtcp["twcc_max_abs_delta_ms"], 30.0)
@@ -785,27 +787,44 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(len(nodes_with_type(result.root, "rtcp_twcc_packet")), 5)
         packet_fields = fields_by_name(nodes_with_type(result.root, "rtcp_twcc_packet")[3])
         self.assertEqual(packet_fields["receive_delta_ms"], 30.0)
+        remb = rtcp["remb_events"][0]
+        self.assertEqual((remb["bitrate_exponent"], remb["bitrate_mantissa"]), (4, 156_250))
+        self.assertEqual((remb["bitrate_bps"], remb["bitrate_mbps"]), (2_500_000, 2.5))
+        self.assertEqual(remb["target_ssrcs"], [0xCAFEBABE])
+        self.assertEqual(len(nodes_with_type(result.root, "rtcp_remb_ssrc")), 1)
         session = result.media.summary["transport_sessions"]["sessions"][0]
         self.assertEqual(session["rtcp_twcc_events"], 1)
         self.assertEqual(session["rtcp_twcc_lost_packets"], 1)
         self.assertEqual(session["rtcp_twcc_max_abs_delta_ms"], 30.0)
+        self.assertEqual(session["rtcp_remb_events"], 1)
+        self.assertEqual(session["rtcp_remb_min_bitrate_bps"], 2_500_000)
         self.assertEqual(session["status"], "warning")
         self.assertTrue(any("TWCC 拥塞反馈异常" in issue.message for issue in diagnostics_with(result, "warning")))
         html_path = ROOT / "rtcp_twcc.html"
         csv_path = ROOT / "rtcp_twcc.csv"
         export_html(result, html_path)
         export_csv(result, csv_path)
-        self.assertIn("RTCP TWCC 拥塞反馈", html_path.read_text(encoding="utf-8"))
+        html_text = html_path.read_text(encoding="utf-8")
+        self.assertIn("RTCP TWCC / REMB 拥塞反馈", html_text)
+        self.assertIn("REMB 接收端带宽估计", html_text)
         csv_text = csv_path.read_text(encoding="utf-8-sig")
         self.assertIn("rtcp_twcc", csv_text)
         self.assertIn("rtcp_twcc_packet", csv_text)
+        self.assertIn("rtcp_remb", csv_text)
 
         raw = bytearray((sample_dir / "sample_rtcp_twcc.pcap").read_bytes())
-        truncated = write(ROOT / "rtcp_twcc_truncated_delta.pcap", bytes(raw[:-3]))
+        truncated_end = event["offset"] + event["size"] - 3
+        truncated = write(ROOT / "rtcp_twcc_truncated_delta.pcap", bytes(raw[:truncated_end]))
         malformed = self.analyzer.analyze(truncated)
         malformed_event = malformed.media.summary["rtcp"]["twcc_events"][0]
         self.assertLess(len(malformed_event["packets"]), 5)
         self.assertTrue(any("TWCC" in issue.message and "截断" in issue.message for issue in diagnostics_with(malformed, "error")))
+
+        remb_truncated = write(ROOT / "rtcp_remb_truncated_ssrc.pcap", bytes(raw[:-2]))
+        malformed_remb = self.analyzer.analyze(remb_truncated)
+        malformed_remb_event = malformed_remb.media.summary["rtcp"]["remb_events"][0]
+        self.assertEqual(malformed_remb_event["target_ssrcs"], [])
+        self.assertTrue(any("REMB SSRC 列表截断" in issue.message for issue in diagnostics_with(malformed_remb, "error")))
 
     def test_pcap_rtp_session_loss_duplicate_and_reorder(self):
         sample_dir = ROOT / "pcap_session_anomalies"
@@ -1587,7 +1606,7 @@ class ParserTests(unittest.TestCase):
             (report_root / "dist" / "sample-reports" / "sample_rtp_timing_report.html").read_text(encoding="utf-8"),
         )
         self.assertIn(
-            "RTCP TWCC 拥塞反馈",
+            "RTCP TWCC / REMB 拥塞反馈",
             (report_root / "dist" / "sample-reports" / "sample_rtcp_twcc_report.html").read_text(encoding="utf-8"),
         )
         self.assertIn("sample_protocol_compare.json", names)

@@ -145,10 +145,11 @@ class _Session:
         pli_events = [item for item in feedback if item.get("kind") == "PLI"]
         fir_events = [item for item in feedback if item.get("kind") == "FIR"]
         twcc_events = [item for item in feedback if item.get("kind") == "TWCC"]
+        remb_events = [item for item in feedback if item.get("kind") == "REMB"]
         nack_sequences = [int(value) for item in nack_events for value in item.get("lost_sequences", [])]
         disruptive_feedback = [
             item for item in feedback
-            if item.get("kind") != "TWCC"
+            if item.get("kind") not in {"TWCC", "REMB"}
             or int(item.get("lost_packets", 0)) > 0
             or float(item.get("max_abs_delta_ms", 0)) > 20
         ]
@@ -192,6 +193,8 @@ class _Session:
             "rtcp_twcc_received_packets": sum(int(item.get("received_packets", 0)) for item in twcc_events),
             "rtcp_twcc_lost_packets": sum(int(item.get("lost_packets", 0)) for item in twcc_events),
             "rtcp_twcc_max_abs_delta_ms": round(max((float(item.get("max_abs_delta_ms", 0)) for item in twcc_events), default=0.0), 3),
+            "rtcp_remb_events": len(remb_events),
+            "rtcp_remb_min_bitrate_bps": min((int(item.get("bitrate_bps", 0)) for item in remb_events), default=0),
             "rtcp_feedback_events": feedback,
             "rtcp_cname": next((str(item.get("cname", "")) for item in sdes if item.get("cname")), ""),
             "rtcp_sdes": sdes,
@@ -230,6 +233,7 @@ class TransportSessionTracker:
         for event in rtcp_stats.get("feedback_events", []):
             target_ssrcs = {int(event.get("media_ssrc", -1))}
             target_ssrcs.update(int(item.get("target_ssrc", -1)) for item in event.get("fir_entries", []))
+            target_ssrcs.update(int(value) for value in event.get("target_ssrcs", []))
             for target_ssrc in target_ssrcs:
                 for session in by_ssrc.get(target_ssrc, []):
                     if event not in session.rtcp_feedback:

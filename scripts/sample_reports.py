@@ -82,7 +82,7 @@ def build_sample_reports(root: str | Path, output_dir: str | Path) -> list[Path]
 
     rtcp_twcc = root_path / "samples" / "sample_rtcp_twcc.pcap"
     rtcp_twcc_result = analyzer.analyze(rtcp_twcc)
-    twcc_note = "AVScope 交付示例报告：WebRTC RTCP TWCC 包状态、接收 Delta、丢包与拥塞反馈。"
+    twcc_note = "AVScope 交付示例报告：WebRTC RTCP TWCC 包状态、接收 Delta、丢包与 REMB 带宽估计。"
     export_html(rtcp_twcc_result, output_path / "sample_rtcp_twcc_report.html", notes=twcc_note)
     export_json(rtcp_twcc_result, output_path / "sample_rtcp_twcc_report.json", notes=twcc_note)
     export_csv(rtcp_twcc_result, output_path / "sample_rtcp_twcc_report.csv", notes=twcc_note)

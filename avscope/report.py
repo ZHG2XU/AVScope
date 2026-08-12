@@ -102,7 +102,7 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                     "value": json.dumps(rtcp, ensure_ascii=False),
                 }
             )
-            for event in (item for item in rtcp.get("feedback_events", []) if item.get("kind") != "TWCC"):
+            for event in (item for item in rtcp.get("feedback_events", []) if item.get("kind") not in {"TWCC", "REMB"}):
                 writer.writerow(
                     {
                         "section": "rtcp_feedback",
@@ -150,6 +150,15 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                             "severity": "warning" if not packet.get("received") or packet.get("status") == "large_delta" else "normal",
                         }
                     )
+            for event in rtcp.get("remb_events", []):
+                writer.writerow(
+                    {
+                        "section": "rtcp_remb", "name": f"REMB {event.get('bitrate_bps', 0)} bps",
+                        "type": "REMB", "offset": f"0x{int(event.get('offset', 0)):X}", "size": event.get("size", ""),
+                        "key": ",".join(f"0x{int(value):08X}" for value in event.get("target_ssrcs", [])),
+                        "value": json.dumps(event, ensure_ascii=False),
+                    }
+                )
         transport = result.media.summary.get("transport_sessions", {})
         for session in transport.get("sessions", []):
             writer.writerow(
@@ -786,7 +795,7 @@ def _rtcp_summary_html(rtcp: dict) -> str:
 
 
 def _rtcp_feedback_html(rtcp: dict) -> str:
-    feedback = [item for item in rtcp.get("feedback_events", []) if item.get("kind") != "TWCC"]
+    feedback = [item for item in rtcp.get("feedback_events", []) if item.get("kind") not in {"TWCC", "REMB"}]
     sdes = rtcp.get("sdes_chunks", [])
     bye = rtcp.get("bye_events", [])
     if not feedback and not sdes and not bye:
@@ -837,12 +846,15 @@ def _rtcp_feedback_html(rtcp: dict) -> str:
 
 def _rtcp_twcc_html(rtcp: dict) -> str:
     events = rtcp.get("twcc_events", [])
-    if not events:
+    remb_events = rtcp.get("remb_events", [])
+    if not events and not remb_events:
         return ""
     metrics = [
         ("反馈包", rtcp.get("twcc_event_count", 0)), ("收到", rtcp.get("twcc_received_packets", 0)),
         ("丢失", rtcp.get("twcc_lost_packets", 0)),
         ("最大 Delta", f"{float(rtcp.get('twcc_max_abs_delta_ms', 0)):.3f} ms"),
+        ("REMB", rtcp.get("remb_event_count", 0)),
+        ("最低估计带宽", f"{int(rtcp.get('remb_min_bitrate_bps', 0)) / 1_000_000:.3f} Mbps"),
     ]
     metric_html = "".join(
         f'<div class="metric"><div class="label">{html.escape(str(label))}</div>'
@@ -869,17 +881,30 @@ def _rtcp_twcc_html(rtcp: dict) -> str:
                 f'<td>{delta}</td><td>{receive_time}</td><td>{packet.get("delta_size", 0)}</td>'
                 f'<td>0x{int(packet.get("offset", 0)):X}</td></tr>'
             )
-    feedback_table = (
+    feedback_table = "" if not events else (
         '<table class="timeline-issues"><tr><th>媒体 SSRC</th><th>Base Sequence</th><th>状态数</th><th>收到</th>'
         '<th>丢失</th><th>参考时间</th><th>反馈计数</th><th>最大 Delta</th><th>Offset</th></tr>'
         + "".join(feedback_rows) + '</table>'
     )
-    packet_table = (
+    packet_table = "" if not events else (
         '<h3>逐包接收状态</h3><table class="timeline-issues"><tr><th>序号</th><th>状态</th><th>收到</th>'
         '<th>Delta</th><th>累计接收时间</th><th>Delta 字节</th><th>Offset</th></tr>'
         + "".join(packet_rows) + '</table>'
     )
-    return f'<section><h2>RTCP TWCC 拥塞反馈</h2><div class="overview">{metric_html}</div>{feedback_table}{packet_table}</section>'
+    remb_rows = []
+    for event in remb_events:
+        targets = ", ".join(f"0x{int(value):08X}" for value in event.get("target_ssrcs", []))
+        remb_rows.append(
+            f'<tr><td>0x{int(event.get("sender_ssrc", 0)):08X}</td><td>{html.escape(targets)}</td>'
+            f'<td>{float(event.get("bitrate_mbps", 0)):.3f} Mbps</td><td>{event.get("bitrate_exponent", 0)}</td>'
+            f'<td>{event.get("bitrate_mantissa", 0)}</td><td>{event.get("ssrc_count", 0)}</td>'
+            f'<td>0x{int(event.get("offset", 0)):X}</td></tr>'
+        )
+    remb_table = "" if not remb_rows else (
+        '<h3>REMB 接收端带宽估计</h3><table class="timeline-issues"><tr><th>发送者 SSRC</th><th>目标 SSRC</th>'
+        '<th>估计码率</th><th>指数</th><th>尾数</th><th>目标数</th><th>Offset</th></tr>' + "".join(remb_rows) + '</table>'
+    )
+    return f'<section><h2>RTCP TWCC / REMB 拥塞反馈</h2><div class="overview">{metric_html}</div>{feedback_table}{packet_table}{remb_table}</section>'
 
 
 def _transport_sessions_html(transport: dict) -> str:

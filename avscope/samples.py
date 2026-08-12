@@ -431,7 +431,17 @@ def _rtcp_twcc_sample() -> bytes:
     deltas = bytes([4, 8]) + struct.pack(">h", 120) + bytes([12])
     body = fixed + status_vector + deltas
     body += b"\x00" * ((-len(body)) % 4)
-    return bytes([0x80 | 15, 205]) + struct.pack(">H", len(body) // 4) + body
+    twcc = bytes([0x80 | 15, 205]) + struct.pack(">H", len(body) // 4) + body
+    return twcc + _rtcp_remb_sample(media_ssrc)
+
+
+def _rtcp_remb_sample(target_ssrc: int) -> bytes:
+    sender_ssrc = 0x87654321
+    exponent = 4
+    mantissa = 156_250
+    bitrate = bytes([(exponent << 2) | ((mantissa >> 16) & 0x03), (mantissa >> 8) & 0xFF, mantissa & 0xFF])
+    body = struct.pack(">II", sender_ssrc, 0) + b"REMB" + bytes([1]) + bitrate + struct.pack(">I", target_ssrc)
+    return bytes([0x80 | 15, 206]) + struct.pack(">H", len(body) // 4) + body
 
 
 def _ipv4_checksum(header: bytes) -> int:

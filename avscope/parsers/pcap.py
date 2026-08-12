@@ -960,7 +960,7 @@ def _parse_rtcp_psfb(source: ByteSource, node: ParseNode, offset: int, size: int
         return
     sender_ssrc, media_ssrc, cursor = header
     stats["ssrcs"].update((sender_ssrc, media_ssrc))
-    kind = "PLI" if fmt == 1 else "FIR" if fmt == 4 else f"PSFB-{fmt}"
+    kind = "PLI" if fmt == 1 else "FIR" if fmt == 4 else "AFB" if fmt == 15 else f"PSFB-{fmt}"
     first_byte = source.read_at(offset, 1)
     node.fields.append(FieldInfo(
         "feedback_message_type", fmt, offset, 1, _hex_bytes(first_byte), description=kind,
@@ -968,6 +968,9 @@ def _parse_rtcp_psfb(source: ByteSource, node: ParseNode, offset: int, size: int
     ))
     event = {"kind": kind, "packet_type": 206, "fmt": fmt, "sender_ssrc": sender_ssrc,
              "media_ssrc": media_ssrc, "offset": offset, "size": size}
+    if fmt == 15:
+        _parse_rtcp_remb(source, node, offset, size, sender_ssrc, media_ssrc, cursor, diagnostics, stats)
+        return
     if fmt == 4:
         entries = []
         packet_end = offset + size
@@ -994,6 +997,67 @@ def _parse_rtcp_psfb(source: ByteSource, node: ParseNode, offset: int, size: int
         node.description = message
 
 
+def _parse_rtcp_remb(
+    source: ByteSource,
+    node: ParseNode,
+    offset: int,
+    size: int,
+    sender_ssrc: int,
+    media_ssrc: int,
+    cursor: int,
+    diagnostics: list,
+    stats: dict,
+) -> None:
+    packet_end = offset + size
+    if cursor + 8 > packet_end:
+        _mark_truncated_report(node, diagnostics, cursor, "AFB/REMB header", 8, packet_end - cursor)
+        return
+    header = source.read_at(cursor, 8)
+    identifier = header[0:4]
+    if identifier != b"REMB":
+        node.fields.append(FieldInfo("afb_identifier", identifier.decode("ascii", errors="replace"), cursor, 4, _hex_bytes(identifier)))
+        return
+    ssrc_count = header[4]
+    exponent = header[5] >> 2
+    mantissa = ((header[5] & 0x03) << 16) | (header[6] << 8) | header[7]
+    bitrate_bps = mantissa << exponent
+    node.fields.extend([
+        FieldInfo("afb_identifier", "REMB", cursor, 4, _hex_bytes(identifier)),
+        FieldInfo("remb_ssrc_count", ssrc_count, cursor + 4, 1, _hex_bytes(header[4:5])),
+        FieldInfo("remb_bitrate_exponent", exponent, cursor + 5, 1, _hex_bytes(header[5:6]), bit_offset=(cursor + 5) * 8, bit_length=6),
+        FieldInfo("remb_bitrate_mantissa", mantissa, cursor + 5, 3, _hex_bytes(header[5:8]), bit_offset=(cursor + 5) * 8 + 6, bit_length=18),
+        FieldInfo("remb_bitrate_bps", bitrate_bps, cursor + 5, 3),
+        FieldInfo("remb_bitrate_kbps", round(bitrate_bps / 1000, 3), cursor + 5, 3),
+        FieldInfo("remb_bitrate_mbps", round(bitrate_bps / 1_000_000, 6), cursor + 5, 3),
+    ])
+    cursor += 8
+    available_ssrcs = max(0, (packet_end - cursor) // 4)
+    parse_count = min(ssrc_count, available_ssrcs)
+    target_ssrcs = []
+    for index in range(parse_count):
+        raw = source.read_at(cursor, 4)
+        target_ssrc = int.from_bytes(raw, "big")
+        target_ssrcs.append(target_ssrc)
+        stats["ssrcs"].add(target_ssrc)
+        child = node.add_child(ParseNode(f"REMB Target SSRC[{index}]", "rtcp_remb_ssrc", cursor, 4))
+        child.fields.append(FieldInfo("target_ssrc", f"0x{target_ssrc:08X}", cursor, 4, _hex_bytes(raw)))
+        cursor += 4
+    if parse_count < ssrc_count:
+        message = f"RTCP REMB SSRC 列表截断: expected={ssrc_count} parsed={parse_count}"
+        diagnostics.append(error(message, cursor, "RTCP"))
+        node.severity = Severity.ERROR
+        node.description = message
+    event = {
+        "kind": "REMB", "packet_type": 206, "fmt": 15, "sender_ssrc": sender_ssrc,
+        "media_ssrc": media_ssrc, "target_ssrcs": target_ssrcs, "ssrc_count": ssrc_count,
+        "bitrate_exponent": exponent, "bitrate_mantissa": mantissa, "bitrate_bps": bitrate_bps,
+        "bitrate_kbps": round(bitrate_bps / 1000, 3), "bitrate_mbps": round(bitrate_bps / 1_000_000, 6),
+        "offset": offset, "size": size,
+    }
+    stats["feedback_events"].append(event)
+    stats["remb_events"].append(event)
+
+
 def _new_rtcp_stats() -> dict:
     return {
         "datagrams": 0,
@@ -1015,6 +1079,7 @@ def _new_rtcp_stats() -> dict:
         "nack_lost_sequences": 0,
         "twcc_events": [],
         "twcc_lost_packets": 0,
+        "remb_events": [],
     }
 
 
@@ -1045,6 +1110,10 @@ def _finalize_rtcp_stats(stats: dict) -> dict:
         "twcc_received_packets": sum(int(item["received_packets"]) for item in stats["twcc_events"]),
         "twcc_lost_packets": stats["twcc_lost_packets"],
         "twcc_max_abs_delta_ms": round(max((float(item["max_abs_delta_ms"]) for item in stats["twcc_events"]), default=0.0), 3),
+        "remb_events": stats["remb_events"],
+        "remb_event_count": len(stats["remb_events"]),
+        "remb_min_bitrate_bps": min((int(item["bitrate_bps"]) for item in stats["remb_events"]), default=0),
+        "remb_max_bitrate_bps": max((int(item["bitrate_bps"]) for item in stats["remb_events"]), default=0),
         "sdes_chunks": stats["sdes_chunks"],
         "sdes_count": len(stats["sdes_chunks"]),
         "bye_events": stats["bye_events"],
