@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMainWindow>
@@ -49,6 +50,9 @@ private slots:
     void copyCurrentValue();
     void copyCurrentPath();
     void jumpToOffset();
+    void addBookmark();
+    void removeBookmark();
+    void onBookmarkActivated();
     void exportHtml();
     void exportJson();
     void compareBinary();
@@ -75,6 +79,8 @@ private:
     void populateProtocolTree(const QJsonObject &node, QTreeWidgetItem *parent = nullptr);
     void populateFields(const QJsonObject &node);
     void populateFrames(const QJsonArray &frames);
+    void populateStreams(const QJsonArray &streams);
+    void populateBookmarks();
     void populateDiagnostics(const QJsonArray &diagnostics, const QJsonObject &media);
     void showSelectionDetails(const QJsonObject &node, const QJsonObject &field = {});
     void showHex(qint64 offset, qint64 size = 1);
@@ -99,6 +105,7 @@ private:
     static QString formatSize(qint64 bytes);
     static int countNodes(const QJsonObject &node);
     static int countFields(const QJsonObject &node);
+    qint64 currentOffset() const;
 
     bool m_dark = true;
     bool m_cancelRequested = false;
@@ -113,6 +120,7 @@ private:
     QStringList m_currentRawOptions;
     double m_previewPosition = 0.0;
     int m_previewFrame = 0;
+    qint64 m_hexOffset = 0;
     QJsonDocument m_document;
     QProcess *m_process = nullptr;
     QSettings m_settings;
@@ -120,6 +128,8 @@ private:
     QTreeWidget *m_protocolTree = nullptr;
     QTableWidget *m_fieldsTable = nullptr;
     QTableWidget *m_framesTable = nullptr;
+    QTableWidget *m_streamsTable = nullptr;
+    QTableWidget *m_bookmarksTable = nullptr;
     QTreeWidget *m_compareTree = nullptr;
     QPlainTextEdit *m_hexView = nullptr;
     MediaPreviewWidget *m_preview = nullptr;
@@ -141,4 +151,5 @@ private:
     QPushButton *m_darkButton = nullptr;
     QPushButton *m_lightButton = nullptr;
     QPushButton *m_cancelButton = nullptr;
+    QJsonArray m_bookmarks;
 };

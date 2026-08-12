@@ -326,6 +326,48 @@ QWidget *MainWindow::buildWorkspace()
     connect(m_preview, &MediaPreviewWidget::stepRequested, this, &MainWindow::stepMediaPreview);
     m_tabs->addTab(m_preview, tr("媒体预览"));
 
+    m_streamsTable = new QTableWidget;
+    m_streamsTable->setColumnCount(11);
+    m_streamsTable->setHorizontalHeaderLabels({"#", tr("类型"), tr("编码"), "Profile", tr("画面 / 声道"),
+        tr("采样率"), tr("帧率"), "Time Base", tr("时长"), tr("码率"), tr("格式")});
+    m_streamsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_streamsTable->setAlternatingRowColors(true);
+    m_streamsTable->verticalHeader()->hide();
+    m_streamsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_streamsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    m_tabs->addTab(m_streamsTable, tr("媒体流"));
+
+    auto *bookmarkPanel = new QWidget;
+    auto *bookmarkLayout = new QVBoxLayout(bookmarkPanel);
+    bookmarkLayout->setContentsMargins(8, 8, 8, 8);
+    bookmarkLayout->setSpacing(7);
+    auto *bookmarkTools = new QHBoxLayout;
+    auto *addBookmarkButton = commandButton("+");
+    auto *removeBookmarkButton = commandButton("-");
+    addBookmarkButton->setFixedWidth(36);
+    removeBookmarkButton->setFixedWidth(36);
+    addBookmarkButton->setToolTip(tr("添加当前 Offset 书签"));
+    removeBookmarkButton->setToolTip(tr("删除选中书签"));
+    connect(addBookmarkButton, &QPushButton::clicked, this, &MainWindow::addBookmark);
+    connect(removeBookmarkButton, &QPushButton::clicked, this, &MainWindow::removeBookmark);
+    bookmarkTools->addWidget(addBookmarkButton);
+    bookmarkTools->addWidget(removeBookmarkButton);
+    bookmarkTools->addStretch();
+    bookmarkLayout->addLayout(bookmarkTools);
+    m_bookmarksTable = new QTableWidget;
+    m_bookmarksTable->setColumnCount(3);
+    m_bookmarksTable->setHorizontalHeaderLabels({"Offset", tr("备注"), tr("位置")});
+    m_bookmarksTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_bookmarksTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_bookmarksTable->setAlternatingRowColors(true);
+    m_bookmarksTable->verticalHeader()->hide();
+    m_bookmarksTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_bookmarksTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_bookmarksTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    connect(m_bookmarksTable, &QTableWidget::itemDoubleClicked, this, &MainWindow::onBookmarkActivated);
+    bookmarkLayout->addWidget(m_bookmarksTable);
+    m_tabs->addTab(bookmarkPanel, tr("书签"));
+
     m_compareTree = new QTreeWidget;
     m_compareTree->setColumnCount(5);
     m_compareTree->setHeaderLabels({tr("状态"), tr("对象"), tr("属性"), tr("左侧"), tr("右侧")});
@@ -430,6 +472,9 @@ void MainWindow::buildMenus()
     editMenu->addAction(tr("复制当前 Offset"), QKeySequence("Ctrl+Shift+O"), this, &MainWindow::copyCurrentOffset);
     editMenu->addAction(tr("复制当前值"), QKeySequence::Copy, this, &MainWindow::copyCurrentValue);
     editMenu->addAction(tr("复制文件完整路径"), QKeySequence("Ctrl+Alt+C"), this, &MainWindow::copyCurrentPath);
+    editMenu->addSeparator();
+    editMenu->addAction(tr("添加 Offset 书签..."), QKeySequence("Ctrl+B"), this, &MainWindow::addBookmark);
+    editMenu->addAction(tr("删除选中书签"), this, &MainWindow::removeBookmark);
 
     auto *helpMenu = menuBar()->addMenu(tr("帮助"));
     helpMenu->addAction(tr("关于 AVScope"), this, [this] {
@@ -444,7 +489,7 @@ void MainWindow::buildShortcuts()
     connect(focusSearch, &QShortcut::activated, m_search, [this] { m_search->setFocus(); m_search->selectAll(); });
     auto *findNext = new QShortcut(QKeySequence(Qt::Key_F3), this);
     connect(findNext, &QShortcut::activated, this, &MainWindow::searchNext);
-    for (int index = 0; index < 6; ++index) {
+    for (int index = 0; index < 8; ++index) {
         auto *shortcut = new QShortcut(QKeySequence(QString("Ctrl+%1").arg(index + 1)), this);
         connect(shortcut, &QShortcut::activated, this, [this, index] { m_tabs->setCurrentIndex(index); });
     }
@@ -566,6 +611,8 @@ void MainWindow::openPath(const QString &path)
     m_currentRawOptions = rawOptions;
     m_previewPosition = 0.0;
     m_previewFrame = 0;
+    m_bookmarks = {};
+    populateBookmarks();
     m_cancelRequested = false;
     QDir().mkpath(projectRoot() + "/tmp/qt-runtime");
     QFile::remove(analysisOutputPath());
@@ -599,6 +646,8 @@ bool MainWindow::loadProjectSnapshot(const QString &path)
     m_currentPath = snapshot.value("source_path").toString(analysis.value("media").toObject().value("path").toString());
     m_currentRawOptions.clear();
     for (const auto &value : snapshot.value("raw_options").toArray()) m_currentRawOptions << value.toString();
+    m_bookmarks = snapshot.value("bookmarks").toArray();
+    populateBookmarks();
     m_previewPosition = analysis.value("media").toObject().value("summary").toObject()
         .value("video_preview").toObject().value("position_seconds").toDouble();
     m_previewFrame = analysis.value("media").toObject().value("summary").toObject()
@@ -867,6 +916,7 @@ void MainWindow::loadDocument(const QJsonDocument &document)
         m_protocolTree->scrollToItem(selection);
     }
     populateFrames(frames);
+    populateStreams(media.value("summary").toObject().value("ffprobe").toObject().value("streams").toArray());
     populateDiagnostics(diagnostics, media);
     m_timeline->setData(frames, media.value("summary").toObject().value("timeline_summary").toObject());
 
@@ -1018,6 +1068,62 @@ void MainWindow::populateFrames(const QJsonArray &frames)
     m_framesTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
 }
 
+void MainWindow::populateStreams(const QJsonArray &streams)
+{
+    m_streamsTable->setRowCount(streams.size());
+    for (int row = 0; row < streams.size(); ++row) {
+        const auto stream = streams.at(row).toObject();
+        const QString type = stream.value("codec_type").toString();
+        QString shape;
+        if (type == "video")
+            shape = QString("%1 x %2").arg(jsonInteger(stream.value("width"))).arg(jsonInteger(stream.value("height")));
+        else if (type == "audio")
+            shape = tr("%1 声道").arg(jsonInteger(stream.value("channels")));
+        const QString format = type == "video" ? stream.value("pix_fmt").toString() : stream.value("sample_fmt").toString();
+        const QStringList values = {
+            displayValue(stream.value("index")), type, stream.value("codec_name").toString(), stream.value("profile").toString(),
+            shape, displayValue(stream.value("sample_rate")), stream.value("avg_frame_rate").toString(),
+            stream.value("time_base").toString(), stream.value("duration").toString(),
+            stream.value("bit_rate").toString(), format
+        };
+        const QColor color = type == "video" ? QColor(m_dark ? "#6CB6FF" : "#146EA8")
+                            : type == "audio" ? QColor(m_dark ? "#73D2B3" : "#17785A")
+                            : QColor(m_dark ? "#C7A7FF" : "#6941C6");
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setToolTip(values.at(column));
+            if (column == 1 || column == 2) cell->setForeground(color);
+            m_streamsTable->setItem(row, column, cell);
+        }
+    }
+    if (streams.isEmpty()) {
+        m_streamsTable->setRowCount(1);
+        auto *empty = new QTableWidgetItem(tr("当前文件没有 ffprobe 媒体流信息"));
+        empty->setForeground(QColor(m_dark ? "#94A3B2" : "#607080"));
+        m_streamsTable->setItem(0, 2, empty);
+    }
+}
+
+void MainWindow::populateBookmarks()
+{
+    if (!m_bookmarksTable) return;
+    m_bookmarksTable->setRowCount(m_bookmarks.size());
+    for (int row = 0; row < m_bookmarks.size(); ++row) {
+        const auto bookmark = m_bookmarks.at(row).toObject();
+        const qint64 offset = jsonInteger(bookmark.value("offset"));
+        const QStringList values = {
+            QString("0x%1").arg(offset, 0, 16).toUpper(),
+            bookmark.value("note").toString(), bookmark.value("location").toString()
+        };
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setData(OffsetRole, offset);
+            cell->setToolTip(values.at(column));
+            m_bookmarksTable->setItem(row, column, cell);
+        }
+    }
+}
+
 void MainWindow::onFrameSelectionChanged()
 {
     const auto selected = m_framesTable->selectedItems();
@@ -1103,6 +1209,7 @@ void MainWindow::onDiagnosticSelectionChanged()
 
 void MainWindow::showHex(qint64 offset, qint64 size)
 {
+    m_hexOffset = qMax<qint64>(0, offset);
     QFile file(m_currentPath);
     if (!file.open(QIODevice::ReadOnly))
         return;
@@ -1129,6 +1236,11 @@ void MainWindow::showHex(qint64 offset, qint64 size)
     m_hexView->setTextCursor(cursor);
     m_hexView->centerCursor();
     m_hexView->setToolTip(tr("选中范围：0x%1，%2 bytes").arg(offset, 0, 16).arg(size));
+}
+
+qint64 MainWindow::currentOffset() const
+{
+    return m_hexOffset;
 }
 
 void MainWindow::searchNext()
@@ -1235,6 +1347,44 @@ void MainWindow::jumpToOffset()
     showHex(offset, 1);
     m_tabs->setCurrentWidget(m_hexView);
     m_statusText->setText(tr("已跳转到 Offset 0x%1").arg(offset, 0, 16).toUpper());
+}
+
+void MainWindow::addBookmark()
+{
+    if (m_currentPath.isEmpty()) return;
+    bool accepted = false;
+    const QString note = QInputDialog::getText(this, tr("添加 Offset 书签"), tr("备注"), QLineEdit::Normal,
+                                                tr("关键位置"), &accepted).trimmed();
+    if (!accepted) return;
+    const qint64 offset = currentOffset();
+    QString location;
+    const auto selected = m_protocolTree->selectedItems();
+    if (!selected.isEmpty()) location = selected.constFirst()->text(0);
+    QJsonObject bookmark{{"offset", offset}, {"note", note.isEmpty() ? tr("关键位置") : note}, {"location", location}};
+    m_bookmarks.append(bookmark);
+    populateBookmarks();
+    m_tabs->setCurrentWidget(m_bookmarksTable->parentWidget());
+    m_bookmarksTable->selectRow(m_bookmarks.size() - 1);
+    m_statusText->setText(tr("已添加书签：0x%1").arg(offset, 0, 16).toUpper());
+}
+
+void MainWindow::removeBookmark()
+{
+    const int row = m_bookmarksTable ? m_bookmarksTable->currentRow() : -1;
+    if (row < 0 || row >= m_bookmarks.size()) return;
+    m_bookmarks.removeAt(row);
+    populateBookmarks();
+    m_statusText->setText(tr("已删除书签"));
+}
+
+void MainWindow::onBookmarkActivated()
+{
+    const int row = m_bookmarksTable ? m_bookmarksTable->currentRow() : -1;
+    if (row < 0 || row >= m_bookmarks.size()) return;
+    const qint64 offset = jsonInteger(m_bookmarks.at(row).toObject().value("offset"));
+    showHex(offset, 1);
+    m_tabs->setCurrentWidget(m_hexView);
+    m_statusText->setText(tr("书签定位到 Offset 0x%1").arg(offset, 0, 16).toUpper());
 }
 
 void MainWindow::exportHtml()
@@ -1365,6 +1515,7 @@ void MainWindow::saveProjectSnapshot()
     snapshot["theme"] = m_dark ? "dark" : "light";
     snapshot["current_tab"] = m_tabs->currentIndex();
     snapshot["raw_options"] = QJsonArray::fromStringList(m_currentRawOptions);
+    snapshot["bookmarks"] = m_bookmarks;
     snapshot["analysis"] = m_document.object();
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly) || file.write(QJsonDocument(snapshot).toJson(QJsonDocument::Indented)) < 0) {
