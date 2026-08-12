@@ -37,6 +37,9 @@ DEFAULT_ARTIFACTS = [
     "dist/sample-reports/sample_rtp_timing_report.html",
     "dist/sample-reports/sample_rtp_timing_report.json",
     "dist/sample-reports/sample_rtp_timing_report.csv",
+    "dist/sample-reports/sample_rtcp_twcc_report.html",
+    "dist/sample-reports/sample_rtcp_twcc_report.json",
+    "dist/sample-reports/sample_rtcp_twcc_report.csv",
     "dist/sample-reports/sample_protocol_compare.json",
     "dist/sample-reports/sample_frame_compare.json",
 ]

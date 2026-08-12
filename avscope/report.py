@@ -102,7 +102,7 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                     "value": json.dumps(rtcp, ensure_ascii=False),
                 }
             )
-            for event in rtcp.get("feedback_events", []):
+            for event in (item for item in rtcp.get("feedback_events", []) if item.get("kind") != "TWCC"):
                 writer.writerow(
                     {
                         "section": "rtcp_feedback",
@@ -132,6 +132,24 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                         "value": json.dumps(event, ensure_ascii=False),
                     }
                 )
+            for event in rtcp.get("twcc_events", []):
+                writer.writerow(
+                    {
+                        "section": "rtcp_twcc", "name": f"TWCC base={event.get('base_sequence', '')}",
+                        "type": "TWCC", "offset": f"0x{int(event.get('offset', 0)):X}", "size": event.get("size", ""),
+                        "key": f"0x{int(event.get('media_ssrc', 0)):08X}", "value": json.dumps(event, ensure_ascii=False),
+                        "severity": "warning" if event.get("lost_packets") or float(event.get("max_abs_delta_ms", 0)) > 20 else "normal",
+                    }
+                )
+                for packet in event.get("packets", []):
+                    writer.writerow(
+                        {
+                            "section": "rtcp_twcc_packet", "name": f"TWCC seq={packet.get('sequence', '')}",
+                            "type": packet.get("status", ""), "offset": f"0x{int(packet.get('offset', 0)):X}",
+                            "key": f"base={event.get('base_sequence', '')}", "value": json.dumps(packet, ensure_ascii=False),
+                            "severity": "warning" if not packet.get("received") or packet.get("status") == "large_delta" else "normal",
+                        }
+                    )
         transport = result.media.summary.get("transport_sessions", {})
         for session in transport.get("sessions", []):
             writer.writerow(
@@ -363,6 +381,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     stats_summary_html = _stats_summary_html(frame_stats, packet_stats)
     rtcp_summary_html = _rtcp_summary_html(result.media.summary.get("rtcp", {}))
     rtcp_feedback_html = _rtcp_feedback_html(result.media.summary.get("rtcp", {}))
+    rtcp_twcc_html = _rtcp_twcc_html(result.media.summary.get("rtcp", {}))
     transport_sessions_html = _transport_sessions_html(result.media.summary.get("transport_sessions", {}))
     rtp_timing_html = _rtp_timing_html(result.media.summary.get("transport_sessions", {}))
     codec_health_html = _codec_health_html(result.media.summary.get("codec_health", {}))
@@ -620,6 +639,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     </section>
     {rtcp_summary_html}
     {rtcp_feedback_html}
+    {rtcp_twcc_html}
     {transport_sessions_html}
     {rtp_timing_html}
     {codec_health_html}
@@ -766,7 +786,7 @@ def _rtcp_summary_html(rtcp: dict) -> str:
 
 
 def _rtcp_feedback_html(rtcp: dict) -> str:
-    feedback = rtcp.get("feedback_events", [])
+    feedback = [item for item in rtcp.get("feedback_events", []) if item.get("kind") != "TWCC"]
     sdes = rtcp.get("sdes_chunks", [])
     bye = rtcp.get("bye_events", [])
     if not feedback and not sdes and not bye:
@@ -813,6 +833,53 @@ def _rtcp_feedback_html(rtcp: dict) -> str:
         + ("".join(metadata_rows) or '<tr><td colspan="4">无 SDES/BYE 事件</td></tr>') + '</table>'
     )
     return f'<section><h2>RTCP 控制反馈</h2><div class="overview">{metric_html}</div>{feedback_table}{metadata_table}</section>'
+
+
+def _rtcp_twcc_html(rtcp: dict) -> str:
+    events = rtcp.get("twcc_events", [])
+    if not events:
+        return ""
+    metrics = [
+        ("反馈包", rtcp.get("twcc_event_count", 0)), ("收到", rtcp.get("twcc_received_packets", 0)),
+        ("丢失", rtcp.get("twcc_lost_packets", 0)),
+        ("最大 Delta", f"{float(rtcp.get('twcc_max_abs_delta_ms', 0)):.3f} ms"),
+    ]
+    metric_html = "".join(
+        f'<div class="metric"><div class="label">{html.escape(str(label))}</div>'
+        f'<div class="value">{html.escape(str(value))}</div></div>' for label, value in metrics
+    )
+    feedback_rows = []
+    packet_rows = []
+    for event in events:
+        warning = int(event.get("lost_packets", 0)) > 0 or float(event.get("max_abs_delta_ms", 0)) > 20
+        feedback_rows.append(
+            f'<tr{" class=\"warning-row\"" if warning else ""}><td>0x{int(event.get("media_ssrc", 0)):08X}</td>'
+            f'<td>{event.get("base_sequence", "")}</td><td>{event.get("packet_status_count", 0)}</td>'
+            f'<td>{event.get("received_packets", 0)}</td><td>{event.get("lost_packets", 0)}</td>'
+            f'<td>{float(event.get("reference_time_ms", 0)):.0f} ms</td><td>{event.get("feedback_packet_count", 0)}</td>'
+            f'<td>{float(event.get("max_abs_delta_ms", 0)):.3f} ms</td><td>0x{int(event.get("offset", 0)):X}</td></tr>'
+        )
+        for packet in event.get("packets", []):
+            warning_packet = not packet.get("received") or packet.get("status") == "large_delta"
+            delta = "--" if packet.get("delta_ms") is None else f"{float(packet.get('delta_ms', 0)):.3f} ms"
+            receive_time = "--" if packet.get("receive_time_ms") is None else f"{float(packet.get('receive_time_ms', 0)):.3f} ms"
+            packet_rows.append(
+                f'<tr{" class=\"warning-row\"" if warning_packet else ""}><td>{packet.get("sequence", "")}</td>'
+                f'<td>{html.escape(str(packet.get("status", "")))}</td><td>{"yes" if packet.get("received") else "no"}</td>'
+                f'<td>{delta}</td><td>{receive_time}</td><td>{packet.get("delta_size", 0)}</td>'
+                f'<td>0x{int(packet.get("offset", 0)):X}</td></tr>'
+            )
+    feedback_table = (
+        '<table class="timeline-issues"><tr><th>媒体 SSRC</th><th>Base Sequence</th><th>状态数</th><th>收到</th>'
+        '<th>丢失</th><th>参考时间</th><th>反馈计数</th><th>最大 Delta</th><th>Offset</th></tr>'
+        + "".join(feedback_rows) + '</table>'
+    )
+    packet_table = (
+        '<h3>逐包接收状态</h3><table class="timeline-issues"><tr><th>序号</th><th>状态</th><th>收到</th>'
+        '<th>Delta</th><th>累计接收时间</th><th>Delta 字节</th><th>Offset</th></tr>'
+        + "".join(packet_rows) + '</table>'
+    )
+    return f'<section><h2>RTCP TWCC 拥塞反馈</h2><div class="overview">{metric_html}</div>{feedback_table}{packet_table}</section>'
 
 
 def _transport_sessions_html(transport: dict) -> str:

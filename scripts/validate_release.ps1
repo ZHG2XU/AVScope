@@ -31,6 +31,9 @@ $sampleRtcpFeedbackCsv = "$sampleReportDir\sample_rtcp_feedback_report.csv"
 $sampleRtpTimingHtml = "$sampleReportDir\sample_rtp_timing_report.html"
 $sampleRtpTimingJson = "$sampleReportDir\sample_rtp_timing_report.json"
 $sampleRtpTimingCsv = "$sampleReportDir\sample_rtp_timing_report.csv"
+$sampleRtcpTwccHtml = "$sampleReportDir\sample_rtcp_twcc_report.html"
+$sampleRtcpTwccJson = "$sampleReportDir\sample_rtcp_twcc_report.json"
+$sampleRtcpTwccCsv = "$sampleReportDir\sample_rtcp_twcc_report.csv"
 $sampleProtocolCompare = "$sampleReportDir\sample_protocol_compare.json"
 $sampleFrameCompare = "$sampleReportDir\sample_frame_compare.json"
 $knownIssuesRoadmap = "G:\AVScope\docs\KNOWN_ISSUES_AND_ROADMAP.md"
@@ -90,6 +93,9 @@ $artifacts = @(
     $sampleRtpTimingHtml,
     $sampleRtpTimingJson,
     $sampleRtpTimingCsv,
+    $sampleRtcpTwccHtml,
+    $sampleRtcpTwccJson,
+    $sampleRtcpTwccCsv,
     $sampleProtocolCompare,
     $sampleFrameCompare,
     $knownIssuesRoadmap
@@ -140,6 +146,9 @@ $expectedManifestEntries = @(
     "dist\sample-reports\sample_rtp_timing_report.html",
     "dist\sample-reports\sample_rtp_timing_report.json",
     "dist\sample-reports\sample_rtp_timing_report.csv",
+    "dist\sample-reports\sample_rtcp_twcc_report.html",
+    "dist\sample-reports\sample_rtcp_twcc_report.json",
+    "dist\sample-reports\sample_rtcp_twcc_report.csv",
     "dist\sample-reports\sample_protocol_compare.json",
     "dist\sample-reports\sample_frame_compare.json"
 )

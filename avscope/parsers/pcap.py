@@ -763,9 +763,12 @@ def _parse_rtcp_rtpfb(source: ByteSource, node: ParseNode, offset: int, size: in
     first_byte = source.read_at(offset, 1)
     node.fields.append(FieldInfo(
         "feedback_message_type", fmt, offset, 1, _hex_bytes(first_byte),
-        description="Generic NACK" if fmt == 1 else "Unsupported RTPFB",
+        description="Generic NACK" if fmt == 1 else "Transport-Wide CC" if fmt == 15 else "Unsupported RTPFB",
         bit_offset=offset * 8 + 3, bit_length=5,
     ))
+    if fmt == 15:
+        _parse_rtcp_twcc(source, node, offset, size, sender_ssrc, media_ssrc, cursor, diagnostics, stats)
+        return
     if fmt != 1:
         return
     lost_sequences: list[int] = []
@@ -793,6 +796,162 @@ def _parse_rtcp_rtpfb(source: ByteSource, node: ParseNode, offset: int, size: in
     diagnostics.append(warn(message, offset, "RTCP"))
     node.severity = Severity.WARNING
     node.description = message
+
+
+def _parse_rtcp_twcc(
+    source: ByteSource,
+    node: ParseNode,
+    offset: int,
+    size: int,
+    sender_ssrc: int,
+    media_ssrc: int,
+    cursor: int,
+    diagnostics: list,
+    stats: dict,
+) -> None:
+    packet_end = offset + size
+    if cursor + 8 > packet_end:
+        _mark_truncated_report(node, diagnostics, cursor, "TWCC fixed header", 8, packet_end - cursor)
+        return
+    fixed = source.read_at(cursor, 8)
+    base_sequence = int.from_bytes(fixed[0:2], "big")
+    status_count = int.from_bytes(fixed[2:4], "big")
+    reference_time = int.from_bytes(fixed[4:7], "big")
+    feedback_count = fixed[7]
+    node.fields.extend([
+        FieldInfo("base_sequence_number", base_sequence, cursor, 2, _hex_bytes(fixed[0:2])),
+        FieldInfo("packet_status_count", status_count, cursor + 2, 2, _hex_bytes(fixed[2:4])),
+        FieldInfo("reference_time", reference_time, cursor + 4, 3, _hex_bytes(fixed[4:7])),
+        FieldInfo("reference_time_ms", reference_time * 64, cursor + 4, 3),
+        FieldInfo("feedback_packet_count", feedback_count, cursor + 7, 1, _hex_bytes(fixed[7:8])),
+    ])
+    cursor += 8
+    statuses: list[int] = []
+    chunk_index = 0
+    while len(statuses) < status_count and cursor + 2 <= packet_end:
+        raw = source.read_at(cursor, 2)
+        chunk_value = int.from_bytes(raw, "big")
+        chunk = node.add_child(ParseNode(f"TWCC Packet Chunk[{chunk_index}]", "rtcp_twcc_chunk", cursor, 2))
+        if not (chunk_value & 0x8000):
+            symbol = (chunk_value >> 13) & 0x03
+            run_length = chunk_value & 0x1FFF
+            take = min(run_length, status_count - len(statuses))
+            statuses.extend([symbol] * take)
+            chunk.fields.extend([
+                FieldInfo("chunk_type", "run_length", cursor, 2, _hex_bytes(raw), bit_offset=cursor * 8, bit_length=1),
+                FieldInfo("packet_status_symbol", symbol, cursor, 2, _hex_bytes(raw), description=_twcc_status_name(symbol), bit_offset=cursor * 8 + 1, bit_length=2),
+                FieldInfo("run_length", run_length, cursor, 2, _hex_bytes(raw), bit_offset=cursor * 8 + 3, bit_length=13),
+            ])
+            if run_length == 0:
+                message = "RTCP TWCC Run Length Chunk 的 run_length 为 0"
+                diagnostics.append(error(message, cursor, "RTCP"))
+                chunk.severity = Severity.ERROR
+                chunk.description = message
+                break
+        else:
+            two_bit = bool(chunk_value & 0x4000)
+            symbol_count = 7 if two_bit else 14
+            symbols = []
+            for index in range(symbol_count):
+                if two_bit:
+                    symbol = (chunk_value >> (12 - index * 2)) & 0x03
+                else:
+                    symbol = (chunk_value >> (13 - index)) & 0x01
+                if len(statuses) < status_count:
+                    statuses.append(symbol)
+                    symbols.append(symbol)
+            chunk.fields.extend([
+                FieldInfo("chunk_type", "status_vector", cursor, 2, _hex_bytes(raw), bit_offset=cursor * 8, bit_length=1),
+                FieldInfo("symbol_size_bits", 2 if two_bit else 1, cursor, 2, _hex_bytes(raw), bit_offset=cursor * 8 + 1, bit_length=1),
+                FieldInfo("symbols", symbols, cursor, 2, _hex_bytes(raw)),
+            ])
+        cursor += 2
+        chunk_index += 1
+    if len(statuses) < status_count:
+        message = f"RTCP TWCC Packet Chunk 截断: expected={status_count} parsed={len(statuses)}"
+        diagnostics.append(error(message, cursor, "RTCP"))
+        node.severity = Severity.ERROR
+        node.description = message
+
+    packet_records = []
+    receive_time_ms = reference_time * 64.0
+    for index, symbol in enumerate(statuses):
+        sequence = (base_sequence + index) & 0xFFFF
+        delta_raw = None
+        delta_ms = None
+        delta_size = 0
+        delta_offset = cursor
+        delta_truncated = False
+        if symbol == 1:
+            delta_size = 1
+            if cursor + 1 <= packet_end:
+                delta_raw = source.read_at(cursor, 1)
+                delta_ms = delta_raw[0] * 0.25
+            else:
+                _mark_truncated_report(node, diagnostics, cursor, "TWCC small delta", 1, packet_end - cursor)
+                delta_truncated = True
+        elif symbol == 2:
+            delta_size = 2
+            if cursor + 2 <= packet_end:
+                delta_raw = source.read_at(cursor, 2)
+                delta_ms = int.from_bytes(delta_raw, "big", signed=True) * 0.25
+            else:
+                _mark_truncated_report(node, diagnostics, cursor, "TWCC large delta", 2, packet_end - cursor)
+                delta_truncated = True
+        if delta_raw is not None:
+            cursor += delta_size
+            receive_time_ms += float(delta_ms or 0.0)
+        record = {
+            "sequence": sequence, "status_symbol": symbol, "status": _twcc_status_name(symbol),
+            "received": symbol in (1, 2) and not delta_truncated, "delta_ms": delta_ms,
+            "receive_time_ms": round(receive_time_ms, 3) if symbol in (1, 2) and not delta_truncated else None,
+            "offset": delta_offset if delta_size else offset, "delta_size": delta_size,
+        }
+        packet_records.append(record)
+        status_node = node.add_child(ParseNode(
+            f"TWCC Packet[{index}] Seq={sequence} {_twcc_status_name(symbol)}",
+            "rtcp_twcc_packet", delta_offset if delta_size else offset, delta_size,
+            severity=Severity.WARNING if symbol in (0, 3) or delta_truncated else Severity.NORMAL,
+        ))
+        status_node.fields.extend([
+            FieldInfo("sequence_number", sequence, delta_offset if delta_size else offset, 0),
+            FieldInfo("packet_status_symbol", symbol, delta_offset if delta_size else offset, 0, description=_twcc_status_name(symbol)),
+            FieldInfo("received", symbol in (1, 2) and not delta_truncated, delta_offset if delta_size else offset, 0),
+        ])
+        if delta_raw is not None:
+            status_node.fields.extend([
+                FieldInfo("receive_delta_raw", int.from_bytes(delta_raw, "big", signed=symbol == 2), delta_offset, delta_size, _hex_bytes(delta_raw)),
+                FieldInfo("receive_delta_ms", round(float(delta_ms or 0.0), 3), delta_offset, delta_size, _hex_bytes(delta_raw)),
+                FieldInfo("receive_time_ms", round(receive_time_ms, 3), delta_offset, delta_size),
+            ])
+        if delta_truncated:
+            break
+    lost_packets = sum(not item["received"] for item in packet_records)
+    received_packets = sum(item["received"] for item in packet_records)
+    deltas = [abs(float(item["delta_ms"])) for item in packet_records if item["delta_ms"] is not None]
+    event = {
+        "kind": "TWCC", "packet_type": 205, "fmt": 15, "sender_ssrc": sender_ssrc,
+        "media_ssrc": media_ssrc, "base_sequence": base_sequence, "packet_status_count": status_count,
+        "reference_time": reference_time, "reference_time_ms": reference_time * 64,
+        "feedback_packet_count": feedback_count, "received_packets": received_packets,
+        "lost_packets": lost_packets, "max_abs_delta_ms": round(max(deltas, default=0.0), 3),
+        "packets": packet_records, "offset": offset, "size": size,
+    }
+    stats["feedback_events"].append(event)
+    stats["twcc_events"].append(event)
+    stats["twcc_lost_packets"] += lost_packets
+    if lost_packets or event["max_abs_delta_ms"] > 20:
+        message = (
+            f"RTCP TWCC 拥塞反馈异常: base={base_sequence} count={status_count} "
+            f"lost={lost_packets} max_delta={event['max_abs_delta_ms']:.3f}ms"
+        )
+        diagnostics.append(warn(message, offset, "RTCP"))
+        node.severity = Severity.WARNING
+        node.description = message
+
+
+def _twcc_status_name(symbol: int) -> str:
+    return {0: "not_received", 1: "small_delta", 2: "large_delta", 3: "reserved"}.get(symbol, "unknown")
 
 
 def _parse_rtcp_psfb(source: ByteSource, node: ParseNode, offset: int, size: int, fmt: int, diagnostics: list, stats: dict) -> None:
@@ -854,6 +1013,8 @@ def _new_rtcp_stats() -> dict:
         "sdes_chunks": [],
         "bye_events": [],
         "nack_lost_sequences": 0,
+        "twcc_events": [],
+        "twcc_lost_packets": 0,
     }
 
 
@@ -879,6 +1040,11 @@ def _finalize_rtcp_stats(stats: dict) -> dict:
         "nack_lost_sequences": stats["nack_lost_sequences"],
         "pli_events": sum(item["kind"] == "PLI" for item in stats["feedback_events"]),
         "fir_events": sum(item["kind"] == "FIR" for item in stats["feedback_events"]),
+        "twcc_events": stats["twcc_events"],
+        "twcc_event_count": len(stats["twcc_events"]),
+        "twcc_received_packets": sum(int(item["received_packets"]) for item in stats["twcc_events"]),
+        "twcc_lost_packets": stats["twcc_lost_packets"],
+        "twcc_max_abs_delta_ms": round(max((float(item["max_abs_delta_ms"]) for item in stats["twcc_events"]), default=0.0), 3),
         "sdes_chunks": stats["sdes_chunks"],
         "sdes_count": len(stats["sdes_chunks"]),
         "bye_events": stats["bye_events"],

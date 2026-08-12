@@ -27,6 +27,9 @@ DEFAULT_OUTPUTS = [
     "sample_rtp_timing_report.html",
     "sample_rtp_timing_report.json",
     "sample_rtp_timing_report.csv",
+    "sample_rtcp_twcc_report.html",
+    "sample_rtcp_twcc_report.json",
+    "sample_rtcp_twcc_report.csv",
     "sample_protocol_compare.json",
     "sample_frame_compare.json",
 ]
@@ -76,6 +79,13 @@ def build_sample_reports(root: str | Path, output_dir: str | Path) -> list[Path]
     export_html(rtp_timing_result, output_path / "sample_rtp_timing_report.html", notes=timing_note)
     export_json(rtp_timing_result, output_path / "sample_rtp_timing_report.json", notes=timing_note)
     export_csv(rtp_timing_result, output_path / "sample_rtp_timing_report.csv", notes=timing_note)
+
+    rtcp_twcc = root_path / "samples" / "sample_rtcp_twcc.pcap"
+    rtcp_twcc_result = analyzer.analyze(rtcp_twcc)
+    twcc_note = "AVScope 交付示例报告：WebRTC RTCP TWCC 包状态、接收 Delta、丢包与拥塞反馈。"
+    export_html(rtcp_twcc_result, output_path / "sample_rtcp_twcc_report.html", notes=twcc_note)
+    export_json(rtcp_twcc_result, output_path / "sample_rtcp_twcc_report.json", notes=twcc_note)
+    export_csv(rtcp_twcc_result, output_path / "sample_rtcp_twcc_report.csv", notes=twcc_note)
 
     changed_mp4 = root_path / "samples" / "sample_changed.mp4"
     protocol_compare = compare_protocol(mp4, changed_mp4)

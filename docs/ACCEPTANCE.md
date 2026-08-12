@@ -60,7 +60,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 5. 使用“视图”菜单切换 Hex、字段表、帧列表、时间线、预览和诊断面板，并按 `Ctrl+L` 显示/隐藏底部日志；在协议树展开任意节点，确认字段和值以子项直接显示，长值可通过底部横向滚动条查看。
 6. 在协议树分别选中节点、数值字段、文本字段和异常字段，确认选中背景与选中文字保持清晰对比，未选中字段按数值、文本、Hex、布尔值和 warning/error 使用不同颜色；通过“视图 / 深色主题”和“视图 / 浅色主题”切换后再次确认上述对比度和可读性。
 7. 在 Qt 工作台输入字段名确认协议树实时过滤且保留祖先路径；勾选“只看异常”确认只保留 warning/error 路径；使用展开/折叠、字段/帧选择、`Ctrl+C`、`Ctrl+Shift+O` 和 `Esc`，确认详情、Hex 跳转、复制与取消分析生效。关闭后重新打开，确认主题、窗口、分栏、当前标签和最近文件恢复，且状态只写入 `G:\AVScope\data\qt-settings.ini`。
-8. 运行 `PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1`，确认 Qt 构建、协议树数据契约、深浅主题、时间线、RTCP 会话预览与控制反馈、RTP 时序质量、传输会话异常筛选、H.264/H.265 码流健康、媒体流表、诊断筛选、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复、协议对比截图、高 DPI、异步任务约束和 G 盘状态文件检查通过；验证证据位于 `G:\AVScope\tmp\qt-ui-validation`。
+8. 运行 `PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1`，确认 Qt 构建、协议树数据契约、深浅主题、时间线、RTCP 会话预览与控制反馈、RTP 时序质量、TWCC 拥塞反馈、传输会话异常筛选、H.264/H.265 码流健康、媒体流表、诊断筛选、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复、协议对比截图、高 DPI、异步任务约束和 G 盘状态文件检查通过；验证证据位于 `G:\AVScope\tmp\qt-ui-validation`。
 9. 打开 `sample.pcap`、`sample.ts` 和带帧视频，确认时间线显示帧大小、PTS/DTS、码率、关键帧和异常标记；悬停显示帧详情，点击图形跳到帧表并联动 Hex。点击全局诊断中带 Offset 的行，确认直接切到 Hex 对应位置。
 6. 打开 `G:\AVScope\samples\sample.wav`，检查“预览”页是否显示音频波形图、Peak/RMS 音频能量和裁剪样本数；使用“分析 / 播放音频片段”“分析 / 播放指定音频片段”和“分析 / 停止音频播放”确认可试听短片段、可指定起始时间/时长且不会阻塞界面。
 7. 对真实含视频流文件打开后，在“预览”页检查是否出现“视频预览帧”和当前帧 PTS/DTS、duration、帧类型、关键帧、帧大小、分辨率、像素格式等信息；使用“分析 / 下一预览帧”“分析 / 上一预览帧”“分析 / 跳转预览时间”“分析 / 跳转预览帧号”“分析 / 下一关键帧预览”和“分析 / 上一关键帧预览”确认可按 1 秒步进、按秒跳转、按帧号跳转或按关键帧跳转刷新画面；若文件不可解码，预览区应给出 ffmpeg/ffprobe 错误文本而不是崩溃。
@@ -83,6 +83,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 20.4 打开 `G:\AVScope\samples\sample_sip_sdp.pcap`，进入“传输会话 / 信令协商”，确认显示 3 条 SIP、2 个 Call-ID、5 个原始 SDP 媒体描述和 4 条去重 PT 映射；PT 96 在端口 5004/6004 应分别映射为 H264/H265，PT 97 映射为 PCMA/8000 且不能误入视频负载。会话质量页应显示 SDP 关联 3，音频 RTP timestamp 8000 应换算为 1.0 秒；双击 SIP/SDP 行应定位 Hex。HTML 应包含“SIP / SDP 信令协商”，CSV 应包含 `sip_sdp_summary`、`sip_message` 和 `sdp_payload_mapping`。
 20.5 打开 `G:\AVScope\samples\sample_rtcp_feedback.pcap`，进入“传输会话 / 控制反馈”，确认 NACK 1 次并展开丢失序号 101/103/105、PLI 1 次、FIR 1 次且 sequence 为 7、SDES CNAME 为 `camera-01@example`、BYE 原因为 `stream ended`；对应 `0x12345678` 会话应标记为警告。双击事件应定位 RTCP Hex。HTML 应包含“RTCP 控制反馈”，CSV 应包含 `rtcp_feedback`、`rtcp_sdes` 和 `rtcp_bye`。
 20.6 打开 `G:\AVScope\samples\sample_rtp_timing.pcap`，进入“传输会话 / 时序质量”，确认 PT 8 使用 8000 Hz 静态 Clock Rate，4 包的 RFC 3550 Jitter 为 1.875 ms、平均到达间隔 30 ms、范围 20–50 ms、最大偏差 30 ms、突发 1 次；突发序号应为 103，双击事件定位 Offset `0x304`。HTML 应包含“RTP 时序质量”，CSV 应包含 `rtp_timing_session` 和 `rtp_timing_event`。
+20.7 打开 `G:\AVScope\samples\sample_rtcp_twcc.pcap`，进入“传输会话 / 拥塞反馈”，确认 1 个 TWCC 反馈、Base Sequence 1000、5 个状态、收到 4、丢失 1、反馈计数 7、最大 Delta 30 ms；逐包表应显示序号 1002 未接收、序号 1003 Large Delta 30 ms。双击反馈或逐包行应定位 Hex。HTML 应包含“RTCP TWCC 拥塞反馈”，CSV 应包含 `rtcp_twcc` 和 `rtcp_twcc_packet`。
 21. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；`sample.pcm` 可设置采样率、声道、位深、大小端和有符号/无符号，关闭后再次打开时应沿用上次设置。
 22. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“媒体预览”页是否显示八段 Raw YUV 彩条、帧 1/3 和宽高/像素格式/帧率；点击右上角下一箭头应异步显示帧 2/3 且彩条相位变化。打开 `sample.pcm` 应显示可见正弦波形和采样参数；真实视频可用同一组箭头按 1 秒步进。
 23. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。
@@ -98,7 +99,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 31. 打开 WAV 或真实多路音视频文件，在“媒体流”页检查每路流的 codec、profile、分辨率/声道、采样率、帧率、time_base、duration、bitrate 和像素/采样格式；音频与视频使用不同文字色。
 32. 打开损坏 MP4/FLV/AAC 等文件，在右侧诊断面板组合选择级别、来源和“有 Offset”，确认“显示 N / 总数”正确；点击带 Offset 的行应定位 Hex，右键“添加当前诊断为书签”应直接保存问题消息与来源。
 31. 检查 Qt 绿色版目录中存在 `platforms\qwindows.dll`、`engine\AVScopeEngine.exe`、`engine\_internal\ffprobe.exe`、`ffmpeg.exe` 和 `plugins\demo_magic.json`，并打开发布清单确认安装包、绿色版、源码包、Qt DLL、引擎与插件文件均记录 size 和 SHA256。
-32. 打开 `G:\AVScope\dist\sample-reports\sample_wav_report.html`、`sample_mp4_report.json`、`sample_rtp_video_report.html`、`sample_sip_sdp_report.html`、`sample_rtcp_feedback_report.html` 和 `sample_rtp_timing_report.html`，确认交付目录包含文件、封装、RTP 视频负载、SIP/SDP、RTCP 控制反馈与 RTP 时序质量示例报告。
+32. 打开 `G:\AVScope\dist\sample-reports\sample_wav_report.html`、`sample_mp4_report.json`、`sample_rtp_video_report.html`、`sample_sip_sdp_report.html`、`sample_rtcp_feedback_report.html`、`sample_rtp_timing_report.html` 和 `sample_rtcp_twcc_report.html`，确认交付目录包含文件、封装、RTP 视频负载、SIP/SDP、RTCP 控制反馈、RTP 时序质量与 TWCC 拥塞反馈示例报告。
 33. 打开 `G:\AVScope\dist\AVScope-validation-report.md`，确认一键验证通过项和关键产物大小已写入测试报告。
 34. 导出 HTML/JSON/CSV 报告并打开检查，确认可选用户备注会写入报告；HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含音频波形图、结构化统计摘要表、帧/packet 大小图和“帧列表”章节；CSV 应包含 `media`、`notes`、`diagnostic`、`timeline_issue`、`frame_stats`、`packet_stats`、`frame`、`packet`、`node`、`field` 等 section。
 35. 打开 `G:\AVScope\docs\KNOWN_ISSUES_AND_ROADMAP.md`，确认当前 MVP 边界和后续规划已有明确说明。

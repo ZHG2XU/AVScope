@@ -30,6 +30,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample_sip_sdp.pcap", _pcap_sip_sdp_sample()),
         _write(target / "sample_rtcp_feedback.pcap", _pcap_rtcp_feedback_sample()),
         _write(target / "sample_rtp_timing.pcap", _pcap_rtp_timing_sample()),
+        _write(target / "sample_rtcp_twcc.pcap", _pcap_rtcp_twcc_sample()),
         _write(target / "sample.ts", _mpegts_sample()),
         _write(target / "sample.pcm", _pcm_sample()),
         _write(target / "sample.yuv", _yuv420p_color_bars()),
@@ -229,6 +230,16 @@ def _pcap_rtp_timing_sample() -> bytes:
     return global_header + b"".join(packets)
 
 
+def _pcap_rtcp_twcc_sample() -> bytes:
+    global_header = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
+    media_ssrc = 0xCAFEBABE
+    packets = [
+        _pcap_packet(0, _ethernet_ipv4_udp_rtp(1000, 90_000, False, b"\x65\x88", ssrc=media_ssrc)),
+        _pcap_packet(1, _ethernet_ipv4_udp(_rtcp_twcc_sample(), src_port=5005, dst_port=5005)),
+    ]
+    return global_header + b"".join(packets)
+
+
 def _pcap_rtp_video_sample() -> bytes:
     global_header = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
     h264_sps = b"\x67" + make_h264_baseline_sps(width=640, height=480)
@@ -410,6 +421,17 @@ def _rtcp_feedback_compound_sample() -> bytes:
     bye_body += b"\x00" * ((-len(bye_body)) % 4)
     bye = bytes([0x81, 203]) + struct.pack(">H", len(bye_body) // 4) + bye_body
     return sdes + nack + pli + fir + bye
+
+
+def _rtcp_twcc_sample() -> bytes:
+    sender_ssrc = 0x87654321
+    media_ssrc = 0xCAFEBABE
+    fixed = struct.pack(">IIHH", sender_ssrc, media_ssrc, 1000, 5) + b"\x00\x01\x23" + b"\x07"
+    status_vector = struct.pack(">H", 0xD490)  # [small, small, lost, large, small]
+    deltas = bytes([4, 8]) + struct.pack(">h", 120) + bytes([12])
+    body = fixed + status_vector + deltas
+    body += b"\x00" * ((-len(body)) % 4)
+    return bytes([0x80 | 15, 205]) + struct.pack(">H", len(body) // 4) + body
 
 
 def _ipv4_checksum(header: bytes) -> int:

@@ -613,6 +613,52 @@ QWidget *MainWindow::buildWorkspace()
     timingSplitter->setSizes({340, 190});
     timingLayout->addWidget(timingSplitter, 1);
     m_transportDetails->addTab(timingPanel, tr("时序质量"));
+
+    auto *twccPanel = new QWidget;
+    auto *twccLayout = new QVBoxLayout(twccPanel);
+    twccLayout->setContentsMargins(8, 8, 8, 8);
+    twccLayout->setSpacing(7);
+    m_twccSummary = new QLabel(tr("当前文件没有 TWCC 拥塞反馈"));
+    m_twccSummary->setObjectName("sectionHint");
+    m_twccSummary->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    twccLayout->addWidget(m_twccSummary);
+    auto *twccSplitter = new QSplitter(Qt::Vertical);
+    m_twccFeedbackTable = new QTableWidget;
+    m_twccFeedbackTable->setColumnCount(9);
+    m_twccFeedbackTable->setHorizontalHeaderLabels({
+        tr("媒体 SSRC"), tr("Base Sequence"), tr("状态数"), tr("收到"), tr("丢失"),
+        tr("参考时间"), tr("反馈计数"), tr("最大 Delta"), "Offset"
+    });
+    m_twccFeedbackTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_twccFeedbackTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_twccFeedbackTable->setAlternatingRowColors(true);
+    m_twccFeedbackTable->verticalHeader()->hide();
+    m_twccFeedbackTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_twccFeedbackTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    connect(m_twccFeedbackTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 28); m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("TWCC 拥塞反馈  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    twccSplitter->addWidget(m_twccFeedbackTable);
+    m_twccPacketsTable = new QTableWidget;
+    m_twccPacketsTable->setColumnCount(7);
+    m_twccPacketsTable->setHorizontalHeaderLabels({tr("序号"), tr("状态"), tr("收到"), tr("Delta"), tr("接收时间"), tr("Delta 字节"), "Offset"});
+    m_twccPacketsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_twccPacketsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_twccPacketsTable->setAlternatingRowColors(true);
+    m_twccPacketsTable->verticalHeader()->hide();
+    m_twccPacketsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_twccPacketsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    connect(m_twccPacketsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 2); m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("TWCC 包状态  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    twccSplitter->addWidget(m_twccPacketsTable);
+    twccSplitter->setSizes({250, 300});
+    twccLayout->addWidget(twccSplitter, 1);
+    m_transportDetails->addTab(twccPanel, tr("拥塞反馈"));
     transportLayout->addWidget(m_transportDetails, 1);
     m_tabs->addTab(transportPanel, tr("传输会话"));
 
@@ -1262,6 +1308,7 @@ void MainWindow::loadDocument(const QJsonDocument &document)
     populateSipSdp(media.value("summary").toObject().value("sip_sdp").toObject());
     populateRtcpFeedback(media.value("summary").toObject().value("rtcp").toObject());
     populateRtpTiming(media.value("summary").toObject().value("transport_sessions").toObject());
+    populateTwcc(media.value("summary").toObject().value("rtcp").toObject());
     populateCodecHealth(media.value("summary").toObject().value("codec_health").toObject());
     populateDiagnostics(diagnostics, media);
     m_timeline->setData(frames, media.value("summary").toObject().value("timeline_summary").toObject());
@@ -1713,7 +1760,10 @@ void MainWindow::populateSipSdp(const QJsonObject &signaling)
 void MainWindow::populateRtcpFeedback(const QJsonObject &rtcp)
 {
     if (!m_rtcpFeedbackTable || !m_rtcpMetadataTable || !m_rtcpFeedbackSummary) return;
-    const auto feedback = rtcp.value("feedback_events").toArray();
+    QJsonArray feedback;
+    for (const auto &value : rtcp.value("feedback_events").toArray()) {
+        if (value.toObject().value("kind").toString() != "TWCC") feedback.append(value);
+    }
     const auto sdes = rtcp.value("sdes_chunks").toArray();
     const auto bye = rtcp.value("bye_events").toArray();
     m_rtcpFeedbackTable->setRowCount(feedback.size());
@@ -1867,6 +1917,73 @@ void MainWindow::populateRtpTiming(const QJsonObject &transport)
         QJsonObject state{{"sessions", summary.value("session_count")}, {"warnings", summary.value("warning_sessions")},
                           {"max_jitter_ms", summary.value("max_rfc3550_jitter_ms")},
                           {"max_deviation_ms", summary.value("max_abs_deviation_ms")}, {"bursts", summary.value("burst_events")}};
+        QFile file(statePath); QDir().mkpath(QFileInfo(statePath).absolutePath());
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+    }
+}
+
+void MainWindow::populateTwcc(const QJsonObject &rtcp)
+{
+    if (!m_twccFeedbackTable || !m_twccPacketsTable || !m_twccSummary) return;
+    const auto events = rtcp.value("twcc_events").toArray();
+    m_twccFeedbackTable->setRowCount(events.size());
+    int packetCount = 0;
+    for (const auto &value : events) packetCount += value.toObject().value("packets").toArray().size();
+    m_twccPacketsTable->setRowCount(packetCount);
+    int packetRow = 0;
+    for (int row = 0; row < events.size(); ++row) {
+        const auto event = events.at(row).toObject();
+        const qint64 offset = jsonInteger(event.value("offset"));
+        const bool warning = jsonInteger(event.value("lost_packets")) > 0 || event.value("max_abs_delta_ms").toDouble() > 20.0;
+        const QStringList values = {
+            QString("0x%1").arg(jsonInteger(event.value("media_ssrc")), 8, 16, QLatin1Char('0')).toUpper(),
+            displayValue(event.value("base_sequence")), displayValue(event.value("packet_status_count")),
+            displayValue(event.value("received_packets")), displayValue(event.value("lost_packets")),
+            tr("%1 ms").arg(event.value("reference_time_ms").toDouble(), 0, 'f', 0),
+            displayValue(event.value("feedback_packet_count")),
+            tr("%1 ms").arg(event.value("max_abs_delta_ms").toDouble(), 0, 'f', 3),
+            QString("0x%1").arg(offset, 0, 16).toUpper(),
+        };
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column)); cell->setData(OffsetRole, offset);
+            if (warning) cell->setForeground(QColor(m_dark ? "#F5C76B" : "#8A5A00"));
+            else if (column == 3) cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
+            m_twccFeedbackTable->setItem(row, column, cell);
+        }
+        for (const auto &packetValue : event.value("packets").toArray()) {
+            const auto packet = packetValue.toObject();
+            const qint64 packetOffset = jsonInteger(packet.value("offset"));
+            const QString status = packet.value("status").toString();
+            const bool received = packet.value("received").toBool();
+            const QString statusText = status == "not_received" ? tr("未接收")
+                : status == "small_delta" ? tr("Small Delta") : status == "large_delta" ? tr("Large Delta") : tr("保留");
+            const QStringList packetValues = {
+                displayValue(packet.value("sequence")), statusText, received ? tr("是") : tr("否"),
+                packet.value("delta_ms").isNull() ? "--" : tr("%1 ms").arg(packet.value("delta_ms").toDouble(), 0, 'f', 3),
+                packet.value("receive_time_ms").isNull() ? "--" : tr("%1 ms").arg(packet.value("receive_time_ms").toDouble(), 0, 'f', 3),
+                displayValue(packet.value("delta_size")), QString("0x%1").arg(packetOffset, 0, 16).toUpper(),
+            };
+            for (int column = 0; column < packetValues.size(); ++column) {
+                auto *cell = new QTableWidgetItem(packetValues.at(column)); cell->setData(OffsetRole, packetOffset);
+                if (!received) cell->setForeground(QColor(m_dark ? "#FF8A92" : "#B4232F"));
+                else if (status == "large_delta") cell->setForeground(QColor(m_dark ? "#F5C76B" : "#8A5A00"));
+                else if (column == 1) cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
+                m_twccPacketsTable->setItem(packetRow, column, cell);
+            }
+            ++packetRow;
+        }
+    }
+    m_twccSummary->setText(
+        events.isEmpty() ? tr("当前文件没有 TWCC 拥塞反馈")
+        : tr("反馈 %1  |  收到 %2  |  丢失 %3  |  最大 Delta %4 ms")
+              .arg(events.size()).arg(jsonInteger(rtcp.value("twcc_received_packets")))
+              .arg(jsonInteger(rtcp.value("twcc_lost_packets")))
+              .arg(rtcp.value("twcc_max_abs_delta_ms").toDouble(), 0, 'f', 3));
+    const QString statePath = qEnvironmentVariable("AVSCOPE_TWCC_STATE");
+    if (!statePath.isEmpty()) {
+        QJsonObject state{{"events", events.size()}, {"received", rtcp.value("twcc_received_packets")},
+                          {"lost", rtcp.value("twcc_lost_packets")}, {"max_delta_ms", rtcp.value("twcc_max_abs_delta_ms")},
+                          {"packets", packetCount}};
         QFile file(statePath); QDir().mkpath(QFileInfo(statePath).absolutePath());
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
     }

@@ -763,6 +763,50 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(reordered["rfc3550_jitter_ms"], 0.0)
         self.assertEqual(reordered["burst_events"], 0)
 
+    def test_pcap_rtcp_twcc_packet_status_and_delta(self):
+        sample_dir = ROOT / "pcap_rtcp_twcc"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample_rtcp_twcc.pcap")
+        rtcp = result.media.summary["rtcp"]
+        self.assertEqual(rtcp["twcc_event_count"], 1)
+        self.assertEqual(rtcp["twcc_received_packets"], 4)
+        self.assertEqual(rtcp["twcc_lost_packets"], 1)
+        self.assertEqual(rtcp["twcc_max_abs_delta_ms"], 30.0)
+        event = rtcp["twcc_events"][0]
+        self.assertEqual((event["base_sequence"], event["packet_status_count"]), (1000, 5))
+        self.assertEqual(event["feedback_packet_count"], 7)
+        self.assertEqual([item["status"] for item in event["packets"]], [
+            "small_delta", "small_delta", "not_received", "large_delta", "small_delta",
+        ])
+        self.assertEqual([item["delta_ms"] for item in event["packets"]], [1.0, 2.0, None, 30.0, 3.0])
+        self.assertEqual(event["packets"][2]["sequence"], 1002)
+        self.assertEqual(event["packets"][3]["receive_time_ms"], 18657.0)
+        self.assertEqual(len(nodes_with_type(result.root, "rtcp_twcc_chunk")), 1)
+        self.assertEqual(len(nodes_with_type(result.root, "rtcp_twcc_packet")), 5)
+        packet_fields = fields_by_name(nodes_with_type(result.root, "rtcp_twcc_packet")[3])
+        self.assertEqual(packet_fields["receive_delta_ms"], 30.0)
+        session = result.media.summary["transport_sessions"]["sessions"][0]
+        self.assertEqual(session["rtcp_twcc_events"], 1)
+        self.assertEqual(session["rtcp_twcc_lost_packets"], 1)
+        self.assertEqual(session["rtcp_twcc_max_abs_delta_ms"], 30.0)
+        self.assertEqual(session["status"], "warning")
+        self.assertTrue(any("TWCC 拥塞反馈异常" in issue.message for issue in diagnostics_with(result, "warning")))
+        html_path = ROOT / "rtcp_twcc.html"
+        csv_path = ROOT / "rtcp_twcc.csv"
+        export_html(result, html_path)
+        export_csv(result, csv_path)
+        self.assertIn("RTCP TWCC 拥塞反馈", html_path.read_text(encoding="utf-8"))
+        csv_text = csv_path.read_text(encoding="utf-8-sig")
+        self.assertIn("rtcp_twcc", csv_text)
+        self.assertIn("rtcp_twcc_packet", csv_text)
+
+        raw = bytearray((sample_dir / "sample_rtcp_twcc.pcap").read_bytes())
+        truncated = write(ROOT / "rtcp_twcc_truncated_delta.pcap", bytes(raw[:-3]))
+        malformed = self.analyzer.analyze(truncated)
+        malformed_event = malformed.media.summary["rtcp"]["twcc_events"][0]
+        self.assertLess(len(malformed_event["packets"]), 5)
+        self.assertTrue(any("TWCC" in issue.message and "截断" in issue.message for issue in diagnostics_with(malformed, "error")))
+
     def test_pcap_rtp_session_loss_duplicate_and_reorder(self):
         sample_dir = ROOT / "pcap_session_anomalies"
         generate_samples(sample_dir)
@@ -1268,6 +1312,7 @@ class ParserTests(unittest.TestCase):
         self.assertIn("sample_sip_sdp.pcap", samples)
         self.assertIn("sample_rtcp_feedback.pcap", samples)
         self.assertIn("sample_rtp_timing.pcap", samples)
+        self.assertIn("sample_rtcp_twcc.pcap", samples)
         self.assertIn("sample_h264_issues.h264", samples)
         empty_state = format_empty_state_text()
         self.assertIn("工作区待命", empty_state)
@@ -1522,6 +1567,9 @@ class ParserTests(unittest.TestCase):
         self.assertIn("sample_rtp_timing_report.html", names)
         self.assertIn("sample_rtp_timing_report.json", names)
         self.assertIn("sample_rtp_timing_report.csv", names)
+        self.assertIn("sample_rtcp_twcc_report.html", names)
+        self.assertIn("sample_rtcp_twcc_report.json", names)
+        self.assertIn("sample_rtcp_twcc_report.csv", names)
         self.assertIn(
             "RTP H.264/H.265 视频负载",
             (report_root / "dist" / "sample-reports" / "sample_rtp_video_report.html").read_text(encoding="utf-8"),
@@ -1537,6 +1585,10 @@ class ParserTests(unittest.TestCase):
         self.assertIn(
             "RTP 时序质量",
             (report_root / "dist" / "sample-reports" / "sample_rtp_timing_report.html").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            "RTCP TWCC 拥塞反馈",
+            (report_root / "dist" / "sample-reports" / "sample_rtcp_twcc_report.html").read_text(encoding="utf-8"),
         )
         self.assertIn("sample_protocol_compare.json", names)
         for path in outputs:

@@ -153,6 +153,7 @@ def format_sample_files_help() -> str:
               "9. sample_sip_sdp.pcap：检查 SIP Call-ID、SDP 媒体协商、动态 PT 映射及音视频 Clock Rate。",
               "10. sample_rtcp_feedback.pcap：检查 RTCP SDES、BYE、NACK、PLI、FIR 与 RTP 会话关联。",
               "11. sample_rtp_timing.pcap：检查 RTP RFC 3550 Jitter、到达间隔、时间偏差和突发延迟。",
+              "12. sample_rtcp_twcc.pcap：检查 WebRTC TWCC 包状态、接收 Delta、丢包和拥塞反馈。",
             "",
             "完整验收清单：G:\\AVScope\\docs\\ACCEPTANCE.md",
         ]

@@ -144,8 +144,15 @@ class _Session:
         nack_events = [item for item in feedback if item.get("kind") == "NACK"]
         pli_events = [item for item in feedback if item.get("kind") == "PLI"]
         fir_events = [item for item in feedback if item.get("kind") == "FIR"]
+        twcc_events = [item for item in feedback if item.get("kind") == "TWCC"]
         nack_sequences = [int(value) for item in nack_events for value in item.get("lost_sequences", [])]
-        status = "warning" if anomalies or rtcp_loss or feedback else "normal"
+        disruptive_feedback = [
+            item for item in feedback
+            if item.get("kind") != "TWCC"
+            or int(item.get("lost_packets", 0)) > 0
+            or float(item.get("max_abs_delta_ms", 0)) > 20
+        ]
+        status = "warning" if anomalies or rtcp_loss or disruptive_feedback else "normal"
         endpoint = f"{source_ip}:{source_port} -> {destination_ip}:{destination_port}"
         return {
             "index": index,
@@ -181,6 +188,10 @@ class _Session:
             "rtcp_nack_sequences": nack_sequences,
             "rtcp_pli_events": len(pli_events),
             "rtcp_fir_events": len(fir_events),
+            "rtcp_twcc_events": len(twcc_events),
+            "rtcp_twcc_received_packets": sum(int(item.get("received_packets", 0)) for item in twcc_events),
+            "rtcp_twcc_lost_packets": sum(int(item.get("lost_packets", 0)) for item in twcc_events),
+            "rtcp_twcc_max_abs_delta_ms": round(max((float(item.get("max_abs_delta_ms", 0)) for item in twcc_events), default=0.0), 3),
             "rtcp_feedback_events": feedback,
             "rtcp_cname": next((str(item.get("cname", "")) for item in sdes if item.get("cname")), ""),
             "rtcp_sdes": sdes,
