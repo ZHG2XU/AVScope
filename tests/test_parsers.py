@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from avscope.app import (
+    PALETTES,
     binary_compare_offsets,
     binary_compare_preview_indices,
     calculate_bitrate_kbps,
@@ -18,6 +19,8 @@ from avscope.app import (
     extract_hex_bytes_from_dump_text,
     format_empty_state_text,
     field_highlight_size,
+    field_tree_tag,
+    format_field_value,
     format_plugin_template_summary,
     format_elapsed_seconds,
     format_frame_preview_lines,
@@ -1516,6 +1519,18 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(field_highlight_size(FieldInfo("size", 1, size=4)), 4)
         self.assertEqual(field_highlight_size(FieldInfo("syncword", "0xFFF", bit_length=12)), 2)
         self.assertEqual(field_highlight_size(FieldInfo("derived", 1, size=0)), 1)
+
+    def test_protocol_tree_field_display_helpers_and_theme_selection_contrast(self):
+        self.assertEqual(format_field_value(True), "true")
+        self.assertEqual(format_field_value({"codec": "aac"}), '{"codec":"aac"}')
+        self.assertEqual(field_tree_tag(FieldInfo("count", 2)), "field_number")
+        self.assertEqual(field_tree_tag(FieldInfo("enabled", False)), "field_bool")
+        self.assertEqual(field_tree_tag(FieldInfo("name", "AAC")), "field_text")
+        self.assertEqual(field_tree_tag(FieldInfo("raw", "0A FF", hex_value="0A FF")), "field_hex")
+        self.assertEqual(field_tree_tag(FieldInfo("bad", 0, severity=Severity.WARNING)), "warning")
+        for palette in PALETTES.values():
+            self.assertNotEqual(palette["select"], palette["select_fg"])
+            self.assertNotEqual(palette["fg"], palette["select_fg"])
 
     def test_recent_file_settings(self):
         settings_path = ROOT / "settings.json"

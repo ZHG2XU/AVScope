@@ -40,7 +40,12 @@ PALETTES = {
         "accent": "#4EA1D3",
         "accent2": "#77C0A4",
         "border": "#2A3441",
-        "select": "#25445F",
+        "select": "#2B6E91",
+        "select_fg": "#FFFFFF",
+        "field_number": "#8FD694",
+        "field_text": "#8BC6FF",
+        "field_hex": "#C5A3FF",
+        "field_bool": "#FFC978",
         "warning": "#D7A84A",
         "error": "#F06A6A",
         "ok_bg": "#14231F",
@@ -57,7 +62,12 @@ PALETTES = {
         "accent": "#176B9A",
         "accent2": "#287A5C",
         "border": "#D8E0E8",
-        "select": "#CDE4F5",
+        "select": "#B9D9F2",
+        "select_fg": "#102A43",
+        "field_number": "#176B3A",
+        "field_text": "#1D5D92",
+        "field_hex": "#6641A5",
+        "field_bool": "#8A5300",
         "warning": "#9A6700",
         "error": "#B42318",
         "ok_bg": "#EDF8F1",
@@ -227,6 +237,7 @@ class AVScopeApp(tk.Tk):
         self.current_hex_offset = 0
         self.last_parse_elapsed_seconds: float | None = None
         self._node_by_iid: dict[str, ParseNode] = {}
+        self._field_by_tree_iid: dict[str, tuple[ParseNode, FieldInfo]] = {}
         self._tree_iids_in_display_order: list[str] = []
         self._field_range_by_iid: dict[str, tuple[int, int]] = {}
         self._frame_offset_by_iid: dict[str, tuple[int, int]] = {}
@@ -333,16 +344,23 @@ class AVScopeApp(tk.Tk):
         self._panel_title(left, "协议树")
         self.issue_check = ttk.Checkbutton(left, text="只看异常", variable=self.issue_filter, command=self.toggle_issue_filter, style="Panel.TCheckbutton")
         self.issue_check.pack(anchor=tk.W, padx=10, pady=(0, 6))
-        self.tree = ttk.Treeview(left, columns=("type", "offset", "size"), show="tree headings", style="Data.Treeview")
+        tree_frame = ttk.Frame(left, style="Panel.TFrame")
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        self.tree = ttk.Treeview(tree_frame, columns=("type", "value", "offset", "size"), show="tree headings", style="Data.Treeview")
         self.tree.heading("#0", text="名称")
         self.tree.heading("type", text="类型")
+        self.tree.heading("value", text="值")
         self.tree.heading("offset", text="Offset")
         self.tree.heading("size", text="Size")
         self.tree.column("#0", width=260, minwidth=180)
         self.tree.column("type", width=92, anchor=tk.CENTER)
+        self.tree.column("value", width=220, minwidth=120)
         self.tree.column("offset", width=96, anchor=tk.E)
         self.tree.column("size", width=92, anchor=tk.E)
-        self.tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        tree_scroll_x = ttk.Scrollbar(tree_frame, orient=tk.HORIZONTAL, command=self.tree.xview)
+        self.tree.configure(xscrollcommand=tree_scroll_x.set)
+        self.tree.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        tree_scroll_x.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
 
         center = ttk.PanedWindow(main, orient=tk.VERTICAL)
@@ -701,7 +719,7 @@ class AVScopeApp(tk.Tk):
             rowheight=26,
         )
         style.configure("Data.Treeview.Heading", background=p["panel2"], foreground=p["muted"], relief=tk.FLAT, padding=(8, 7))
-        style.map("Data.Treeview", background=[("selected", p["select"])], foreground=[("selected", p["fg"])])
+        style.map("Data.Treeview", background=[("selected", p["select"])], foreground=[("selected", p["select_fg"])])
 
         self.header.configure(bg=p["bg"])
         self.logo.configure(bg=p["bg"])
@@ -709,7 +727,7 @@ class AVScopeApp(tk.Tk):
         self.file_badge.configure(bg=p["bg"], fg=p["muted"])
         self.log_frame.configure(bg=p["panel"])
         self.log_header.configure(bg=p["panel"], fg=p["muted"])
-        self.log_text.configure(bg=p["text_bg"], fg=p["fg"], insertbackground=p["fg"], selectbackground=p["select"])
+        self.log_text.configure(bg=p["text_bg"], fg=p["fg"], insertbackground=p["fg"], selectbackground=p["select"], selectforeground=p["select_fg"])
         self.status_bar.configure(bg=p["panel2"], fg=p["muted"], padx=12, pady=5)
         self.summary_frame.configure(bg=p["bg"])
         self.timeline_canvas.configure(bg=p["panel"])
@@ -717,7 +735,7 @@ class AVScopeApp(tk.Tk):
             self._paint_summary_card(key, "normal")
         self._draw_logo()
         for widget in (self.hex_text, self.preview, self.diagnostics):
-            widget.configure(bg=p["text_bg"], fg=p["fg"], insertbackground=p["fg"], selectbackground=p["select"])
+            widget.configure(bg=p["text_bg"], fg=p["fg"], insertbackground=p["fg"], selectbackground=p["select"], selectforeground=p["select_fg"])
         self.hex_text.tag_configure("search_hit", background=p["accent"], foreground="#FFFFFF")
         self.preview.tag_configure("binary_diff_line", background=p["warning_bg"], foreground=p["fg"])
         self.preview.tag_configure("binary_diff_active", background=p["warning"], foreground=p["bg"])
@@ -732,6 +750,10 @@ class AVScopeApp(tk.Tk):
             tree.tag_configure("warning", foreground=p["warning"], background=p["warning_bg"])
             tree.tag_configure("error", foreground=p["error"], background=p["error_bg"])
             tree.tag_configure("normal", foreground=p["fg"])
+            tree.tag_configure("field_number", foreground=p["field_number"])
+            tree.tag_configure("field_text", foreground=p["field_text"])
+            tree.tag_configure("field_hex", foreground=p["field_hex"])
+            tree.tag_configure("field_bool", foreground=p["field_bool"])
         self._render_summary_cards()
         self._render_timeline_chart()
 
@@ -980,6 +1002,7 @@ class AVScopeApp(tk.Tk):
             return
         self.tree.delete(*self.tree.get_children())
         self._node_by_iid.clear()
+        self._field_by_tree_iid.clear()
         self._tree_iids_in_display_order.clear()
         self._last_node_search = None
         self._insert_node("", self.result.root)
@@ -1379,12 +1402,24 @@ class AVScopeApp(tk.Tk):
             parent,
             tk.END,
             text=node.name,
-            values=(node.node_type, f"0x{node.offset:X}", node.size),
+            values=(node.node_type, "", f"0x{node.offset:X}", node.size),
             open=self.issue_filter.get() or len(visible_children) < 64,
             tags=(tag,),
         )
         self._node_by_iid[iid] = node
         self._tree_iids_in_display_order.append(iid)
+        for field in node.fields:
+            if self.issue_filter.get() and field.severity not in {Severity.WARNING, Severity.ERROR}:
+                continue
+            field_tag = field_tree_tag(field)
+            field_iid = self.tree.insert(
+                iid,
+                tk.END,
+                text=f"[字段] {field.name}",
+                values=("字段", format_field_value(field.value), f"0x{field.offset:X}", field_highlight_size(field)),
+                tags=(field_tag,),
+            )
+            self._field_by_tree_iid[field_iid] = (node, field)
         for child in visible_children:
             self._insert_node(iid, child)
 
@@ -1393,10 +1428,17 @@ class AVScopeApp(tk.Tk):
         if not selection:
             return
         node = self._node_by_iid.get(selection[0])
-        if not node:
+        if node:
+            self._render_fields(node)
+            self._load_hex(node.offset)
             return
-        self._render_fields(node)
-        self._load_hex(node.offset)
+        field_entry = self._field_by_tree_iid.get(selection[0])
+        if field_entry:
+            node, field = field_entry
+            self._render_fields(node)
+            self._load_hex(field.offset)
+            self._highlight_hex_range(field.offset, min(field_highlight_size(field), 4096))
+            self.status.set(f"字段 {field.name} offset=0x{field.offset:X}, size={field_highlight_size(field)}")
 
     def _render_fields(self, node: ParseNode) -> None:
         self.fields.delete(*self.fields.get_children())
@@ -2375,6 +2417,28 @@ def field_highlight_size(field: FieldInfo) -> int:
     if field.bit_length is not None and field.bit_length > 0:
         return max(1, (field.bit_length + 7) // 8)
     return 1
+
+
+def format_field_value(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (dict, list, tuple)):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return str(value)
+
+
+def field_tree_tag(field: FieldInfo) -> str:
+    if field.severity == Severity.ERROR:
+        return "error"
+    if field.severity == Severity.WARNING:
+        return "warning"
+    if isinstance(field.value, bool):
+        return "field_bool"
+    if isinstance(field.value, (int, float)) and not isinstance(field.value, bool):
+        return "field_number"
+    if field.hex_value:
+        return "field_hex"
+    return "field_text"
 
 
 def calculate_timestamp_seconds(timestamp: int | float, time_base_num: int | float, time_base_den: int | float) -> float:
