@@ -15,6 +15,9 @@ DEFAULT_OUTPUTS = [
     "sample_wav_report.csv",
     "sample_mp4_report.html",
     "sample_mp4_report.json",
+    "sample_rtp_video_report.html",
+    "sample_rtp_video_report.json",
+    "sample_rtp_video_report.csv",
     "sample_protocol_compare.json",
     "sample_frame_compare.json",
 ]
@@ -36,6 +39,13 @@ def build_sample_reports(root: str | Path, output_dir: str | Path) -> list[Path]
     mp4_result = analyzer.analyze(mp4)
     export_html(mp4_result, output_path / "sample_mp4_report.html", notes="AVScope 交付示例报告：MP4 box 与 sample table。")
     export_json(mp4_result, output_path / "sample_mp4_report.json", notes="AVScope 交付示例报告：MP4 box 与 sample table。")
+
+    rtp_video = root_path / "samples" / "sample_rtp_video.pcap"
+    rtp_video_result = analyzer.analyze(rtp_video)
+    rtp_note = "AVScope 交付示例报告：RTP H.264/H.265 聚合、分片重组与负载诊断。"
+    export_html(rtp_video_result, output_path / "sample_rtp_video_report.html", notes=rtp_note)
+    export_json(rtp_video_result, output_path / "sample_rtp_video_report.json", notes=rtp_note)
+    export_csv(rtp_video_result, output_path / "sample_rtp_video_report.csv", notes=rtp_note)
 
     changed_mp4 = root_path / "samples" / "sample_changed.mp4"
     protocol_compare = compare_protocol(mp4, changed_mp4)

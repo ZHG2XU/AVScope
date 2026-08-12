@@ -25,6 +25,9 @@ DEFAULT_ARTIFACTS = [
     "dist/sample-reports/sample_wav_report.csv",
     "dist/sample-reports/sample_mp4_report.html",
     "dist/sample-reports/sample_mp4_report.json",
+    "dist/sample-reports/sample_rtp_video_report.html",
+    "dist/sample-reports/sample_rtp_video_report.json",
+    "dist/sample-reports/sample_rtp_video_report.csv",
     "dist/sample-reports/sample_protocol_compare.json",
     "dist/sample-reports/sample_frame_compare.json",
 ]

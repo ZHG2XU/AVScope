@@ -149,6 +149,7 @@ def format_sample_files_help() -> str:
             "5. sample.mp4 / sample_changed.mp4：检查 MP4 box、chunk offset 诊断和协议对比。",
             "6. sample.pcm / sample.yuv：检查 Raw 参数输入、波形和 YUV 逐帧预览。",
             "7. sample.pcap / sample_rtp_anomalies.pcap：检查 RTP/RTCP 字段、会话关联、丢包、重复和乱序。",
+            "8. sample_rtp_video.pcap：检查 H.264/H.265 RTP 聚合包、分片重组、NALU 类型和缺失起始包。",
             "",
             "完整验收清单：G:\\AVScope\\docs\\ACCEPTANCE.md",
         ]

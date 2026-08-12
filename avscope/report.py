@@ -141,6 +141,44 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                         "severity": issue.get("severity", "warning"),
                     }
                 )
+        rtp_video = result.media.summary.get("rtp_video", {})
+        if rtp_video.get("available"):
+            writer.writerow(
+                {
+                    "section": "rtp_video_summary",
+                    "name": "RTP H.264/H.265 payload",
+                    "type": "summary",
+                    "size": rtp_video.get("payload_bytes", 0),
+                    "value": json.dumps(rtp_video, ensure_ascii=False),
+                    "severity": "warning" if rtp_video.get("issue_count") else "normal",
+                }
+            )
+            for stream in rtp_video.get("streams", []):
+                writer.writerow(
+                    {
+                        "section": "rtp_video_stream",
+                        "name": stream.get("ssrc", ""),
+                        "type": stream.get("codec", ""),
+                        "index": stream.get("index", ""),
+                        "offset": f"0x{int(stream.get('first_offset', 0)):X}",
+                        "size": stream.get("payload_bytes", ""),
+                        "key": stream.get("endpoint", ""),
+                        "value": json.dumps(stream, ensure_ascii=False),
+                        "severity": stream.get("status", "normal"),
+                    }
+                )
+            for index, issue in enumerate(rtp_video.get("issues", [])):
+                writer.writerow(
+                    {
+                        "section": "rtp_video_issue",
+                        "name": issue.get("message", ""),
+                        "type": issue.get("source", "rtp_video"),
+                        "index": index,
+                        "offset": f"0x{int(issue.get('offset', 0)):X}",
+                        "value": json.dumps(issue, ensure_ascii=False),
+                        "severity": issue.get("severity", "warning"),
+                    }
+                )
         timeline_summary = result.media.summary.get("timeline_summary", {})
         if timeline_summary.get("available"):
             writer.writerow(
@@ -228,6 +266,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     rtcp_summary_html = _rtcp_summary_html(result.media.summary.get("rtcp", {}))
     transport_sessions_html = _transport_sessions_html(result.media.summary.get("transport_sessions", {}))
     codec_health_html = _codec_health_html(result.media.summary.get("codec_health", {}))
+    rtp_video_html = _rtp_video_html(result.media.summary.get("rtp_video", {}))
     timeline_summary_html = _timeline_summary_html(timeline_summary)
     timeline_chart_html = _timeline_chart_html(doc["frames"], packets)
     issue_labels = timeline_issue_label_map(timeline_summary)
@@ -481,6 +520,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     {rtcp_summary_html}
     {transport_sessions_html}
     {codec_health_html}
+    {rtp_video_html}
     <section>
       <h2>音频波形</h2>
       {waveform_html}
@@ -735,6 +775,58 @@ def _codec_health_html(health: dict) -> str:
             + "</table>"
         )
     return f'<section><h2>H.26x 码流健康</h2><div class="overview">{metric_html}</div>{issues_table}{resolution_table}</section>'
+
+
+def _rtp_video_html(video: dict) -> str:
+    if not video.get("available"):
+        return ""
+    metrics = [
+        ("视频流", video.get("stream_count", 0)),
+        ("编码", " / ".join(video.get("codecs", [])) or "--"),
+        ("RTP 包", video.get("packets", 0)),
+        ("NALU", video.get("nal_units", 0)),
+        ("完成分片", video.get("completed_fragments", 0)),
+        ("未完成分片", video.get("incomplete_fragments", 0)),
+    ]
+    metric_html = "".join(
+        f'<div class="metric"><div class="label">{html.escape(str(label))}</div>'
+        f'<div class="value">{html.escape(str(value))}</div></div>'
+        for label, value in metrics
+    )
+    rows = []
+    for stream in video.get("streams", []):
+        warning = stream.get("status") == "warning"
+        row_class = ' class="warning-row"' if warning else ""
+        packetization = ", ".join(f"{key} {value}" for key, value in stream.get("packetization_counts", {}).items())
+        nal_types = ", ".join(f"{key} {value}" for key, value in stream.get("nal_type_counts", {}).items())
+        rows.append(
+            f"<tr{row_class}>"
+            f'<td>{"warning" if warning else "normal"}</td>'
+            f'<td>{html.escape(str(stream.get("endpoint", "")))}</td>'
+            f'<td>{html.escape(str(stream.get("ssrc", "")))}</td>'
+            f'<td>{html.escape(str(stream.get("codec", "")))}</td>'
+            f'<td>{stream.get("packets", 0)}</td><td>{stream.get("nal_units", 0)}</td>'
+            f'<td>{html.escape(packetization)}</td><td>{html.escape(nal_types)}</td>'
+            f'<td>{stream.get("completed_fragments", 0)} / {stream.get("incomplete_fragments", 0)}</td>'
+            f'<td>{stream.get("issue_count", 0)}</td><td>0x{int(stream.get("first_offset", 0)):X}</td></tr>'
+        )
+    issue_rows = "".join(
+        '<tr class="warning-row">'
+        f'<td>{html.escape(str(issue.get("severity", "warning")))}</td>'
+        f'<td>0x{int(issue.get("offset", 0)):X}</td>'
+        f'<td>{html.escape(str(issue.get("message", "")))}</td></tr>'
+        for issue in video.get("issues", [])
+    )
+    issues = "" if not issue_rows else (
+        '<h3>负载问题</h3><table class="timeline-issues"><tr><th>状态</th><th>Offset</th><th>问题</th></tr>'
+        + issue_rows + "</table>"
+    )
+    table = (
+        '<table class="timeline-issues"><tr><th>状态</th><th>端点</th><th>SSRC</th><th>编码</th>'
+        '<th>包</th><th>NALU</th><th>Packetization</th><th>NALU 类型</th><th>完成/未完成分片</th><th>问题</th><th>首包 Offset</th></tr>'
+        + "".join(rows) + "</table>"
+    )
+    return f'<section><h2>RTP H.264/H.265 视频负载</h2><div class="overview">{metric_html}</div>{table}{issues}</section>'
 
 
 def _waveform_html(waveform: dict) -> str:
@@ -1529,12 +1621,17 @@ def _frame_metadata_summary(metadata: dict) -> str:
     if not metadata:
         return ""
     if "rtp_sequence" in metadata:
-        return (
+        base = (
             f"RTP seq={metadata.get('rtp_sequence')} "
             f"ts={metadata.get('rtp_timestamp')} "
             f"ssrc={metadata.get('rtp_ssrc')} "
             f"pt={metadata.get('rtp_payload_type')}"
         )
+        codec = metadata.get("rtp_video_codec")
+        if codec:
+            nal_types = ",".join(str(value) for value in metadata.get("rtp_nal_types", []))
+            base += f" codec={codec} packetization={metadata.get('rtp_packetization')} nalu={nal_types}"
+        return base
     return json.dumps(metadata, ensure_ascii=False, default=str)
 
 

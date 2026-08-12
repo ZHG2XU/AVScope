@@ -82,6 +82,7 @@ private:
     void populateFrames(const QJsonArray &frames);
     void populateStreams(const QJsonArray &streams);
     void populateTransportSessions(const QJsonObject &transport);
+    void populateRtpVideo(const QJsonObject &video);
     void populateCodecHealth(const QJsonObject &health);
     void filterTransportSessions();
     void populateBookmarks();
@@ -135,6 +136,9 @@ private:
     QTableWidget *m_framesTable = nullptr;
     QTableWidget *m_streamsTable = nullptr;
     QTableWidget *m_transportSessionsTable = nullptr;
+    QTableWidget *m_rtpVideoStreamsTable = nullptr;
+    QTableWidget *m_rtpVideoIssuesTable = nullptr;
+    QTabWidget *m_transportDetails = nullptr;
     QTableWidget *m_codecIssuesTable = nullptr;
     QTableWidget *m_codecParametersTable = nullptr;
     QTableWidget *m_codecResolutionsTable = nullptr;
@@ -149,6 +153,7 @@ private:
     QCheckBox *m_transportIssuesOnly = nullptr;
     QLabel *m_diagnosticSummary = nullptr;
     QLabel *m_transportSummary = nullptr;
+    QLabel *m_rtpVideoSummary = nullptr;
     QLabel *m_codecMetric = nullptr;
     QLabel *m_codecStatusMetric = nullptr;
     QLabel *m_codecParameterMetric = nullptr;

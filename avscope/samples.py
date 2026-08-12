@@ -26,6 +26,7 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample.ps", _mpegps_sample()),
         _write(target / "sample.pcap", _pcap_rtp_sample()),
         _write(target / "sample_rtp_anomalies.pcap", _pcap_rtp_anomaly_sample()),
+        _write(target / "sample_rtp_video.pcap", _pcap_rtp_video_sample()),
         _write(target / "sample.ts", _mpegts_sample()),
         _write(target / "sample.pcm", _pcm_sample()),
         _write(target / "sample.yuv", _yuv420p_color_bars()),
@@ -195,6 +196,45 @@ def _pcap_rtp_anomaly_sample() -> bytes:
             for index, sequence in enumerate((200, 201))
         ]
     )
+    return global_header + b"".join(packets)
+
+
+def _pcap_rtp_video_sample() -> bytes:
+    global_header = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
+    h264_sps = b"\x67" + make_h264_baseline_sps(width=640, height=480)
+    h264_pps = b"\x68" + make_h264_pps()
+    stap_a = b"\x78" + struct.pack(">H", len(h264_sps)) + h264_sps + struct.pack(">H", len(h264_pps)) + h264_pps
+    h264_fu = [
+        b"\x7C\x85\x88\x84",
+        b"\x7C\x05\x21\x11",
+        b"\x7C\x45\x9A\x22",
+    ]
+    h265_vps = bytes([32 << 1, 0x01]) + make_h265_vps()
+    h265_sps = bytes([33 << 1, 0x01]) + make_h265_sps(width=640, height=360)
+    h265_ap = bytes([48 << 1, 0x01]) + struct.pack(">H", len(h265_vps)) + h265_vps + struct.pack(">H", len(h265_sps)) + h265_sps
+    h265_fu = [
+        bytes([49 << 1, 0x01, 0x80 | 19]) + b"\x26\x01",
+        bytes([49 << 1, 0x01, 19]) + b"\xAA\xBB",
+        bytes([49 << 1, 0x01, 0x40 | 19]) + b"\xCC\xDD",
+    ]
+    packets = [
+        _pcap_packet(0, _ethernet_ipv4_udp_rtp(300, 90000, False, stap_a, ssrc=0x11111111, src_port=5004, dst_port=5004)),
+        *[
+            _pcap_packet(index + 1, _ethernet_ipv4_udp_rtp(301 + index, 93000, index == 2, payload, ssrc=0x11111111, src_port=5004, dst_port=5004))
+            for index, payload in enumerate(h264_fu)
+        ],
+        _pcap_packet(10, _ethernet_ipv4_udp_rtp(400, 180000, False, h265_ap, ssrc=0x22222222, src_port=6004, dst_port=6004)),
+        *[
+            _pcap_packet(index + 11, _ethernet_ipv4_udp_rtp(401 + index, 183000, index == 2, payload, ssrc=0x22222222, src_port=6004, dst_port=6004))
+            for index, payload in enumerate(h265_fu)
+        ],
+        _pcap_packet(
+            20,
+            _ethernet_ipv4_udp_rtp(
+                500, 270000, True, b"\x7C\x41\x55\x66", ssrc=0x33333333, src_port=7004, dst_port=7004,
+            ),
+        ),
+    ]
     return global_header + b"".join(packets)
 
 

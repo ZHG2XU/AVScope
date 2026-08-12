@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import os
 import struct
@@ -53,6 +54,7 @@ from avscope.models import FieldInfo, FrameInfo, MediaInfo, ParseNode, ParseResu
 from avscope.packet_stats import build_packet_stats
 from avscope.plugins import build_plugin_template_manifest, load_plugin_parsers, normalize_extension, normalize_magic_hex, write_plugin_template
 from avscope.report import export_csv, export_html, export_json, export_project, timeline_issue_label_map, timeline_issue_rows
+from avscope.rtp_video import RtpVideoPayloadAnalyzer
 from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps, make_h264_slice_header
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
@@ -691,6 +693,95 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(any("乱序" in message and "sequence=102" in message for message in messages))
         self.assertTrue(any("重复" in message and "sequence=102" in message for message in messages))
 
+    def test_pcap_rtp_h264_h265_payload_and_fragment_diagnostics(self):
+        sample_dir = ROOT / "pcap_rtp_video"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample_rtp_video.pcap")
+        video = result.media.summary["rtp_video"]
+        self.assertTrue(video["available"])
+        self.assertEqual(video["codecs"], ["H.264", "H.265"])
+        self.assertEqual(video["stream_count"], 3)
+        self.assertEqual(video["warning_streams"], 1)
+        self.assertEqual(video["packets"], 9)
+        self.assertEqual(video["nal_units"], 6)
+        self.assertEqual(video["completed_fragments"], 2)
+        self.assertEqual(video["incomplete_fragments"], 1)
+        transport = result.media.summary["transport_sessions"]
+        self.assertEqual(transport["warning_sessions"], 1)
+        self.assertEqual(transport["video_streams"], 3)
+        self.assertEqual(transport["video_warning_streams"], 1)
+        warning_session = next(item for item in transport["sessions"] if item["ssrc"] == "0x33333333")
+        self.assertEqual(warning_session["video_codec"], "H.264")
+        self.assertEqual(warning_session["video_incomplete_fragments"], 1)
+        self.assertEqual(warning_session["status"], "warning")
+        h264 = next(stream for stream in video["streams"] if stream["ssrc"] == "0x11111111")
+        self.assertEqual(h264["codec"], "H.264")
+        self.assertEqual(h264["packetization_counts"], {"FU-A": 3, "STAP-A": 1})
+        self.assertEqual(h264["nal_type_counts"], {"IDR Slice": 1, "PPS": 1, "SPS": 1})
+        h265 = next(stream for stream in video["streams"] if stream["ssrc"] == "0x22222222")
+        self.assertEqual(h265["packetization_counts"], {"AP": 1, "FU": 3})
+        self.assertEqual(h265["nal_type_counts"], {"IDR_W_RADL": 1, "SPS": 1, "VPS": 1})
+        issue = video["issues"][0]
+        self.assertIn("分片缺少起始包", issue["message"])
+        self.assertEqual(issue["source"], "rtp_video")
+        self.assertGreater(issue["offset"], 0)
+        self.assertTrue(any(item.source == "rtp_video" for item in diagnostics_with(result, "warning")))
+        self.assertEqual(len(nodes_with_type(result.root, "rtp_h264_stap")), 1)
+        self.assertEqual(len(nodes_with_type(result.root, "rtp_h264_fu")), 4)
+        self.assertEqual(len(nodes_with_type(result.root, "rtp_h265_ap")), 1)
+        self.assertEqual(len(nodes_with_type(result.root, "rtp_h265_fu")), 3)
+        self.assertEqual(result.frames[0].metadata["rtp_video_codec"], "H.264")
+        self.assertEqual(result.frames[0].metadata["rtp_packetization"], "STAP-A")
+        self.assertEqual(result.frames[4].metadata["rtp_video_codec"], "H.265")
+        self.assertEqual(result.frames[-1].metadata["rtp_nal_units"], 0)
+        self.assertEqual(result.frames[-1].metadata["rtp_video_status"], "warning")
+
+        html_path = ROOT / "rtp_video.html"
+        csv_path = ROOT / "rtp_video.csv"
+        export_html(result, html_path)
+        export_csv(result, csv_path)
+        html_text = html_path.read_text(encoding="utf-8")
+        csv_text = csv_path.read_text(encoding="utf-8-sig")
+        self.assertIn("RTP H.264/H.265 视频负载", html_text)
+        self.assertIn("STAP-A", html_text)
+        self.assertIn("分片缺少起始包", html_text)
+        self.assertIn("rtp_video_summary", csv_text)
+        with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            sections = [row["section"] for row in csv.DictReader(handle)]
+        self.assertEqual(sections.count("rtp_video_stream"), 3)
+        self.assertEqual(sections.count("rtp_video_issue"), 1)
+
+    def test_rtp_video_fragment_and_aggregation_boundaries(self):
+        def packet(sequence: int, timestamp: int = 90000) -> dict:
+            return {
+                "source_ip": "10.0.0.1", "source_port": 5004,
+                "destination_ip": "239.1.1.1", "destination_port": 5004,
+                "ssrc": 0x01020304, "payload_type": 96, "sequence": sequence,
+                "timestamp": timestamp, "payload_offset": sequence * 10, "payload_size": 4,
+            }
+
+        analyzer = RtpVideoPayloadAnalyzer({96: "h264"})
+        parent = ParseNode("RTP", "rtp", 0, 256)
+        analyzer.add_packet(packet(10), b"\x7C\x85\x11\x22", parent)
+        analyzer.add_packet(packet(12), b"\x7C\x45\x33\x44", parent)
+        analyzer.add_packet(packet(20), b"\x7C\x81\x55\x66", parent)
+        analyzer.add_packet(packet(21, timestamp=93000), b"\x7C\x01\x77\x88", parent)
+        analyzer.add_packet(packet(30), b"\x7C\x81\x99\xAA", parent)
+        summary, diagnostics = analyzer.finalize()
+        self.assertEqual(summary["completed_fragments"], 0)
+        self.assertEqual(summary["incomplete_fragments"], 4)
+        messages = [issue.message for issue in diagnostics]
+        self.assertTrue(any("序号不连续" in message for message in messages))
+        self.assertTrue(any("timestamp 已切换" in message for message in messages))
+        self.assertTrue(any("分片缺少起始包" in message for message in messages))
+        self.assertTrue(any("PCAP 结束" in message for message in messages))
+
+        malformed = RtpVideoPayloadAnalyzer({96: "h264"})
+        malformed.add_packet(packet(40), b"\x78\x00\x10\x67\x42", ParseNode("RTP", "rtp", 0, 64))
+        malformed_summary, malformed_diagnostics = malformed.finalize()
+        self.assertEqual(malformed_summary["issue_count"], 1)
+        self.assertIn("STAP-A NALU 长度越界", malformed_diagnostics[0].message)
+
     def test_transport_session_sequence_wraparound(self):
         tracker = TransportSessionTracker()
         base = {
@@ -995,6 +1086,7 @@ class ParserTests(unittest.TestCase):
         self.assertIn("G:\\AVScope\\samples", samples)
         self.assertIn("sample.mp4", samples)
         self.assertIn("sample_rtp_anomalies.pcap", samples)
+        self.assertIn("sample_rtp_video.pcap", samples)
         self.assertIn("sample_h264_issues.h264", samples)
         empty_state = format_empty_state_text()
         self.assertIn("工作区待命", empty_state)
@@ -1237,6 +1329,13 @@ class ParserTests(unittest.TestCase):
         self.assertIn("sample_wav_report.json", names)
         self.assertIn("sample_wav_report.csv", names)
         self.assertIn("sample_mp4_report.html", names)
+        self.assertIn("sample_rtp_video_report.html", names)
+        self.assertIn("sample_rtp_video_report.json", names)
+        self.assertIn("sample_rtp_video_report.csv", names)
+        self.assertIn(
+            "RTP H.264/H.265 视频负载",
+            (report_root / "dist" / "sample-reports" / "sample_rtp_video_report.html").read_text(encoding="utf-8"),
+        )
         self.assertIn("sample_protocol_compare.json", names)
         for path in outputs:
             self.assertTrue(path.exists(), str(path))

@@ -418,7 +418,59 @@ QWidget *MainWindow::buildWorkspace()
         m_tabs->setCurrentWidget(m_hexView);
         m_statusText->setText(tr("传输会话首包  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
     });
-    transportLayout->addWidget(m_transportSessionsTable, 1);
+    m_transportDetails = new QTabWidget;
+    m_transportDetails->setDocumentMode(true);
+    m_transportDetails->addTab(m_transportSessionsTable, tr("会话质量"));
+
+    auto *videoPayloadPanel = new QWidget;
+    auto *videoPayloadLayout = new QVBoxLayout(videoPayloadPanel);
+    videoPayloadLayout->setContentsMargins(8, 8, 8, 8);
+    videoPayloadLayout->setSpacing(7);
+    m_rtpVideoSummary = new QLabel(tr("当前文件没有可识别的 RTP H.264/H.265 视频负载"));
+    m_rtpVideoSummary->setObjectName("sectionHint");
+    m_rtpVideoSummary->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    videoPayloadLayout->addWidget(m_rtpVideoSummary);
+    m_rtpVideoStreamsTable = new QTableWidget;
+    m_rtpVideoStreamsTable->setColumnCount(8);
+    m_rtpVideoStreamsTable->setHorizontalHeaderLabels({
+        tr("状态"), tr("编码"), "SSRC", "Packetization", tr("NALU 类型"),
+        tr("包 / NALU"), tr("完成 / 未完成"), tr("问题")
+    });
+    m_rtpVideoStreamsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_rtpVideoStreamsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_rtpVideoStreamsTable->setAlternatingRowColors(true);
+    m_rtpVideoStreamsTable->setSortingEnabled(true);
+    m_rtpVideoStreamsTable->verticalHeader()->hide();
+    m_rtpVideoStreamsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_rtpVideoStreamsTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    m_rtpVideoStreamsTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
+    connect(m_rtpVideoStreamsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 12);
+        m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("RTP 视频负载  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    videoPayloadLayout->addWidget(m_rtpVideoStreamsTable, 1);
+    m_transportDetails->addTab(videoPayloadPanel, tr("视频负载"));
+
+    m_rtpVideoIssuesTable = new QTableWidget;
+    m_rtpVideoIssuesTable->setColumnCount(3);
+    m_rtpVideoIssuesTable->setHorizontalHeaderLabels({tr("状态"), "Offset", tr("问题")});
+    m_rtpVideoIssuesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_rtpVideoIssuesTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_rtpVideoIssuesTable->setAlternatingRowColors(true);
+    m_rtpVideoIssuesTable->verticalHeader()->hide();
+    m_rtpVideoIssuesTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_rtpVideoIssuesTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_rtpVideoIssuesTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    connect(m_rtpVideoIssuesTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 8);
+        m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("RTP 视频负载问题  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    m_transportDetails->addTab(m_rtpVideoIssuesTable, tr("负载问题"));
+    transportLayout->addWidget(m_transportDetails, 1);
     m_tabs->addTab(transportPanel, tr("传输会话"));
 
     auto *codecHealthPanel = new QWidget;
@@ -1063,6 +1115,7 @@ void MainWindow::loadDocument(const QJsonDocument &document)
     populateFrames(frames);
     populateStreams(media.value("summary").toObject().value("ffprobe").toObject().value("streams").toArray());
     populateTransportSessions(media.value("summary").toObject().value("transport_sessions").toObject());
+    populateRtpVideo(media.value("summary").toObject().value("rtp_video").toObject());
     populateCodecHealth(media.value("summary").toObject().value("codec_health").toObject());
     populateDiagnostics(diagnostics, media);
     m_timeline->setData(frames, media.value("summary").toObject().value("timeline_summary").toObject());
@@ -1082,6 +1135,13 @@ void MainWindow::loadDocument(const QJsonDocument &document)
         const int index = requestedTab.toInt(&ok);
         if (ok && index >= 0 && index < m_tabs->count())
             m_tabs->setCurrentIndex(index);
+    }
+    const auto requestedTransportTab = qEnvironmentVariable("AVSCOPE_TRANSPORT_DETAIL_TAB");
+    if (!requestedTransportTab.isEmpty() && m_transportDetails) {
+        bool ok = false;
+        const int index = requestedTransportTab.toInt(&ok);
+        if (ok && index >= 0 && index < m_transportDetails->count())
+            m_transportDetails->setCurrentIndex(index);
     }
 }
 
@@ -1343,6 +1403,78 @@ void MainWindow::filterTransportSessions()
             {"total", m_transportSessionsTable->rowCount()},
             {"issues_only", issuesOnly},
         };
+        QFile file(statePath);
+        QDir().mkpath(QFileInfo(statePath).absolutePath());
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+    }
+}
+
+void MainWindow::populateRtpVideo(const QJsonObject &video)
+{
+    if (!m_rtpVideoStreamsTable || !m_rtpVideoIssuesTable || !m_rtpVideoSummary) return;
+    const auto streams = video.value("streams").toArray();
+    const auto issues = video.value("issues").toArray();
+    const auto objectText = [](const QJsonObject &object) {
+        QStringList values;
+        for (auto it = object.begin(); it != object.end(); ++it)
+            values << QString("%1 %2").arg(it.key(), displayValue(it.value()));
+        return values.isEmpty() ? QString("--") : values.join(", ");
+    };
+    m_rtpVideoStreamsTable->setSortingEnabled(false);
+    m_rtpVideoStreamsTable->setRowCount(streams.size());
+    for (int row = 0; row < streams.size(); ++row) {
+        const auto stream = streams.at(row).toObject();
+        const bool warning = stream.value("status").toString() == "warning";
+        const qint64 offset = jsonInteger(stream.value("first_offset"));
+        const QStringList values = {
+            warning ? tr("警告") : tr("正常"), stream.value("codec").toString(), stream.value("ssrc").toString(),
+            objectText(stream.value("packetization_counts").toObject()), objectText(stream.value("nal_type_counts").toObject()),
+            tr("%1 / %2").arg(jsonInteger(stream.value("packets"))).arg(jsonInteger(stream.value("nal_units"))),
+            tr("%1 / %2").arg(jsonInteger(stream.value("completed_fragments"))).arg(jsonInteger(stream.value("incomplete_fragments"))),
+            displayValue(stream.value("issue_count")),
+        };
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setData(OffsetRole, offset);
+            cell->setData(Qt::UserRole + 10, stream.value("status").toString());
+            cell->setToolTip(tr("%1\n首个 Payload Offset 0x%2")
+                                 .arg(stream.value("endpoint").toString()).arg(offset, 0, 16).toUpper());
+            if (warning) cell->setForeground(QColor(m_dark ? "#F5C76B" : "#8A5A00"));
+            else if (column == 0) cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
+            else if (column == 1) cell->setForeground(QColor(m_dark ? "#7CC9F3" : "#176A99"));
+            m_rtpVideoStreamsTable->setItem(row, column, cell);
+        }
+        m_rtpVideoStreamsTable->item(row, 7)->setData(Qt::EditRole, jsonInteger(stream.value("issue_count")));
+    }
+    m_rtpVideoStreamsTable->setSortingEnabled(true);
+
+    m_rtpVideoIssuesTable->setRowCount(issues.size());
+    for (int row = 0; row < issues.size(); ++row) {
+        const auto issue = issues.at(row).toObject();
+        const qint64 offset = jsonInteger(issue.value("offset"));
+        const QStringList values = {tr("警告"), QString("0x%1").arg(offset, 0, 16).toUpper(), issue.value("message").toString()};
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setData(OffsetRole, offset);
+            cell->setForeground(QColor(m_dark ? "#F5C76B" : "#8A5A00"));
+            m_rtpVideoIssuesTable->setItem(row, column, cell);
+        }
+    }
+    QStringList codecs;
+    for (const auto &codec : video.value("codecs").toArray()) codecs << codec.toString();
+    m_rtpVideoSummary->setText(
+        streams.isEmpty() ? tr("当前文件没有可识别的 RTP H.264/H.265 视频负载")
+                          : tr("视频流 %1  |  编码 %2  |  RTP %3 包  |  NALU %4  |  完成分片 %5  |  未完成 %6  |  问题 %7")
+                                .arg(streams.size()).arg(codecs.join(" / ")).arg(jsonInteger(video.value("packets")))
+                                .arg(jsonInteger(video.value("nal_units"))).arg(jsonInteger(video.value("completed_fragments")))
+                                .arg(jsonInteger(video.value("incomplete_fragments"))).arg(issues.size()));
+
+    const QString statePath = qEnvironmentVariable("AVSCOPE_RTP_VIDEO_STATE");
+    if (!statePath.isEmpty()) {
+        QJsonObject state{{"streams", streams.size()}, {"issues", issues.size()}, {"nal_units", video.value("nal_units")},
+                          {"completed_fragments", video.value("completed_fragments")},
+                          {"incomplete_fragments", video.value("incomplete_fragments")}, {"codecs", video.value("codecs")}};
         QFile file(statePath);
         QDir().mkpath(QFileInfo(statePath).absolutePath());
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))

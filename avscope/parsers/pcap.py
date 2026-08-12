@@ -4,6 +4,7 @@ from avscope.byte_source import ByteSource
 from avscope.models import FieldInfo, FrameInfo, ParseNode, ParseResult, Severity
 from avscope.parsers.base import FormatParser
 from avscope.parsers.common import error, media_info, root_node, warn
+from avscope.rtp_video import RtpVideoPayloadAnalyzer
 from avscope.transport_sessions import TransportSessionTracker
 
 
@@ -39,6 +40,7 @@ class PcapRtpParser(FormatParser):
         return source.head(4) in MAGICS
 
     def parse(self, source: ByteSource, options: dict | None = None) -> ParseResult:
+        options = options or {}
         root = root_node(source, self.name)
         diagnostics = []
         frames: list[FrameInfo] = []
@@ -69,6 +71,7 @@ class PcapRtpParser(FormatParser):
         payload_type_counts: dict[int, int] = {}
         rtcp_stats = _new_rtcp_stats()
         session_tracker = TransportSessionTracker()
+        video_analyzer = RtpVideoPayloadAnalyzer(options.get("rtp_payload_map"))
         while offset + 16 <= source.size and packet_count < MAX_VISIBLE_PACKETS:
             record_header = source.read_at(offset, 16)
             ts_sec = _u32(record_header, 0, endian)
@@ -115,6 +118,8 @@ class PcapRtpParser(FormatParser):
                 ssrc = parsed_rtp["ssrc"]
                 sequence = parsed_rtp["sequence"]
                 sequence_event = session_tracker.add_rtp(parsed_rtp)
+                payload = source.read_at(parsed_rtp["payload_offset"], parsed_rtp["payload_size"])
+                video_payload = video_analyzer.add_packet(parsed_rtp, payload, parsed_rtp["node"])
                 if sequence_event:
                     sequence_warnings += 1
                     message = _sequence_event_message(ssrc, sequence_event)
@@ -136,6 +141,11 @@ class PcapRtpParser(FormatParser):
                             "rtp_payload_type": payload_type,
                             "rtp_marker": bool(parsed_rtp["marker"]),
                             "rtp_sequence_event": sequence_event.get("kind") if sequence_event else "",
+                            "rtp_video_codec": video_payload.get("codec", ""),
+                            "rtp_packetization": video_payload.get("packetization", ""),
+                            "rtp_nal_types": video_payload.get("nal_types", []),
+                            "rtp_nal_units": video_payload.get("nal_units", 0),
+                            "rtp_video_status": video_payload.get("status", ""),
                         },
                     )
                 )
@@ -149,6 +159,9 @@ class PcapRtpParser(FormatParser):
 
         session_tracker.attach_rtcp(rtcp_stats)
         transport_sessions = session_tracker.summary()
+        rtp_video, video_diagnostics = video_analyzer.finalize()
+        _merge_rtp_video_sessions(transport_sessions, rtp_video)
+        diagnostics.extend(video_diagnostics)
         rtcp_summary = _finalize_rtcp_stats(rtcp_stats)
         root.fields.extend(
             [
@@ -159,6 +172,8 @@ class PcapRtpParser(FormatParser):
                 FieldInfo("transport_sessions", transport_sessions["session_count"]),
                 FieldInfo("warning_sessions", transport_sessions["warning_sessions"]),
                 FieldInfo("sequence_warnings", sequence_warnings),
+                FieldInfo("rtp_video_streams", rtp_video["stream_count"]),
+                FieldInfo("rtp_video_issues", rtp_video["issue_count"]),
             ]
         )
         summary = {
@@ -170,6 +185,7 @@ class PcapRtpParser(FormatParser):
             "payload_type_counts": {str(key): value for key, value in sorted(payload_type_counts.items())},
             "rtcp": rtcp_summary,
             "transport_sessions": transport_sessions,
+            "rtp_video": rtp_video,
         }
         return ParseResult(media_info(source, self.name, **summary), root, frames=frames, diagnostics=diagnostics)
 
@@ -375,6 +391,7 @@ def _parse_rtp(source: ByteSource, udp_node: ParseNode, rtp_offset: int, availab
         "ssrc": ssrc,
         "payload_offset": payload_offset,
         "payload_size": payload_size,
+        "node": node,
     }
 
 
@@ -633,6 +650,25 @@ def _sequence_event_message(ssrc: int, event: dict) -> str:
         f"RTP sequence 跳变（缺口）: ssrc=0x{ssrc:08X} expected={event.get('expected')} "
         f"current={event.get('sequence')} missing={event.get('missing')}"
     )
+
+
+def _merge_rtp_video_sessions(transport: dict, video: dict) -> None:
+    by_key = {(item.get("endpoint"), item.get("ssrc")): item for item in video.get("streams", [])}
+    for session in transport.get("sessions", []):
+        stream = by_key.get((session.get("endpoint"), session.get("ssrc")))
+        if not stream:
+            continue
+        session["video_codec"] = stream.get("codec", "")
+        session["video_nal_units"] = int(stream.get("nal_units", 0))
+        session["video_completed_fragments"] = int(stream.get("completed_fragments", 0))
+        session["video_incomplete_fragments"] = int(stream.get("incomplete_fragments", 0))
+        session["video_issue_count"] = int(stream.get("issue_count", 0))
+        session["video_status"] = stream.get("status", "normal")
+        if stream.get("status") == "warning":
+            session["status"] = "warning"
+    transport["warning_sessions"] = sum(item.get("status") == "warning" for item in transport.get("sessions", []))
+    transport["video_streams"] = int(video.get("stream_count", 0))
+    transport["video_warning_streams"] = int(video.get("warning_streams", 0))
 
 
 def _signed_24(data: bytes) -> int:
