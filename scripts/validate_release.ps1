@@ -3,10 +3,12 @@ $ErrorActionPreference = "Stop"
 $root = "G:\AVScope"
 $python = "E:\DevelopmentEnvironment\python\python.exe"
 $setup = "G:\AVScope\dist\AVScope-Setup.exe"
-$appExe = "G:\AVScope\dist\AVScope\AVScope.exe"
-$ffprobe = "G:\AVScope\dist\AVScope\_internal\ffprobe.exe"
-$ffmpeg = "G:\AVScope\dist\AVScope\_internal\ffmpeg.exe"
-$pluginTemplate = "G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json"
+$appExe = "G:\AVScope\dist\AVScopeQt\AVScope.exe"
+$engineExe = "G:\AVScope\dist\AVScopeQt\engine\AVScopeEngine.exe"
+$ffprobe = "G:\AVScope\dist\AVScopeQt\engine\_internal\ffprobe.exe"
+$ffmpeg = "G:\AVScope\dist\AVScopeQt\engine\_internal\ffmpeg.exe"
+$pluginTemplate = "G:\AVScope\dist\AVScopeQt\engine\_internal\plugins\demo_magic.json"
+$qtPlatform = "G:\AVScope\dist\AVScopeQt\platforms\qwindows.dll"
 $portableZip = "G:\AVScope\dist\AVScope-portable-win-x64.zip"
 $sourceZip = "G:\AVScope\dist\AVScope-portable-source.zip"
 $manifestPath = "G:\AVScope\dist\AVScope-release-manifest.json"
@@ -32,6 +34,12 @@ Write-Host "Root: $root"
 Write-Host "== Unit tests =="
 & $python -m unittest discover -s "$root\tests" -v
 
+Write-Host "== Qt UI build and theme validation =="
+PowerShell -ExecutionPolicy Bypass -File "$root\scripts\validate_qt_ui.ps1"
+if ($LASTEXITCODE -ne 0) {
+    throw "Qt UI build and theme validation failed"
+}
+
 Write-Host "== Sample reports =="
 PowerShell -ExecutionPolicy Bypass -File "$root\scripts\make_sample_reports.ps1"
 PowerShell -ExecutionPolicy Bypass -File "$root\scripts\make_release_manifest.ps1"
@@ -44,9 +52,11 @@ Write-Host "Sample reports OK"
 Write-Host "== Required artifacts =="
 $artifacts = @(
     $appExe,
+    $engineExe,
     $ffprobe,
     $ffmpeg,
     $pluginTemplate,
+    $qtPlatform,
     $setup,
     $portableZip,
     $sourceZip,
@@ -77,10 +87,15 @@ if ($manifest.manifest_type -ne "AVScope Release Manifest") {
     throw "Unexpected manifest type: $($manifest.manifest_type)"
 }
 $expectedManifestEntries = @(
-    "dist\AVScope\AVScope.exe",
-    "dist\AVScope\_internal\ffprobe.exe",
-    "dist\AVScope\_internal\ffmpeg.exe",
-    "dist\AVScope\_internal\plugins\demo_magic.json",
+    "dist\AVScopeQt\AVScope.exe",
+    "dist\AVScopeQt\Qt6Core.dll",
+    "dist\AVScopeQt\Qt6Gui.dll",
+    "dist\AVScopeQt\Qt6Widgets.dll",
+    "dist\AVScopeQt\platforms\qwindows.dll",
+    "dist\AVScopeQt\engine\AVScopeEngine.exe",
+    "dist\AVScopeQt\engine\_internal\ffprobe.exe",
+    "dist\AVScopeQt\engine\_internal\ffmpeg.exe",
+    "dist\AVScopeQt\engine\_internal\plugins\demo_magic.json",
     "dist\AVScope-Setup.exe",
     "dist\AVScope-portable-win-x64.zip",
     "dist\AVScope-portable-source.zip",
@@ -126,7 +141,10 @@ $bad = @(
     [string][char]0x9239,
     [string][char]0xFFFD
 )
-$sourceFiles = Get-ChildItem -Path "$root\avscope" -Recurse -Filter "*.py" -File | ForEach-Object { $_.FullName }
+$sourceFiles = @(
+    Get-ChildItem -Path "$root\avscope" -Recurse -Filter "*.py" -File
+    Get-ChildItem -Path "$root\qt" -Recurse -Include "*.cpp", "*.h" -File
+) | ForEach-Object { $_.FullName }
 foreach ($file in $sourceFiles) {
     $text = [System.IO.File]::ReadAllText($file, [System.Text.Encoding]::UTF8)
     foreach ($fragment in $bad) {
@@ -428,14 +446,20 @@ Start-Process -FilePath $setup -ArgumentList @("/S", "/D=$installDir") -Wait -Wi
 if (-not (Test-Path "$installDir\AVScope.exe")) {
     throw "Installed AVScope.exe not found"
 }
-if (-not (Test-Path "$installDir\_internal\ffprobe.exe")) {
+if (-not (Test-Path "$installDir\engine\_internal\ffprobe.exe")) {
     throw "Installed ffprobe.exe not found"
 }
-if (-not (Test-Path "$installDir\_internal\ffmpeg.exe")) {
+if (-not (Test-Path "$installDir\engine\_internal\ffmpeg.exe")) {
     throw "Installed ffmpeg.exe not found"
 }
-if (-not (Test-Path "$installDir\_internal\plugins\demo_magic.json")) {
+if (-not (Test-Path "$installDir\engine\AVScopeEngine.exe")) {
+    throw "Installed AVScopeEngine.exe not found"
+}
+if (-not (Test-Path "$installDir\engine\_internal\plugins\demo_magic.json")) {
     throw "Installed plugin template not found"
+}
+if (-not (Test-Path "$installDir\platforms\qwindows.dll")) {
+    throw "Installed Qt platform plugin not found"
 }
 $installedProcess = Start-Process -FilePath "$installDir\AVScope.exe" -WindowStyle Hidden -PassThru
 Start-Sleep -Seconds 3

@@ -14,6 +14,7 @@ if (Test-Path $appZip) {
 
 $items = @(
     "G:\AVScope\avscope",
+    "G:\AVScope\qt",
     "G:\AVScope\packaging",
     "G:\AVScope\plugins",
     "G:\AVScope\samples",
@@ -23,11 +24,12 @@ $items = @(
     "G:\AVScope\docs",
     "G:\AVScope\INSTALLATIONS.md",
     "G:\AVScope\README.md",
+    "G:\AVScope\avscope_engine.py",
     "G:\AVScope\run_avscope.py"
 )
 
 Compress-Archive -Path $items -DestinationPath $sourceZip -CompressionLevel Optimal
-Compress-Archive -Path "G:\AVScope\dist\AVScope" -DestinationPath $appZip -CompressionLevel Optimal
+Compress-Archive -Path "G:\AVScope\dist\AVScopeQt" -DestinationPath $appZip -CompressionLevel Optimal
 PowerShell -ExecutionPolicy Bypass -File "G:\AVScope\scripts\make_sample_reports.ps1"
 PowerShell -ExecutionPolicy Bypass -File "G:\AVScope\scripts\make_release_manifest.ps1"
 Write-Host $sourceZip

@@ -2,7 +2,7 @@
 
 ## 快速验收入口
 
-1. 打开绿色版主程序：`G:\AVScope\dist\AVScope\AVScope.exe`。
+1. 打开 Qt 6 主程序：`G:\AVScope\dist\AVScopeQt\AVScope.exe`。
 2. 查看完整验证报告：`G:\AVScope\dist\AVScope-validation-report.md`。
 3. 查看发布产物清单：`G:\AVScope\dist\AVScope-release-manifest.json`。
 4. 打开示例报告目录：`G:\AVScope\dist\sample-reports`。
@@ -15,8 +15,8 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 
 ## 产物位置
 
-- GUI 绿色版目录：`G:\AVScope\dist\AVScope`
-- GUI 主程序：`G:\AVScope\dist\AVScope\AVScope.exe`
+- Qt GUI 绿色版目录：`G:\AVScope\dist\AVScopeQt`
+- Qt GUI 主程序：`G:\AVScope\dist\AVScopeQt\AVScope.exe`
 - Windows 安装包：`G:\AVScope\dist\AVScope-Setup.exe`
 - 绿色版压缩包：`G:\AVScope\dist\AVScope-portable-win-x64.zip`
 - 源码压缩包：`G:\AVScope\dist\AVScope-portable-source.zip`
@@ -53,7 +53,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 
 ## 手工验收建议
 
-1. 打开 `G:\AVScope\dist\AVScope\AVScope.exe`。
+1. 打开 `G:\AVScope\dist\AVScopeQt\AVScope.exe`。
 2. 使用“打开”加载 `G:\AVScope\samples\sample.wav`。
 3. 将 `G:\AVScope\samples\sample.aac` 拖入主窗口，确认可自动打开；也可把样例文件拖到 `AVScope.exe` 图标上验证启动打开。
 4. 查看协议树、Hex、字段、帧列表、时间线、预览、诊断面板，并确认顶部摘要条和底部状态栏显示本次解析耗时。
@@ -86,7 +86,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 28. 使用“分析 / 二进制对比”对比任意两个样例文件，确认预览区显示 offset 对齐的左右 Hex/ASCII 并排差异表和 `^^` 差异标记；按 `F4` 或使用“分析 / 下一个二进制差异”确认可跳转高亮下一个差异窗口。
 29. 使用“分析 / 帧级对比”对比两个 AAC/H.264/H.265 等可提取帧列表的样例文件，确认预览区显示新增帧、删除帧和 size/PTS/DTS/duration/type/keyframe 差异，并可保存 JSON。
 30. 使用“文件 / 保存工程”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径、Raw 参数和可选用户备注。
-31. 检查绿色版目录中存在 `G:\AVScope\dist\AVScope\_internal\plugins\demo_magic.json`，并打开 `G:\AVScope\dist\AVScope-release-manifest.json` 确认安装包、绿色版、源码包和内置 FFmpeg/插件文件均记录 size 与 SHA256。
+31. 检查 Qt 绿色版目录中存在 `platforms\qwindows.dll`、`engine\AVScopeEngine.exe`、`engine\_internal\ffprobe.exe`、`ffmpeg.exe` 和 `plugins\demo_magic.json`，并打开发布清单确认安装包、绿色版、源码包、Qt DLL、引擎与插件文件均记录 size 和 SHA256。
 32. 打开 `G:\AVScope\dist\sample-reports\sample_wav_report.html` 和 `G:\AVScope\dist\sample-reports\sample_mp4_report.json`，确认交付目录包含示例分析报告。
 33. 打开 `G:\AVScope\dist\AVScope-validation-report.md`，确认一键验证通过项和关键产物大小已写入测试报告。
 34. 导出 HTML/JSON/CSV 报告并打开检查，确认可选用户备注会写入报告；HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含音频波形图、结构化统计摘要表、帧/packet 大小图和“帧列表”章节；CSV 应包含 `media`、`notes`、`diagnostic`、`timeline_issue`、`frame_stats`、`packet_stats`、`frame`、`packet`、`node`、`field` 等 section。

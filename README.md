@@ -1,10 +1,12 @@
 # AVScope
 
+当前桌面界面采用原生 `C++20 + Qt 6.9 Widgets + CMake/Ninja`。协议解析、诊断与报告核心继续由 Python 模块提供，Qt 与解析核心通过结构化 JSON 契约解耦。
+
 AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本使用 Python 标准库实现，优先保证在现有电脑环境中可运行，不需要安装新依赖。
 
 ## 明早验收入口
 
-- 直接运行绿色版：`G:\AVScope\dist\AVScope\AVScope.exe`
+- 直接运行 Qt 6 绿色版：`G:\AVScope\dist\AVScopeQt\AVScope.exe`
 - 安装包：`G:\AVScope\dist\AVScope-Setup.exe`，默认安装到 `G:\AVScopeInstalled\AVScope`
 - 完整验证报告：`G:\AVScope\dist\AVScope-validation-report.md`
 - 发布产物清单：`G:\AVScope\dist\AVScope-release-manifest.json`
@@ -74,6 +76,16 @@ E:\DevelopmentEnvironment\python\python.exe run_avscope.py
 G:\AVScope\scripts\run_avscope.bat
 ```
 
+以上入口默认启动 Qt 6 工作台。构建、部署和双主题界面验证：
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\build_qt.ps1
+PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\deploy_qt.ps1
+PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1
+```
+
+Qt 工具链复用电脑已有的 `E:\QT\6.9.0`、MinGW 13.1、CMake 和 Ninja，本轮没有安装新工具。旧 Tk 界面仅保留为未构建源码环境的兼容回退。
+
 Windows 桌面端支持把媒体文件直接拖入窗口打开；也支持把文件拖到 `AVScope.exe` 图标上启动打开。
 
 ## 命令行
@@ -130,13 +142,14 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 
 ```text
 G:\AVScope
+├── qt\                  Qt 6/C++20 现代桌面 UI
 ├── avscope\             核心代码与桌面 UI
 │   ├── parsers\         格式解析器
 │   ├── analyzer.py      格式识别与解析入口
 │   ├── byte_source.py   大文件随机读取抽象
 │   ├── compare.py       二进制对比
 │   ├── report.py        HTML/JSON/CSV 报告
-│   └── app.py           Tkinter 桌面 UI
+│   └── app.py           旧 Tk 兼容 UI
 ├── tests\               单元测试
 ├── samples\             示例文件目录
 ├── packaging\           打包说明

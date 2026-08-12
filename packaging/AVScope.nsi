@@ -6,7 +6,7 @@ RequestExecutionLevel user
 
 !define APP_NAME "AVScope"
 !define APP_EXE "AVScope.exe"
-!define SOURCE_DIR "G:\AVScope\dist\AVScope"
+!define SOURCE_DIR "G:\AVScope\dist\AVScopeQt"
 
 Page directory
 Page instfiles

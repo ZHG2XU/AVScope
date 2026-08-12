@@ -1,11 +1,10 @@
 # Packaging
 
-AVScope MVP 当前不主动安装新工具。
+AVScope 当前使用 `C++20 + Qt 6.9 Widgets` 桌面层，并将 Python 解析核心打包为同目录 `AVScopeEngine.exe` 侧车。
 
-可选打包路径：
+- `scripts/build_qt.ps1`：使用现有 Qt 6.9、CMake、Ninja 和 MinGW 构建桌面程序。
+- `scripts/build_qt_engine.ps1`：使用现有 PyInstaller 打包解析引擎，并携带 ffprobe/ffmpeg。
+- `scripts/deploy_qt.ps1`：生成 `dist/AVScopeQt` 独立运行目录。
+- `packaging/AVScope.nsi`：从 `dist/AVScopeQt` 制作 Windows 安装包。
 
-- PyInstaller：将 `run_avscope.py` 打成绿色版 `.exe`，并携带现有 `ffprobe.exe` / `ffmpeg.exe`。
-- NSIS 或 WiX：制作 Windows 安装包。
-- Qt/C++ 迁移路线：当本机有 Qt 6/qmake/CMake package 后，可把当前 core/parser 模型迁移到 C++17/Qt Widgets。
-
-需要安装 PyInstaller、NSIS、WiX 或 Qt 时，开发 Agent 必须先询问用户。
+Qt、PyInstaller、NSIS 均复用 E 盘现有工具。需要安装或更新任何工具时，开发 Agent 必须先询问用户。

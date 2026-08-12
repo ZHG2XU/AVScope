@@ -46,3 +46,14 @@ Packages installed under `E:\AVScopeTools\python-packages`:
 PyInstaller is used to produce a Windows executable build of AVScope without installing files on `C:\`.
 
 NSIS is used from its portable zip distribution to produce `G:\AVScope\dist\AVScope-Setup.exe`.
+
+## Existing Qt Environment Reused
+
+No new Qt files were installed by this refactor. The following pre-existing E-drive toolchain is used:
+
+- `E:\QT\6.9.0\mingw_64` - Qt 6.9.0 libraries and deployment tools
+- `E:\QT\Tools\mingw1310_64` - MinGW 13.1 C++ compiler
+- `E:\QT\Tools\CMake_64` - CMake
+- `E:\QT\Tools\Ninja` - Ninja build tool
+
+The Qt source, build cache, runtime output, screenshots, and temporary analysis JSON remain under `G:\AVScope`.

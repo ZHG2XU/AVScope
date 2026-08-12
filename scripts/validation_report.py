@@ -6,10 +6,15 @@ from pathlib import Path
 
 
 DEFAULT_ARTIFACTS = [
-    "dist/AVScope/AVScope.exe",
-    "dist/AVScope/_internal/ffprobe.exe",
-    "dist/AVScope/_internal/ffmpeg.exe",
-    "dist/AVScope/_internal/plugins/demo_magic.json",
+    "dist/AVScopeQt/AVScope.exe",
+    "dist/AVScopeQt/Qt6Core.dll",
+    "dist/AVScopeQt/Qt6Gui.dll",
+    "dist/AVScopeQt/Qt6Widgets.dll",
+    "dist/AVScopeQt/platforms/qwindows.dll",
+    "dist/AVScopeQt/engine/AVScopeEngine.exe",
+    "dist/AVScopeQt/engine/_internal/ffprobe.exe",
+    "dist/AVScopeQt/engine/_internal/ffmpeg.exe",
+    "dist/AVScopeQt/engine/_internal/plugins/demo_magic.json",
     "dist/AVScope-Setup.exe",
     "dist/AVScope-portable-win-x64.zip",
     "dist/AVScope-portable-source.zip",
@@ -25,6 +30,10 @@ DEFAULT_ARTIFACTS = [
 ]
 
 VALIDATED_CHECKS = [
+    "Qt 6/C++20 UI build smoke test",
+    "Qt dark/light theme Windows screenshot and high-DPI smoke test",
+    "Qt protocol tree full field/value data contract smoke test",
+    "Deployed Qt UI and bundled AVScopeEngine sidecar smoke test",
     "Timeline issue filter, row highlight and reason label helper smoke test",
     "Preview timeline issue summary helper smoke test",
     "HTML frame and packet issue reason column smoke test",
