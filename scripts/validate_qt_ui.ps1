@@ -87,7 +87,7 @@ $transportScreenshot = "$output\transport-sessions.png"
 $transportJson = "$output\transport-sessions.json"
 $transportState = "$output\transport-sessions-state.json"
 Remove-Item -LiteralPath $transportScreenshot, $transportJson, $transportState -Force -ErrorAction SilentlyContinue
-$env:AVSCOPE_START_TAB = "8"
+$env:AVSCOPE_START_TAB = "9"
 $env:AVSCOPE_TRANSPORT_ISSUES_ONLY = "1"
 $env:AVSCOPE_TRANSPORT_STATE = $transportState
 $env:AVSCOPE_SCREENSHOT = $transportScreenshot
@@ -106,7 +106,7 @@ $rtpVideoScreenshot = "$output\rtp-video-payload.png"
 $rtpVideoJson = "$output\rtp-video-payload.json"
 $rtpVideoState = "$output\rtp-video-payload-state.json"
 Remove-Item -LiteralPath $rtpVideoScreenshot, $rtpVideoJson, $rtpVideoState -Force -ErrorAction SilentlyContinue
-$env:AVSCOPE_START_TAB = "8"
+$env:AVSCOPE_START_TAB = "9"
 $env:AVSCOPE_TRANSPORT_DETAIL_TAB = "1"
 $env:AVSCOPE_RTP_VIDEO_STATE = $rtpVideoState
 $env:AVSCOPE_SCREENSHOT = $rtpVideoScreenshot
@@ -125,7 +125,7 @@ $sipSdpScreenshot = "$output\sip-sdp-signaling.png"
 $sipSdpJson = "$output\sip-sdp-signaling.json"
 $sipSdpState = "$output\sip-sdp-signaling-state.json"
 Remove-Item -LiteralPath $sipSdpScreenshot, $sipSdpJson, $sipSdpState -Force -ErrorAction SilentlyContinue
-$env:AVSCOPE_START_TAB = "8"
+$env:AVSCOPE_START_TAB = "9"
 $env:AVSCOPE_TRANSPORT_DETAIL_TAB = "3"
 $env:AVSCOPE_SIP_SDP_STATE = $sipSdpState
 $env:AVSCOPE_SCREENSHOT = $sipSdpScreenshot
@@ -144,7 +144,7 @@ $rtcpFeedbackScreenshot = "$output\rtcp-feedback.png"
 $rtcpFeedbackJson = "$output\rtcp-feedback.json"
 $rtcpFeedbackState = "$output\rtcp-feedback-state.json"
 Remove-Item -LiteralPath $rtcpFeedbackScreenshot, $rtcpFeedbackJson, $rtcpFeedbackState -Force -ErrorAction SilentlyContinue
-$env:AVSCOPE_START_TAB = "8"
+$env:AVSCOPE_START_TAB = "9"
 $env:AVSCOPE_TRANSPORT_DETAIL_TAB = "4"
 $env:AVSCOPE_RTCP_FEEDBACK_STATE = $rtcpFeedbackState
 $env:AVSCOPE_SCREENSHOT = $rtcpFeedbackScreenshot
@@ -163,7 +163,7 @@ $rtpTimingScreenshot = "$output\rtp-timing.png"
 $rtpTimingJson = "$output\rtp-timing.json"
 $rtpTimingState = "$output\rtp-timing-state.json"
 Remove-Item -LiteralPath $rtpTimingScreenshot, $rtpTimingJson, $rtpTimingState -Force -ErrorAction SilentlyContinue
-$env:AVSCOPE_START_TAB = "8"
+$env:AVSCOPE_START_TAB = "9"
 $env:AVSCOPE_TRANSPORT_DETAIL_TAB = "5"
 $env:AVSCOPE_RTP_TIMING_STATE = $rtpTimingState
 $env:AVSCOPE_SCREENSHOT = $rtpTimingScreenshot
@@ -182,7 +182,7 @@ $twccScreenshot = "$output\rtcp-twcc.png"
 $twccJson = "$output\rtcp-twcc.json"
 $twccState = "$output\rtcp-twcc-state.json"
 Remove-Item -LiteralPath $twccScreenshot, $twccJson, $twccState -Force -ErrorAction SilentlyContinue
-$env:AVSCOPE_START_TAB = "8"
+$env:AVSCOPE_START_TAB = "9"
 $env:AVSCOPE_TRANSPORT_DETAIL_TAB = "6"
 $env:AVSCOPE_TWCC_STATE = $twccState
 $env:AVSCOPE_SCREENSHOT = $twccScreenshot
@@ -201,7 +201,7 @@ $codecH264Screenshot = "$output\codec-health-h264.png"
 $codecH264Json = "$output\codec-health-h264.json"
 $codecH264State = "$output\codec-health-h264-state.json"
 Remove-Item -LiteralPath $codecH264Screenshot, $codecH264Json, $codecH264State -Force -ErrorAction SilentlyContinue
-$env:AVSCOPE_START_TAB = "9"
+$env:AVSCOPE_START_TAB = "10"
 $env:AVSCOPE_THEME = "dark"
 $env:AVSCOPE_CODEC_HEALTH_STATE = $codecH264State
 $env:AVSCOPE_SCREENSHOT = $codecH264Screenshot
@@ -360,14 +360,37 @@ if (-not (Test-Path -LiteralPath $compareScreenshot)) {
 }
 Copy-Item -LiteralPath "$root\tmp\qt-runtime\compare-protocol.json" -Destination $compareJson -Force
 Remove-Item Env:\AVSCOPE_COMPARE_MODE, Env:\AVSCOPE_COMPARE_PATH -ErrorAction SilentlyContinue
+
+$hexCompareScreenshot = "$output\compare-binary-hex.png"
+$hexCompareJson = "$output\compare-binary-hex.json"
+$hexCompareState = "$output\compare-binary-hex-state.json"
+Remove-Item -LiteralPath $hexCompareScreenshot, $hexCompareJson, $hexCompareState -Force -ErrorAction SilentlyContinue
+$env:AVSCOPE_COMPARE_MODE = "binary"
+$env:AVSCOPE_COMPARE_PATH = "$root\samples\sample_changed.mp4"
+$env:AVSCOPE_HEX_COMPARE_NEXT = "1"
+$env:AVSCOPE_HEX_COMPARE_STATE = $hexCompareState
+$env:AVSCOPE_SCREENSHOT = $hexCompareScreenshot
+$hexCompareProcess = Start-Process -FilePath $executable -ArgumentList "$root\samples\sample.mp4" -WindowStyle Hidden -PassThru
+if (-not $hexCompareProcess.WaitForExit(10000)) {
+    $hexCompareProcess.Kill()
+    throw "Qt binary Hex compare smoke test timed out"
+}
+if (-not (Test-Path -LiteralPath $hexCompareScreenshot, $hexCompareState)) {
+    throw "Qt binary Hex compare screenshot or state was not generated"
+}
+Copy-Item -LiteralPath "$root\tmp\qt-runtime\compare-binary.json" -Destination $hexCompareJson -Force
+Remove-Item Env:\AVSCOPE_COMPARE_MODE, Env:\AVSCOPE_COMPARE_PATH, Env:\AVSCOPE_HEX_COMPARE_NEXT, Env:\AVSCOPE_HEX_COMPARE_STATE -ErrorAction SilentlyContinue
 Remove-Item Env:\AVSCOPE_WINDOW_WIDTH, Env:\AVSCOPE_WINDOW_HEIGHT -ErrorAction SilentlyContinue
 
 $env:PYTHONPATH = $root
-& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png'),Path(r'$output/timeline-pcap.png'),Path(r'$output/pcap-rtcp-preview.png'),Path(r'$output/transport-sessions.png'),Path(r'$output/rtp-video-payload.png'),Path(r'$output/sip-sdp-signaling.png'),Path(r'$output/rtcp-feedback.png'),Path(r'$output/rtp-timing.png'),Path(r'$output/rtcp-twcc.png'),Path(r'$output/codec-health-h264.png'),Path(r'$output/codec-health-h265.png'),Path(r'$output/media-streams.png'),Path(r'$output/diagnostic-filter.png'),Path(r'$output/raw-pcm.png'),Path(r'$output/raw-yuv.png'),Path(r'$output/raw-yuv-frame-2.png'),Path(r'$output/project-snapshot.png'),Path(r'$output/compare-protocol.png')]; dims=[png_dimensions(p) for p in paths]; assert len(set(dims)) == 1, dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; assert all(p.stat().st_size > 50000 for p in paths), [(p.name,p.stat().st_size) for p in paths]; compact=Path(r'$compactScreenshot'); compact_dims=png_dimensions(compact); assert compact_dims == (1680,1080), compact_dims; assert compact.stat().st_size > 40000; settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'dimensions': dims, 'compact': {'path': str(compact), 'dimensions': compact_dims}, 'dpi_scale': round(width / 1560, 2), 'settings': str(settings)})"
+& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png'),Path(r'$output/timeline-pcap.png'),Path(r'$output/pcap-rtcp-preview.png'),Path(r'$output/transport-sessions.png'),Path(r'$output/rtp-video-payload.png'),Path(r'$output/sip-sdp-signaling.png'),Path(r'$output/rtcp-feedback.png'),Path(r'$output/rtp-timing.png'),Path(r'$output/rtcp-twcc.png'),Path(r'$output/codec-health-h264.png'),Path(r'$output/codec-health-h265.png'),Path(r'$output/media-streams.png'),Path(r'$output/diagnostic-filter.png'),Path(r'$output/raw-pcm.png'),Path(r'$output/raw-yuv.png'),Path(r'$output/raw-yuv-frame-2.png'),Path(r'$output/project-snapshot.png'),Path(r'$output/compare-protocol.png'),Path(r'$hexCompareScreenshot')]; dims=[png_dimensions(p) for p in paths]; assert len(set(dims)) == 1, dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; assert all(p.stat().st_size > 50000 for p in paths), [(p.name,p.stat().st_size) for p in paths]; compact=Path(r'$compactScreenshot'); compact_dims=png_dimensions(compact); assert compact_dims == (1680,1080), compact_dims; assert compact.stat().st_size > 40000; settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'dimensions': dims, 'compact': {'path': str(compact), 'dimensions': compact_dims}, 'dpi_scale': round(width / 1560, 2), 'settings': str(settings)})"
 if ($LASTEXITCODE -ne 0) { throw "Qt screenshot validation failed" }
 
 & "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; document=json.loads(Path(r'$root/tmp/qt-runtime/current-analysis.json').read_text(encoding='utf-8')); root=document['root']; assert root['children'] and root['children'][0]['fields']; streams=json.loads(Path(r'$streamsJson').read_text(encoding='utf-8'))['media']['summary']['ffprobe']['streams']; assert len(streams)==1 and streams[0]['codec_name']=='pcm_s16le' and streams[0]['sample_rate']=='8000', streams; diagnostic=json.loads(Path(r'$diagnosticJson').read_text(encoding='utf-8')); issues=[i for i in diagnostic['diagnostics'] if i['severity']=='warning' and i.get('offset') is not None]; assert issues and any('chunk offset' in i['message'] for i in issues), issues; state=json.loads(Path(r'$diagnosticState').read_text(encoding='utf-8')); assert state=={'visible':1,'total':3,'severity':'warning','source':'all','offset_only':True}, state; pcm=json.loads(Path(r'$rawPcmJson').read_text(encoding='utf-8'))['media']['summary']; assert (pcm['sample_rate'],pcm['channels'],pcm['bits_per_sample'],pcm['endian']) == (8000,1,16,'little'), pcm; yuv=json.loads(Path(r'$rawYuvJson').read_text(encoding='utf-8'))['media']['summary']; assert (yuv['width'],yuv['height'],yuv['pixel_format'],yuv['fps'],yuv['frames']) == (64,48,'yuv420p',30.0,3), yuv; yuv_next=json.loads(Path(r'$rawYuvNextJson').read_text(encoding='utf-8'))['media']['summary']['yuv_preview']; assert yuv_next['frame_index']==1 and yuv_next['total_frames']==3, yuv_next; snapshot=json.loads(Path(r'$snapshotPath').read_text(encoding='utf-8')); assert snapshot['analysis']['root']['children'] and snapshot['source_path'].endswith('sample.mp4') and len(snapshot['bookmarks'])==2; compare=json.loads(Path(r'$compareJson').read_text(encoding='utf-8')); assert len(compare['added']) == 1 and len(compare['changed']) >= 1, compare; print({'nodes': len(root['children']), 'first_fields': len(root['children'][0]['fields']), 'media_streams': streams, 'diagnostic_filter': state, 'raw_pcm': {k:pcm[k] for k in ('sample_rate','channels','bits_per_sample','endian')}, 'raw_yuv': {k:yuv[k] for k in ('width','height','pixel_format','fps','frames')}, 'yuv_navigation': yuv_next['frame_index'], 'project_snapshot': {'source':snapshot['source_path'],'bookmarks':len(snapshot['bookmarks'])}, 'protocol_compare': {k:len(compare[k]) for k in ('added','removed','changed')}})"
 if ($LASTEXITCODE -ne 0) { throw "Qt protocol tree data contract is incomplete" }
+
+& "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; result=json.loads(Path(r'$hexCompareJson').read_text(encoding='utf-8')); state=json.loads(Path(r'$hexCompareState').read_text(encoding='utf-8')); assert result['left_size']==555 and result['right_size']==563 and len(result['chunks'])==2, result; assert state['difference_count']==2 and state['focus_offset']==538 and state['window_offset']==0 and state['synchronized_scrolling'] is True, state; assert state['left_path'].endswith('sample.mp4') and state['right_path'].endswith('sample_changed.mp4'), state; print({'binary_hex_compare': state})"
+if ($LASTEXITCODE -ne 0) { throw "Qt dual-pane Hex compare contract is incomplete" }
 
 & "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from collections import Counter; from pathlib import Path; document=json.loads(Path(r'$rtcpPreviewJson').read_text(encoding='utf-8')); summary=document['media']['summary']; rtcp=summary['rtcp']; walk=lambda node:[node]+[item for child in node.get('children',[]) for item in walk(child)]; nodes=walk(document['root']); types=Counter(node['node_type'] for node in nodes); assert (summary['packets'],summary['rtp_packets'],summary['rtcp_packets'])==(3,2,2), summary; assert (rtcp['sender_reports'],rtcp['receiver_reports'],rtcp['report_blocks'])==(1,1,2), rtcp; assert rtcp['max_interarrival_jitter']==90 and rtcp['max_delay_since_last_sr_seconds']==0.5, rtcp; required={'ethernet':3,'ipv4':3,'udp':3,'rtp':2,'rtcp_compound':1,'rtcp_packet':2,'rtcp_report_block':2}; assert all(types[key]==value for key,value in required.items()), (types,required); assert all(node.get('fields') for node in nodes if node['node_type'] in required), types; print({'pcap': {k:summary[k] for k in ('packets','rtp_packets','rtcp_packets')}, 'rtcp': rtcp, 'node_types': dict(types)})"
 if ($LASTEXITCODE -ne 0) { throw "Qt RTCP protocol tree or preview contract is incomplete" }

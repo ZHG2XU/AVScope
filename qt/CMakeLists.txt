@@ -16,6 +16,8 @@ qt_add_executable(AVScopeQt WIN32
     src/MediaPreviewWidget.h
     src/TimelineWidget.cpp
     src/TimelineWidget.h
+    src/HexCompareWidget.cpp
+    src/HexCompareWidget.h
 )
 
 target_link_libraries(AVScopeQt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)

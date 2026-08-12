@@ -8,6 +8,7 @@
 #include <QSettings>
 
 class QLabel;
+class QAction;
 class QCheckBox;
 class QComboBox;
 class QLineEdit;
@@ -22,6 +23,7 @@ class QTreeWidget;
 class QTreeWidgetItem;
 class TimelineWidget;
 class MediaPreviewWidget;
+class HexCompareWidget;
 
 class MainWindow final : public QMainWindow
 {
@@ -74,13 +76,13 @@ private:
     QWidget *buildWorkspace();
     QWidget *buildInspector();
     QWidget *makeMetricCard(const QString &label, QLabel **valueLabel, const QString &accent);
-    void applyTheme(bool dark);
+    void applyTheme(bool dark, bool persist = true);
     void loadDocument(const QJsonDocument &document);
     bool loadProjectSnapshot(const QString &path);
     void populateProtocolTree(const QJsonObject &node, QTreeWidgetItem *parent = nullptr);
     void populateFields(const QJsonObject &node);
     void populateFrames(const QJsonArray &frames);
-    void populateStreams(const QJsonArray &streams);
+    void populateStreams(const QJsonObject &media, const QJsonArray &frames);
     void populateTransportSessions(const QJsonObject &transport);
     void populateRtpVideo(const QJsonObject &video);
     void populateSipSdp(const QJsonObject &signaling);
@@ -138,6 +140,7 @@ private:
     QTreeWidget *m_protocolTree = nullptr;
     QTableWidget *m_fieldsTable = nullptr;
     QTableWidget *m_framesTable = nullptr;
+    QWidget *m_framesPanel = nullptr;
     QTableWidget *m_streamsTable = nullptr;
     QTableWidget *m_transportSessionsTable = nullptr;
     QTableWidget *m_rtpVideoStreamsTable = nullptr;
@@ -157,6 +160,7 @@ private:
     QTableWidget *m_codecResolutionsTable = nullptr;
     QTableWidget *m_bookmarksTable = nullptr;
     QTreeWidget *m_compareTree = nullptr;
+    HexCompareWidget *m_hexCompare = nullptr;
     QPlainTextEdit *m_hexView = nullptr;
     MediaPreviewWidget *m_preview = nullptr;
     QTableWidget *m_diagnosticsTable = nullptr;
@@ -165,6 +169,7 @@ private:
     QCheckBox *m_diagnosticOffsetOnly = nullptr;
     QCheckBox *m_transportIssuesOnly = nullptr;
     QLabel *m_diagnosticSummary = nullptr;
+    QLabel *m_framesSummary = nullptr;
     QLabel *m_transportSummary = nullptr;
     QLabel *m_rtpVideoSummary = nullptr;
     QLabel *m_sipSdpSummary = nullptr;
@@ -194,6 +199,8 @@ private:
     QPushButton *m_darkButton = nullptr;
     QPushButton *m_lightButton = nullptr;
     QPushButton *m_cancelButton = nullptr;
+    QAction *m_darkThemeAction = nullptr;
+    QAction *m_lightThemeAction = nullptr;
     QJsonArray m_bookmarks;
     QJsonArray m_diagnostics;
 };

@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "HexCompareWidget.h"
 #include "MediaPreviewWidget.h"
 #include "TimelineWidget.h"
 
@@ -86,7 +87,9 @@ MainWindow::MainWindow(QWidget *parent)
     buildUi();
     buildMenus();
     buildShortcuts();
-    applyTheme(qEnvironmentVariable("AVSCOPE_THEME").compare("light", Qt::CaseInsensitive) != 0);
+    const QString requestedTheme = qEnvironmentVariable("AVSCOPE_THEME");
+    const QString savedTheme = m_settings.value("theme", "dark").toString();
+    applyTheme((requestedTheme.isEmpty() ? savedTheme : requestedTheme).compare("light", Qt::CaseInsensitive) != 0, false);
     connect(m_process, &QProcess::finished, this, &MainWindow::analysisFinished);
     restoreWorkspaceState();
 }
@@ -305,6 +308,23 @@ QWidget *MainWindow::buildWorkspace()
     connect(m_fieldsTable, &QTableWidget::itemSelectionChanged, this, &MainWindow::onFieldSelectionChanged);
     m_tabs->addTab(m_fieldsTable, tr("字段"));
 
+    m_framesPanel = new QWidget;
+    auto *framesLayout = new QVBoxLayout(m_framesPanel);
+    framesLayout->setContentsMargins(8, 8, 8, 8);
+    framesLayout->setSpacing(6);
+    auto *framesTools = new QHBoxLayout;
+    auto *previousFrameButton = commandButton(tr("上一帧"));
+    auto *nextFrameButton = commandButton(tr("下一帧"));
+    auto *previousKeyframeButton = commandButton(tr("上一关键帧"));
+    auto *nextKeyframeButton = commandButton(tr("下一关键帧"));
+    m_framesSummary = new QLabel(tr("当前文件没有帧数据"));
+    m_framesSummary->setObjectName("sectionHint");
+    framesTools->addWidget(previousFrameButton);
+    framesTools->addWidget(nextFrameButton);
+    framesTools->addWidget(previousKeyframeButton);
+    framesTools->addWidget(nextKeyframeButton);
+    framesTools->addWidget(m_framesSummary, 1);
+    framesLayout->addLayout(framesTools);
     m_framesTable = new QTableWidget;
     m_framesTable->setColumnCount(8);
     m_framesTable->setHorizontalHeaderLabels({"#", "Offset", "Size", "PTS", "DTS", "Duration", tr("类型"), "Key"});
@@ -313,16 +333,83 @@ QWidget *MainWindow::buildWorkspace()
     m_framesTable->verticalHeader()->hide();
     m_framesTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
     connect(m_framesTable, &QTableWidget::itemSelectionChanged, this, &MainWindow::onFrameSelectionChanged);
-    m_tabs->addTab(m_framesTable, tr("帧列表"));
+    connect(m_framesTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        if (!item) return;
+        showHex(item->data(OffsetRole).toLongLong(), item->data(SizeRole).toLongLong());
+        m_tabs->setCurrentWidget(m_hexView);
+    });
+    connect(previousFrameButton, &QPushButton::clicked, this, [this] {
+        if (m_framesTable->rowCount() > 0) m_framesTable->selectRow(qMax(0, m_framesTable->currentRow() - 1));
+    });
+    connect(nextFrameButton, &QPushButton::clicked, this, [this] {
+        if (m_framesTable->rowCount() > 0) m_framesTable->selectRow(qMin(m_framesTable->rowCount() - 1, m_framesTable->currentRow() + 1));
+    });
+    const auto jumpKeyframe = [this](int direction) {
+        if (m_framesTable->rowCount() <= 0) return;
+        int row = m_framesTable->currentRow();
+        if (row < 0) row = direction > 0 ? -1 : m_framesTable->rowCount();
+        for (row += direction; row >= 0 && row < m_framesTable->rowCount(); row += direction) {
+            if (m_framesTable->item(row, 7) && !m_framesTable->item(row, 7)->text().isEmpty()) {
+                m_framesTable->selectRow(row);
+                m_framesTable->scrollToItem(m_framesTable->item(row, 0));
+                return;
+            }
+        }
+    };
+    connect(previousKeyframeButton, &QPushButton::clicked, this, [jumpKeyframe] { jumpKeyframe(-1); });
+    connect(nextKeyframeButton, &QPushButton::clicked, this, [jumpKeyframe] { jumpKeyframe(1); });
+    connect(m_framesTable, &QTableWidget::itemSelectionChanged, this, [this] {
+        const int row = m_framesTable->currentRow();
+        if (row >= 0)
+            m_framesSummary->setText(tr("第 %1 / %2 项").arg(row + 1).arg(m_framesTable->rowCount()));
+    });
+    framesLayout->addWidget(m_framesTable, 1);
+    m_tabs->addTab(m_framesPanel, tr("帧列表"));
 
+    auto *timelinePanel = new QWidget;
+    auto *timelineLayout = new QVBoxLayout(timelinePanel);
+    timelineLayout->setContentsMargins(8, 8, 8, 8);
+    timelineLayout->setSpacing(6);
+    auto *timelineTools = new QHBoxLayout;
+    auto *zoomInButton = commandButton(tr("放大"));
+    auto *zoomOutButton = commandButton(tr("缩小"));
+    auto *panLeftButton = commandButton(tr("向左"));
+    auto *panRightButton = commandButton(tr("向右"));
+    auto *previousAnomalyButton = commandButton(tr("上一异常"));
+    auto *nextAnomalyButton = commandButton(tr("下一异常"));
+    auto *resetTimelineButton = commandButton(tr("全部"));
+    auto *timelineRange = new QLabel(tr("无时间线数据"));
+    timelineRange->setObjectName("sectionHint");
+    timelineTools->addWidget(zoomInButton);
+    timelineTools->addWidget(zoomOutButton);
+    timelineTools->addWidget(panLeftButton);
+    timelineTools->addWidget(panRightButton);
+    timelineTools->addWidget(previousAnomalyButton);
+    timelineTools->addWidget(nextAnomalyButton);
+    timelineTools->addWidget(resetTimelineButton);
+    timelineTools->addWidget(timelineRange, 1);
+    timelineLayout->addLayout(timelineTools);
     m_timeline = new TimelineWidget;
+    timelineLayout->addWidget(m_timeline, 1);
+    connect(zoomInButton, &QPushButton::clicked, m_timeline, [this] { m_timeline->zoomBy(0.7); });
+    connect(zoomOutButton, &QPushButton::clicked, m_timeline, [this] { m_timeline->zoomBy(1.4); });
+    connect(panLeftButton, &QPushButton::clicked, m_timeline, [this] { m_timeline->panBy(-1); });
+    connect(panRightButton, &QPushButton::clicked, m_timeline, [this] { m_timeline->panBy(1); });
+    connect(previousAnomalyButton, &QPushButton::clicked, m_timeline, [this] { m_timeline->navigateAnomaly(-1); });
+    connect(nextAnomalyButton, &QPushButton::clicked, m_timeline, [this] { m_timeline->navigateAnomaly(1); });
+    connect(resetTimelineButton, &QPushButton::clicked, m_timeline, &TimelineWidget::resetView);
+    connect(m_timeline, &TimelineWidget::rangeChanged, timelineRange, &QLabel::setText);
     connect(m_timeline, &TimelineWidget::frameSelected, this, [this](int row) {
         if (row < 0 || row >= m_framesTable->rowCount()) return;
         m_framesTable->selectRow(row);
         m_framesTable->scrollToItem(m_framesTable->item(row, 0));
-        m_tabs->setCurrentWidget(m_framesTable);
     });
-    m_tabs->addTab(m_timeline, tr("时间线"));
+    connect(m_timeline, &TimelineWidget::frameActivated, this, [this](int row) {
+        if (row < 0 || row >= m_framesTable->rowCount()) return;
+        m_framesTable->selectRow(row);
+        m_tabs->setCurrentWidget(m_framesPanel);
+    });
+    m_tabs->addTab(timelinePanel, tr("时间线"));
 
     m_preview = new MediaPreviewWidget;
     connect(m_preview, &MediaPreviewWidget::stepRequested, this, &MainWindow::stepMediaPreview);
@@ -337,6 +424,13 @@ QWidget *MainWindow::buildWorkspace()
     m_streamsTable->verticalHeader()->hide();
     m_streamsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_streamsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    connect(m_streamsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item ? item->data(OffsetRole).toLongLong() : -1;
+        if (offset >= 0) {
+            showHex(offset, 1);
+            m_tabs->setCurrentWidget(m_hexView);
+        }
+    });
     m_tabs->addTab(m_streamsTable, tr("媒体流"));
 
     auto *bookmarkPanel = new QWidget;
@@ -370,6 +464,9 @@ QWidget *MainWindow::buildWorkspace()
     bookmarkLayout->addWidget(m_bookmarksTable);
     m_tabs->addTab(bookmarkPanel, tr("书签"));
 
+    m_hexCompare = new HexCompareWidget;
+    m_tabs->addTab(m_hexCompare, tr("双栏 Hex 对比"));
+
     m_compareTree = new QTreeWidget;
     m_compareTree->setColumnCount(5);
     m_compareTree->setHeaderLabels({tr("状态"), tr("对象"), tr("属性"), tr("左侧"), tr("右侧")});
@@ -384,7 +481,7 @@ QWidget *MainWindow::buildWorkspace()
         const qint64 offset = item->data(0, OffsetRole).toLongLong();
         if (offset >= 0) { showHex(offset, 1); m_tabs->setCurrentWidget(m_hexView); }
     });
-    m_tabs->addTab(m_compareTree, tr("对比结果"));
+    m_tabs->addTab(m_compareTree, tr("结构对比"));
 
     auto *transportPanel = new QWidget;
     auto *transportLayout = new QVBoxLayout(transportPanel);
@@ -854,15 +951,14 @@ void MainWindow::buildMenus()
 
     auto *viewMenu = menuBar()->addMenu(tr("视图"));
     auto *themes = new QActionGroup(this);
-    auto *dark = viewMenu->addAction(tr("夜间主题"));
-    auto *light = viewMenu->addAction(tr("浅色主题"));
-    dark->setCheckable(true);
-    light->setCheckable(true);
-    dark->setChecked(true);
-    themes->addAction(dark);
-    themes->addAction(light);
-    connect(dark, &QAction::triggered, this, &MainWindow::setDarkTheme);
-    connect(light, &QAction::triggered, this, &MainWindow::setLightTheme);
+    m_darkThemeAction = viewMenu->addAction(tr("夜间主题"));
+    m_lightThemeAction = viewMenu->addAction(tr("浅色主题"));
+    m_darkThemeAction->setCheckable(true);
+    m_lightThemeAction->setCheckable(true);
+    themes->addAction(m_darkThemeAction);
+    themes->addAction(m_lightThemeAction);
+    connect(m_darkThemeAction, &QAction::triggered, this, &MainWindow::setDarkTheme);
+    connect(m_lightThemeAction, &QAction::triggered, this, &MainWindow::setLightTheme);
     viewMenu->addSeparator();
     viewMenu->addAction(tr("展开协议树"), QKeySequence("Ctrl+Shift+E"), m_protocolTree, &QTreeWidget::expandAll);
     viewMenu->addAction(tr("折叠协议树"), QKeySequence("Ctrl+Shift+C"), m_protocolTree, &QTreeWidget::collapseAll);
@@ -895,7 +991,7 @@ void MainWindow::buildShortcuts()
         connect(shortcut, &QShortcut::activated, this, [this, index] { m_tabs->setCurrentIndex(index); });
     }
     auto *codecHealthShortcut = new QShortcut(QKeySequence("Ctrl+0"), this);
-    connect(codecHealthShortcut, &QShortcut::activated, this, [this] { m_tabs->setCurrentIndex(9); });
+    connect(codecHealthShortcut, &QShortcut::activated, this, [this] { m_tabs->setCurrentIndex(10); });
 }
 
 void MainWindow::addRecentFile(const QString &path)
@@ -946,7 +1042,7 @@ void MainWindow::restoreWorkspaceState()
         m_mainSplitter->restoreState(splitterState);
     m_tabs->setCurrentIndex(qBound(0, m_settings.value("currentTab", 0).toInt(), m_tabs->count() - 1));
     if (qEnvironmentVariableIsEmpty("AVSCOPE_THEME"))
-        applyTheme(m_settings.value("theme", "dark").toString() != "light");
+        applyTheme(m_settings.value("theme", "dark").toString() != "light", false);
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -1224,7 +1320,11 @@ void MainWindow::analysisFinished(int exitCode, QProcess::ExitStatus status)
             return;
         }
         populateCompare(m_taskMode, document, m_taskOtherPath);
-        m_tabs->setCurrentWidget(m_compareTree);
+        const QString legacyCompare = projectRoot() + QString("/tmp/qt-runtime/compare-%1.json").arg(m_taskMode);
+        QFile::remove(legacyCompare);
+        QFile::copy(m_taskOutputPath, legacyCompare);
+        m_tabs->setCurrentWidget(m_taskMode == "binary" ? static_cast<QWidget *>(m_hexCompare)
+                                                        : static_cast<QWidget *>(m_compareTree));
         m_statusText->setText(tr("对比完成：%1").arg(QFileInfo(m_taskOtherPath).fileName()));
         m_log->appendPlainText(tr("[%1] %2 对比完成：%3").arg(QTime::currentTime().toString("HH:mm:ss"), m_taskMode, m_taskOtherPath));
         return;
@@ -1246,6 +1346,9 @@ void MainWindow::analysisFinished(int exitCode, QProcess::ExitStatus status)
         return;
     }
     loadDocument(document);
+    const QString legacyAnalysis = projectRoot() + "/tmp/qt-runtime/current-analysis.json";
+    QFile::remove(legacyAnalysis);
+    QFile::copy(analysisOutputPath(), legacyAnalysis);
     const auto completedSummary = document.object().value("media").toObject().value("summary").toObject();
     m_previewPosition = completedSummary.value("video_preview").toObject().value("position_seconds").toDouble(m_previewPosition);
     m_previewFrame = completedSummary.value("yuv_preview").toObject().value("frame_index").toInt(m_previewFrame);
@@ -1318,8 +1421,26 @@ void MainWindow::loadDocument(const QJsonDocument &document)
         m_protocolTree->setCurrentItem(selection);
         m_protocolTree->scrollToItem(selection);
     }
-    populateFrames(frames);
-    populateStreams(media.value("summary").toObject().value("ffprobe").toObject().value("streams").toArray());
+    QJsonArray frameRows = frames;
+    if (frameRows.isEmpty()) {
+        const auto packets = media.value("summary").toObject().value("packet_timeline").toObject().value("packets").toArray();
+        for (const auto &value : packets) {
+            const auto packet = value.toObject();
+            QJsonObject row;
+            row["index"] = packet.value("index");
+            row["offset"] = packet.value("pos");
+            row["size"] = packet.value("size");
+            row["pts"] = packet.value("pts");
+            row["dts"] = packet.value("dts");
+            row["duration"] = packet.value("duration");
+            row["frame_type"] = tr("%1 包 · 流 %2")
+                .arg(packet.value("codec_type").toString("data"), displayValue(packet.value("stream_index")));
+            row["keyframe"] = packet.value("keyframe");
+            frameRows.append(row);
+        }
+    }
+    populateFrames(frameRows);
+    populateStreams(media, frameRows);
     populateTransportSessions(media.value("summary").toObject().value("transport_sessions").toObject());
     populateRtpVideo(media.value("summary").toObject().value("rtp_video").toObject());
     populateSipSdp(media.value("summary").toObject().value("sip_sdp").toObject());
@@ -1328,7 +1449,7 @@ void MainWindow::loadDocument(const QJsonDocument &document)
     populateTwcc(media.value("summary").toObject().value("rtcp").toObject());
     populateCodecHealth(media.value("summary").toObject().value("codec_health").toObject());
     populateDiagnostics(diagnostics, media);
-    m_timeline->setData(frames, media.value("summary").toObject().value("timeline_summary").toObject());
+    m_timeline->setData(frameRows, media.value("summary").toObject().value("timeline_summary").toObject());
 
     m_formatMetric->setText(media.value("format_name").toString("--"));
     m_sizeMetric->setText(formatSize(jsonInteger(media.value("size"))));
@@ -1483,42 +1604,88 @@ void MainWindow::populateFrames(const QJsonArray &frames)
     }
     m_framesTable->resizeColumnsToContents();
     m_framesTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
+    m_framesSummary->setText(rows > 0
+        ? tr("共 %1 个帧/包").arg(rows)
+        : tr("当前文件没有可定位的帧或数据包"));
 }
 
-void MainWindow::populateStreams(const QJsonArray &streams)
+void MainWindow::populateStreams(const QJsonObject &media, const QJsonArray &frames)
 {
+    const auto summary = media.value("summary").toObject();
+    QJsonArray streams = summary.value("ffprobe").toObject().value("streams").toArray();
+    if (streams.isEmpty()) {
+        const auto sessions = summary.value("transport_sessions").toObject().value("sessions").toArray();
+        for (const auto &value : sessions) {
+            const auto session = value.toObject();
+            QJsonObject stream;
+            stream["index"] = streams.size();
+            stream["codec_type"] = session.value("video_codec").toString().isEmpty() ? "data" : "video";
+            stream["codec_name"] = session.value("video_codec").toString("RTP");
+            stream["profile"] = session.value("ssrc").toString();
+            stream["duration"] = session.value("duration_seconds");
+            stream["bit_rate"] = session.value("payload_bitrate_kbps").toDouble() > 0
+                ? QString::number(session.value("payload_bitrate_kbps").toDouble(), 'f', 2) + " kbps" : QString();
+            stream["format_label"] = tr("RTP · PT %1 · %2 包")
+                .arg(displayValue(session.value("payload_types"))).arg(jsonInteger(session.value("packets")));
+            stream["first_offset"] = session.value("first_offset");
+            streams.append(stream);
+        }
+        if (streams.isEmpty()) {
+            const QString formatName = media.value("format_name").toString();
+            QString type = "data";
+            QString codec = formatName;
+            if (formatName.contains("H.26", Qt::CaseInsensitive) || formatName.contains("YUV", Qt::CaseInsensitive)) {
+                type = "video";
+            } else if (formatName.contains("AAC", Qt::CaseInsensitive) || formatName.contains("WAV", Qt::CaseInsensitive)
+                       || formatName.contains("PCM", Qt::CaseInsensitive)) {
+                type = "audio";
+            }
+            QJsonObject stream;
+            stream["index"] = 0;
+            stream["codec_type"] = type;
+            stream["codec_name"] = codec;
+            stream["profile"] = summary.value("profile").toString();
+            stream["width"] = summary.value("width");
+            stream["height"] = summary.value("height");
+            stream["channels"] = summary.value("channels");
+            stream["sample_rate"] = summary.value("sample_rate");
+            stream["duration"] = summary.contains("duration_seconds") ? summary.value("duration_seconds") : summary.value("duration");
+            stream["bit_rate"] = summary.contains("average_bitrate") ? summary.value("average_bitrate") : summary.value("byte_rate");
+            stream["format_label"] = tr("内置解析器 · %1 项").arg(frames.size());
+            stream["first_offset"] = frames.isEmpty() ? QJsonValue(0) : frames.first().toObject().value("offset");
+            streams.append(stream);
+        }
+    }
     m_streamsTable->setRowCount(streams.size());
     for (int row = 0; row < streams.size(); ++row) {
         const auto stream = streams.at(row).toObject();
         const QString type = stream.value("codec_type").toString();
         QString shape;
-        if (type == "video")
+        if (type == "video" && jsonInteger(stream.value("width")) > 0 && jsonInteger(stream.value("height")) > 0)
             shape = QString("%1 x %2").arg(jsonInteger(stream.value("width"))).arg(jsonInteger(stream.value("height")));
-        else if (type == "audio")
+        else if (type == "audio" && jsonInteger(stream.value("channels")) > 0)
             shape = tr("%1 声道").arg(jsonInteger(stream.value("channels")));
-        const QString format = type == "video" ? stream.value("pix_fmt").toString() : stream.value("sample_fmt").toString();
+        QString format = type == "video" ? stream.value("pix_fmt").toString() : stream.value("sample_fmt").toString();
+        if (format.isEmpty()) format = stream.value("format_label").toString();
         const QStringList values = {
             displayValue(stream.value("index")), type, stream.value("codec_name").toString(), stream.value("profile").toString(),
             shape, displayValue(stream.value("sample_rate")), stream.value("avg_frame_rate").toString(),
-            stream.value("time_base").toString(), stream.value("duration").toString(),
-            stream.value("bit_rate").toString(), format
+            stream.value("time_base").toString(), displayValue(stream.value("duration")),
+            displayValue(stream.value("bit_rate")), format
         };
         const QColor color = type == "video" ? QColor(m_dark ? "#6CB6FF" : "#146EA8")
                             : type == "audio" ? QColor(m_dark ? "#73D2B3" : "#17785A")
                             : QColor(m_dark ? "#C7A7FF" : "#6941C6");
         for (int column = 0; column < values.size(); ++column) {
             auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setData(OffsetRole, jsonInteger(stream.value("first_offset")));
             cell->setToolTip(values.at(column));
             if (column == 1 || column == 2) cell->setForeground(color);
             m_streamsTable->setItem(row, column, cell);
         }
     }
-    if (streams.isEmpty()) {
-        m_streamsTable->setRowCount(1);
-        auto *empty = new QTableWidgetItem(tr("当前文件没有 ffprobe 媒体流信息"));
-        empty->setForeground(QColor(m_dark ? "#94A3B2" : "#607080"));
-        m_streamsTable->setItem(0, 2, empty);
-    }
+    m_streamsTable->resizeColumnsToContents();
+    m_streamsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
 }
 
 void MainWindow::populateTransportSessions(const QJsonObject &transport)
@@ -2526,7 +2693,8 @@ void MainWindow::runCompare(const QString &mode)
         : QFileDialog::getOpenFileName(this, tr("选择右侧对比文件"), QFileInfo(m_currentPath).absolutePath());
     if (other.isEmpty()) return;
     const QString command = mode == "binary" ? "compare-binary" : mode == "protocol" ? "compare-protocol" : "compare-frames";
-    const QString output = projectRoot() + QString("/tmp/qt-runtime/compare-%1.json").arg(mode);
+    const QString output = projectRoot() + QString("/tmp/qt-runtime/compare-%1-%2.json")
+        .arg(mode).arg(QCoreApplication::applicationPid());
     QFile::remove(output);
     m_taskOutputPath = output;
     m_taskMode = mode;
@@ -2539,6 +2707,30 @@ void MainWindow::populateCompare(const QString &mode, const QJsonDocument &docum
 {
     m_compareTree->clear();
     const auto root = document.object();
+    if (mode == "binary") {
+        m_hexCompare->setComparison(m_currentPath, otherPath,
+                                    jsonInteger(root.value("left_size")),
+                                    jsonInteger(root.value("right_size")),
+                                    root.value("chunks").toArray());
+        if (qEnvironmentVariableIntValue("AVSCOPE_HEX_COMPARE_NEXT") != 0)
+            m_hexCompare->stepDifference(1);
+        const QString statePath = qEnvironmentVariable("AVSCOPE_HEX_COMPARE_STATE");
+        if (!statePath.isEmpty()) {
+            QJsonObject state;
+            state["left_path"] = m_currentPath;
+            state["right_path"] = otherPath;
+            state["left_size"] = jsonInteger(root.value("left_size"));
+            state["right_size"] = jsonInteger(root.value("right_size"));
+            state["difference_count"] = m_hexCompare->differenceCount();
+            state["focus_offset"] = static_cast<double>(m_hexCompare->currentOffset());
+            state["window_offset"] = static_cast<double>(m_hexCompare->windowOffset());
+            state["synchronized_scrolling"] = m_hexCompare->synchronizedScrolling();
+            QFile stateFile(statePath);
+            QDir().mkpath(QFileInfo(statePath).absolutePath());
+            if (stateFile.open(QIODevice::WriteOnly | QIODevice::Truncate))
+                stateFile.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+        }
+    }
     auto *summary = new QTreeWidgetItem(m_compareTree);
     summary->setText(0, root.value("equal").toBool(false) ? tr("相同") : tr("已完成"));
     summary->setText(1, tr("%1  ↔  %2").arg(QFileInfo(m_currentPath).fileName(), QFileInfo(otherPath).fileName()));
@@ -2644,12 +2836,17 @@ void MainWindow::runExport(const QString &format, const QString &outputPath)
 void MainWindow::setDarkTheme() { applyTheme(true); }
 void MainWindow::setLightTheme() { applyTheme(false); }
 
-void MainWindow::applyTheme(bool dark)
+void MainWindow::applyTheme(bool dark, bool persist)
 {
     m_dark = dark;
-    m_settings.setValue("theme", dark ? "dark" : "light");
+    if (persist) {
+        m_settings.setValue("theme", dark ? "dark" : "light");
+        m_settings.sync();
+    }
     m_darkButton->setChecked(dark);
     m_lightButton->setChecked(!dark);
+    if (m_darkThemeAction) m_darkThemeAction->setChecked(dark);
+    if (m_lightThemeAction) m_lightThemeAction->setChecked(!dark);
     const QString bg = dark ? "#0C1117" : "#F3F6F9";
     const QString panel = dark ? "#121A22" : "#FFFFFF";
     const QString panelAlt = dark ? "#17212B" : "#EDF2F6";
@@ -2697,6 +2894,7 @@ void MainWindow::applyTheme(bool dark)
         #logPanel { background: %3; color: %5; border: 1px solid %6; border-radius: 6px; }
     )").arg(bg, panel, panelAlt, text, muted, border, select, selectText, hover));
     m_timeline->setDarkTheme(dark);
+    m_hexCompare->setDarkTheme(dark);
     m_preview->setDarkTheme(dark);
     if (!m_document.isNull())
         loadDocument(m_document);
@@ -2761,7 +2959,8 @@ QStringList MainWindow::engineArguments(const QStringList &arguments) const
 
 QString MainWindow::analysisOutputPath() const
 {
-    return projectRoot() + "/tmp/qt-runtime/current-analysis.json";
+    return projectRoot() + QString("/tmp/qt-runtime/current-analysis-%1.json")
+        .arg(QCoreApplication::applicationPid());
 }
 
 QColor MainWindow::fieldColor(const QJsonValue &value, const QString &hex, const QString &severity) const

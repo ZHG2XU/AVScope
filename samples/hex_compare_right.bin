@@ -1,0 +1,6 @@
+AVScope HEX comparison fixture
+stream=video
+codec=H265
+sequence=0002
+payload=00112233445566778899AABBCCDDEEFF
+trailer=RIGHT_SIDE_EXTRA_BYTES

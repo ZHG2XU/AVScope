@@ -1,0 +1,5 @@
+AVScope HEX comparison fixture
+stream=video
+codec=H264
+sequence=0001
+payload=00112233445566778899AABBCCDDEEFF

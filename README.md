@@ -45,7 +45,8 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - WAV 可解析 PCM 格式参数、data 字节数、帧数、时长，并校验 byte_rate/block_align。
 - Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、大小端、有符号/无符号、宽高、像素格式和帧率。
 - Raw YUV 可在预览页逐帧查看画面，支持 `yuv420p`、`nv12`、`nv21`、`yuyv422`。
-- 显示协议树、字段表、Hex 分页视图、帧列表和带帧/packet 大小柱状图、PTS/DTS、码率、GOP、RTP sequence、PCR 与异常标记的时间线，协议树、字段表和帧列表均可联动跳转 Hex。
+- 显示协议树、字段表、Hex 分页视图、帧/包列表和带帧/packet 大小柱状图、PTS/DTS、码率、GOP、RTP sequence、PCR 与异常标记的时间线；帧列表支持逐帧与关键帧导航，双击可定位 Hex。
+- 时间线支持滚轮缩放、Shift+滚轮或按钮左右平移、上一/下一时间戳异常导航；单击只联动帧表和 Hex，双击才切换到帧列表。
 - 顶部摘要条显示格式、大小、节点数、诊断数量和解析耗时，底部状态栏同步记录本次分析耗时。
 - 对解析器帧列表生成帧统计摘要，包含关键帧数、关键帧间隔、GOP 分组结构、平均帧大小、最大帧大小和帧类型分布。
 - 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
@@ -63,12 +64,12 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 - 分析菜单可使用现有 FFmpeg 提取当前文件的首路音频、首路视频或首个关键帧 PNG。
 - 为 WAV/PCM 生成抽样波形摘要，并在预览页显示波形图、Peak/RMS 音频能量和裁剪样本数；GUI 可播放 WAV、Raw PCM 或含音频流文件的短片段，并可指定起始时间和时长。
 - 桌面端提供深色/浅色专业工作台主题、品牌图标、关键指标摘要条和空状态，导出 HTML 报告带结构化视觉样式；选中行使用独立的高对比文字色，避免与选中背景混淆。
-- Qt 工作台支持分析任务取消、最近文件、窗口/分栏/主题状态持久化、协议树实时搜索、只看异常、展开/折叠、节点与字段详情、字段/帧联动 Hex，以及复制当前值和 Offset；状态文件固定写入 `G:\AVScope\data\qt-settings.ini`。
-- Qt 工作台在打开 `.pcm`/`.yuv` 时提供原生 Raw 参数对话框并记住上次设置；“对比”菜单提供二进制、协议结构和帧级对比，差异按新增、删除、变化分组显示，双击带 Offset 的差异可定位左侧 Hex。
+- Qt 工作台支持分析任务取消、最近文件、窗口/分栏/主题状态持久化、协议树实时搜索、只看异常、展开/折叠、节点与字段详情、字段/帧联动 Hex，以及复制当前值和 Offset；浅色或夜间主题会在退出时保存并于下次启动恢复，状态文件固定写入 `G:\AVScope\data\qt-settings.ini`。
+- Qt 工作台在打开 `.pcm`/`.yuv` 时提供原生 Raw 参数对话框并记住上次设置；“对比”菜单提供二进制、协议结构和帧级对比。二进制对比使用完整左右双栏 Hex/ASCII、相同 Offset 对齐、同步滚动、差异/缺失字节高亮、Offset 跳转和上一/下一差异导航；结构差异继续按新增、删除、变化分组显示。
 - “媒体预览”页使用原生 Qt 画布显示 WAV/PCM 波形、Peak/RMS、Raw YUV 彩色画面、视频首帧和 RTCP 会话状态，并将媒体参数或 SR/RR、丢包率、jitter、DLSR 整理为可扫描的指标卡片。
 - 媒体预览右上角提供上一/下一导航：视频按 1 秒异步步进，Raw YUV 按帧步进并显示当前帧号/总帧数；内置 `sample.yuv` 含 3 帧不同相位彩条，便于直接验收。
 - 分析、报告导出和三种文件对比统一使用异步侧车任务，运行期间界面保持响应，并可通过顶部“取消”或 `Esc` 终止；协议/帧差异会展开到具体属性的左右值。
-- “媒体流”页按流列出 index、类型、codec、profile、分辨率/声道、采样率、帧率、time_base、duration、bitrate 和像素/采样格式，便于快速比较多路音视频参数。
+- “媒体流”页按流列出 index、类型、codec、profile、分辨率/声道、采样率、帧率、time_base、duration、bitrate 和像素/采样格式；ffprobe 无流信息时会从裸流解析结果或 RTP SSRC 会话构造流模型，双击可定位首帧/首包 Hex。
 - “书签”页可用 `Ctrl+B` 保存当前 Offset、现场备注和协议位置，双击返回 Hex，书签会随工程快照保存与恢复。
 - 右侧诊断面板可按 Warning/Error、来源和“有 Offset”组合筛选，显示当前/总诊断计数；带 Offset 的诊断可直接定位 Hex，并可通过右键一键记录为书签。
 - Qt 全局诊断采用结构化级别/来源/Offset/问题表格，点击带 Offset 的诊断可直接定位 Hex；时间线叠加帧大小、PTS/DTS、码率、关键帧和异常标记，支持悬停查看帧信息并点击跳转帧表与 Hex。
@@ -107,7 +108,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\deploy_qt.ps1
 PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1
 ```
 
-UI 验证会在 `G:\AVScope\tmp\qt-ui-validation` 留下深浅主题、PCAP 时间线、RTCP 会话预览、异常传输会话筛选、RTP H.264/H.265 视频负载、SIP/SDP 信令协商、RTCP 控制反馈、RTP 时序质量、TWCC 拥塞反馈、H.264 深色/H.265 浅色码流健康、媒体流、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复和协议对比截图，以及对应的数据契约 JSON，并检查完整协议层节点/字段、媒体预览产物与异步任务约束。
+UI 验证会在 `G:\AVScope\tmp\qt-ui-validation` 留下深浅主题、PCAP 时间线、RTCP 会话预览、异常传输会话筛选、RTP H.264/H.265 视频负载、SIP/SDP 信令协商、RTCP 控制反馈、RTP 时序质量、TWCC 拥塞反馈、H.264 深色/H.265 浅色码流健康、媒体流、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复、协议对比和双栏 Hex 对比截图，以及对应的数据契约 JSON。
 
 Qt 工具链复用电脑已有的 `E:\QT\6.9.0`、MinGW 13.1、CMake 和 Ninja，本轮没有安装新工具。旧 Tk 界面仅保留为未构建源码环境的兼容回退。
 
