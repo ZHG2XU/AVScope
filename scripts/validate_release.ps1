@@ -25,6 +25,9 @@ $sampleRtpVideoCsv = "$sampleReportDir\sample_rtp_video_report.csv"
 $sampleSipSdpHtml = "$sampleReportDir\sample_sip_sdp_report.html"
 $sampleSipSdpJson = "$sampleReportDir\sample_sip_sdp_report.json"
 $sampleSipSdpCsv = "$sampleReportDir\sample_sip_sdp_report.csv"
+$sampleRtcpFeedbackHtml = "$sampleReportDir\sample_rtcp_feedback_report.html"
+$sampleRtcpFeedbackJson = "$sampleReportDir\sample_rtcp_feedback_report.json"
+$sampleRtcpFeedbackCsv = "$sampleReportDir\sample_rtcp_feedback_report.csv"
 $sampleProtocolCompare = "$sampleReportDir\sample_protocol_compare.json"
 $sampleFrameCompare = "$sampleReportDir\sample_frame_compare.json"
 $knownIssuesRoadmap = "G:\AVScope\docs\KNOWN_ISSUES_AND_ROADMAP.md"
@@ -78,6 +81,9 @@ $artifacts = @(
     $sampleSipSdpHtml,
     $sampleSipSdpJson,
     $sampleSipSdpCsv,
+    $sampleRtcpFeedbackHtml,
+    $sampleRtcpFeedbackJson,
+    $sampleRtcpFeedbackCsv,
     $sampleProtocolCompare,
     $sampleFrameCompare,
     $knownIssuesRoadmap
@@ -122,6 +128,9 @@ $expectedManifestEntries = @(
     "dist\sample-reports\sample_sip_sdp_report.html",
     "dist\sample-reports\sample_sip_sdp_report.json",
     "dist\sample-reports\sample_sip_sdp_report.csv",
+    "dist\sample-reports\sample_rtcp_feedback_report.html",
+    "dist\sample-reports\sample_rtcp_feedback_report.json",
+    "dist\sample-reports\sample_rtcp_feedback_report.csv",
     "dist\sample-reports\sample_protocol_compare.json",
     "dist\sample-reports\sample_frame_compare.json"
 )
