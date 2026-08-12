@@ -117,6 +117,30 @@ def export_csv(result: ParseResult, path: str | Path, notes: str | None = None) 
                     "severity": "warning" if session.get("status") == "warning" else "normal",
                 }
             )
+        codec_health = result.media.summary.get("codec_health", {})
+        if codec_health.get("available"):
+            writer.writerow(
+                {
+                    "section": "codec_health_summary",
+                    "name": codec_health.get("codec", ""),
+                    "type": codec_health.get("status", ""),
+                    "size": codec_health.get("issue_count", 0),
+                    "value": json.dumps(codec_health, ensure_ascii=False),
+                    "severity": "warning" if codec_health.get("status") == "warning" else "normal",
+                }
+            )
+            for index, issue in enumerate(codec_health.get("issues", [])):
+                writer.writerow(
+                    {
+                        "section": "codec_health_issue",
+                        "name": issue.get("message", ""),
+                        "type": issue.get("source", "codec_health"),
+                        "index": index,
+                        "offset": f"0x{int(issue.get('offset', 0)):X}",
+                        "value": json.dumps(issue, ensure_ascii=False),
+                        "severity": issue.get("severity", "warning"),
+                    }
+                )
         timeline_summary = result.media.summary.get("timeline_summary", {})
         if timeline_summary.get("available"):
             writer.writerow(
@@ -203,6 +227,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     stats_summary_html = _stats_summary_html(frame_stats, packet_stats)
     rtcp_summary_html = _rtcp_summary_html(result.media.summary.get("rtcp", {}))
     transport_sessions_html = _transport_sessions_html(result.media.summary.get("transport_sessions", {}))
+    codec_health_html = _codec_health_html(result.media.summary.get("codec_health", {}))
     timeline_summary_html = _timeline_summary_html(timeline_summary)
     timeline_chart_html = _timeline_chart_html(doc["frames"], packets)
     issue_labels = timeline_issue_label_map(timeline_summary)
@@ -455,6 +480,7 @@ def export_html(result: ParseResult, path: str | Path, notes: str | None = None)
     </section>
     {rtcp_summary_html}
     {transport_sessions_html}
+    {codec_health_html}
     <section>
       <h2>音频波形</h2>
       {waveform_html}
@@ -648,6 +674,67 @@ def _transport_sessions_html(transport: dict) -> str:
         + "</table>"
     )
     return f'<section><h2>RTP / RTCP 传输会话</h2><div class="overview">{metric_html}</div>{table}</section>'
+
+
+def _codec_health_html(health: dict) -> str:
+    if not health.get("available"):
+        return ""
+    parameter_sets = health.get("parameter_sets", {})
+    parameter_parts = []
+    for name in ("vps", "sps", "pps"):
+        if f"{name}_count" in parameter_sets:
+            parameter_parts.append(f"{name.upper()} {parameter_sets.get(f'{name}_count', 0)}")
+    metrics = [
+        ("编码", health.get("codec", "--")),
+        ("状态", "需要检查" if health.get("status") == "warning" else "正常"),
+        ("参数集", " / ".join(parameter_parts) or "--"),
+        ("Slice / 关键帧", f"{health.get('slices', 0)} / {health.get('keyframes', 0)}"),
+        ("问题", health.get("issue_count", 0)),
+        ("分辨率变化", len(health.get("resolution_changes", []))),
+    ]
+    metric_html = "".join(
+        f'<div class="metric"><div class="label">{html.escape(str(label))}</div>'
+        f'<div class="value">{html.escape(str(value))}</div></div>'
+        for label, value in metrics
+    )
+    issue_rows = []
+    for issue in health.get("issues", []):
+        offset = int(issue.get("offset", 0))
+        issue_rows.append(
+            '<tr class="warning-row">'
+            f'<td>{html.escape(str(issue.get("severity", "warning")))}</td>'
+            f'<td>0x{offset:X}</td>'
+            f'<td>{html.escape(str(issue.get("message", "")))}</td>'
+            f'<td>{html.escape(str(issue.get("source", "codec_health")))}</td>'
+            "</tr>"
+        )
+    issues_table = (
+        '<table class="timeline-issues"><tr><th>状态</th><th>Offset</th><th>问题</th><th>来源</th></tr>'
+        + ("".join(issue_rows) or '<tr><td colspan="4">未发现码流健康问题</td></tr>')
+        + "</table>"
+    )
+    resolution_rows = []
+    change_offsets = {int(item.get("offset", 0)) for item in health.get("resolution_changes", [])}
+    for event in health.get("resolution_events", []):
+        offset = int(event.get("offset", 0))
+        row_class = ' class="warning-row"' if offset in change_offsets else ""
+        resolution_rows.append(
+            f"<tr{row_class}>"
+            f'<td>{event.get("parameter_set_id", "")}</td>'
+            f'<td>{event.get("width", 0)} x {event.get("height", 0)}</td>'
+            f"<td>0x{offset:X}</td>"
+            f'<td>{"分辨率变化" if offset in change_offsets else "参数集出现"}</td>'
+            "</tr>"
+        )
+    resolution_table = ""
+    if resolution_rows:
+        resolution_table = (
+            '<h3>分辨率事件</h3><table class="timeline-issues">'
+            '<tr><th>SPS ID</th><th>分辨率</th><th>Offset</th><th>事件</th></tr>'
+            + "".join(resolution_rows)
+            + "</table>"
+        )
+    return f'<section><h2>H.26x 码流健康</h2><div class="overview">{metric_html}</div>{issues_table}{resolution_table}</section>'
 
 
 def _waveform_html(waveform: dict) -> str:

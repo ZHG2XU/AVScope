@@ -38,7 +38,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 
 - 单元测试
 - 128MB+ 大文件只读随机访问测试
-- 损坏 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 文件、MP4 chunk offset 异常、ffprobe 探测失败与帧/packet 大小尖峰 warning 的诊断回归测试
+- 损坏 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 文件、H.264/H.265 参数集引用与分辨率变化、MP4 chunk offset 异常、ffprobe 探测失败与帧/packet 大小尖峰 warning 的诊断回归测试
 - 关键产物存在性检查
 - 发布产物清单 SHA256/size 校验
 - UI/报告源码乱码扫描
@@ -60,7 +60,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 5. 使用“视图”菜单切换 Hex、字段表、帧列表、时间线、预览和诊断面板，并按 `Ctrl+L` 显示/隐藏底部日志；在协议树展开任意节点，确认字段和值以子项直接显示，长值可通过底部横向滚动条查看。
 6. 在协议树分别选中节点、数值字段、文本字段和异常字段，确认选中背景与选中文字保持清晰对比，未选中字段按数值、文本、Hex、布尔值和 warning/error 使用不同颜色；通过“视图 / 深色主题”和“视图 / 浅色主题”切换后再次确认上述对比度和可读性。
 7. 在 Qt 工作台输入字段名确认协议树实时过滤且保留祖先路径；勾选“只看异常”确认只保留 warning/error 路径；使用展开/折叠、字段/帧选择、`Ctrl+C`、`Ctrl+Shift+O` 和 `Esc`，确认详情、Hex 跳转、复制与取消分析生效。关闭后重新打开，确认主题、窗口、分栏、当前标签和最近文件恢复，且状态只写入 `G:\AVScope\data\qt-settings.ini`。
-8. 运行 `PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1`，确认 Qt 构建、协议树数据契约、深浅主题、时间线、RTCP 会话预览、传输会话异常筛选、媒体流表、诊断筛选、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复、协议对比截图、高 DPI、异步任务约束和 G 盘状态文件检查通过；验证证据位于 `G:\AVScope\tmp\qt-ui-validation`。
+8. 运行 `PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1`，确认 Qt 构建、协议树数据契约、深浅主题、时间线、RTCP 会话预览、传输会话异常筛选、H.264/H.265 码流健康、媒体流表、诊断筛选、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复、协议对比截图、高 DPI、异步任务约束和 G 盘状态文件检查通过；验证证据位于 `G:\AVScope\tmp\qt-ui-validation`。
 9. 打开 `sample.pcap`、`sample.ts` 和带帧视频，确认时间线显示帧大小、PTS/DTS、码率、关键帧和异常标记；悬停显示帧详情，点击图形跳到帧表并联动 Hex。点击全局诊断中带 Offset 的行，确认直接切到 Hex 对应位置。
 6. 打开 `G:\AVScope\samples\sample.wav`，检查“预览”页是否显示音频波形图、Peak/RMS 音频能量和裁剪样本数；使用“分析 / 播放音频片段”“分析 / 播放指定音频片段”和“分析 / 停止音频播放”确认可试听短片段、可指定起始时间/时长且不会阻塞界面。
 7. 对真实含视频流文件打开后，在“预览”页检查是否出现“视频预览帧”和当前帧 PTS/DTS、duration、帧类型、关键帧、帧大小、分辨率、像素格式等信息；使用“分析 / 下一预览帧”“分析 / 上一预览帧”“分析 / 跳转预览时间”“分析 / 跳转预览帧号”“分析 / 下一关键帧预览”和“分析 / 上一关键帧预览”确认可按 1 秒步进、按秒跳转、按帧号跳转或按关键帧跳转刷新画面；若文件不可解码，预览区应给出 ffmpeg/ffprobe 错误文本而不是崩溃。
@@ -69,7 +69,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 10. 打开 `G:\AVScope\samples\sample.h264`，检查 SPS/PPS 节点里是否显示 `profile_idc`、`level_idc`、`derived_width`、`derived_height`、`pic_parameter_set_id`、`seq_parameter_set_id`，并在“预览”页确认帧统计摘要包含关键帧数量和关键帧间隔。
 11. 打开 `G:\AVScope\samples\sample.h265`，检查 VPS/SPS/PPS 节点里是否显示 `general_profile_idc`、`general_level_idc`、`derived_width`、`derived_height`、`bit_depth_luma`、`pps_pic_parameter_set_id`，并在“预览”页确认帧统计摘要包含关键帧数量和关键帧间隔。
 12. 打开 `G:\AVScope\samples\sample.aac`，检查 ADTS frame 字段里是否显示 `profile`、`sample_rate`、`channel_configuration`、`duration_seconds`，并确认 `syncword`、`profile`、`sampling_frequency_index`、`frame_length` 显示 bit offset/bit length；在字段表选中 `syncword` 时 Hex 应跳转并高亮对应字节；切换到“帧列表”页，确认 AAC frame 可按 offset、size、duration 列表查看，选中行后 Hex 跳转到对应位置；在“预览”页确认可看到帧统计摘要。
-13. 在工具栏搜索框输入 `RIFF`，检查 `Ctrl+F` 聚焦搜索框、`F3` 查找下一个、`Ctrl+G` 可按十进制或十六进制跳转 Offset、`Ctrl+1~9` 可切换工作区标签，并可复制当前 Offset、值和文件完整路径。
+13. 在工具栏搜索框输入 `RIFF`，检查 `Ctrl+F` 聚焦搜索框、`F3` 查找下一个、`Ctrl+G` 可按十进制或十六进制跳转 Offset、`Ctrl+1~9` 可切换前九个工作区标签、`Ctrl+0` 可切换“码流健康”，并可复制当前 Offset、值和文件完整路径。
 14. 打开 `G:\AVScope\samples\sample.mp4`，检查 `moov/mvhd` 节点里是否显示 `timescale`、`duration`、`duration_seconds`，并检查 `trak/tkhd/mdia/mdhd/hdlr/stbl` 相关节点里的 `track_id`、`width`、`height`、`handler_type`、`sample_count`、`chunk_offset`；构造异常 MP4 时应能提示 chunk offset 越界或未落入 `mdat` 数据区。
 15. 打开 `G:\AVScope\samples\sample.avi`，检查 `hdrl/avih` 节点里是否显示 `dwWidth`、`dwHeight`、`dwTotalFrames`、`fps`。
 16. 打开 `G:\AVScope\samples\sample.flv`，检查 FLV tag 节点中是否显示 `tag_type`、`data_size`、`timestamp`、`stream_id` 和 `previous_tag_size`。
@@ -78,6 +78,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 19. 打开 `G:\AVScope\samples\sample.ts`，检查“时间线”页顶部是否显示帧/packet 大小柱状图，“预览”页是否显示 packet 统计摘要，并检查 MPEG-TS packet 节点中是否显示 `pid`、`payload_unit_start_indicator`、`adaptation_field_control` 和 `continuity_counter`，确认诊断规则可覆盖 continuity counter 跳变。
 20. 打开 `G:\AVScope\samples\sample.pcap`，逐层展开 PCAP record、Ethernet II、IPv4、UDP、RTP、RTCP Compound、Sender Report、Receiver Report 和 Report Block，确认每层均显示字段和值，并可从字段跳转 Hex；检查 RTP 的 `sequence_number`、`timestamp`、`ssrc`，RTCP 的 `sender_ssrc`、NTP/RTP timestamp、发送包/字节数、`fraction_lost`、`cumulative_packets_lost`、extended sequence、jitter、LSR 和 DLSR。媒体预览应显示 SR/RR、最大丢包率、jitter、DLSR，HTML 应包含“RTCP 会话质量”，CSV 应包含 `rtcp_summary`。
 20.1 打开 `G:\AVScope\samples\sample_rtp_anomalies.pcap` 并切换“传输会话”页，确认显示 2 路端点/SSRC 会话，其中 `0x12345678` 为警告且估算丢失、重复、乱序各为 1，`0xABCDEF01` 为正常；勾选“只看异常会话”后只保留 1 行，双击该行应跳到首个 RTP header。HTML 应包含“RTP / RTCP 传输会话”，CSV 应包含 `transport_session`。
+20.2 打开 `G:\AVScope\samples\sample_h264_issues.h264` 并按 `Ctrl+0`，确认“码流健康”显示 4 个问题、缺失 PPS 7、缺失 SPS 9，以及 `640x480 -> 320x240` 分辨率变化；双击问题应定位 Hex。打开 `sample_h265_issues.h265`，确认显示 5 个问题、缺失 PPS 7/SPS 8/VPS 9，以及 `640x360 -> 1280x720`。深浅主题下警告文字、普通文字和选中行文字均应清晰可辨；HTML 应包含“H.26x 码流健康”，CSV 应包含 `codec_health_summary` 和 `codec_health_issue`。
 21. 打开 `G:\AVScope\samples\sample.pcm` 或 `G:\AVScope\samples\sample.yuv`，检查是否弹出 Raw 参数输入框；`sample.pcm` 可设置采样率、声道、位深、大小端和有符号/无符号，关闭后再次打开时应沿用上次设置。
 22. 打开 `G:\AVScope\samples\sample.yuv` 时输入 `64x48 / yuv420p / 30fps`，检查“媒体预览”页是否显示八段 Raw YUV 彩条、帧 1/3 和宽高/像素格式/帧率；点击右上角下一箭头应异步显示帧 2/3 且彩条相位变化。打开 `sample.pcm` 应显示可见正弦波形和采样参数；真实视频可用同一组箭头按 1 秒步进。
 23. 打开“工具 / 时间戳计算器”和“工具 / 码率计算器”，确认可在诊断面板输出秒级时间码和 kbps/Mbps 码率。

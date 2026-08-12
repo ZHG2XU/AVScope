@@ -420,6 +420,70 @@ QWidget *MainWindow::buildWorkspace()
     });
     transportLayout->addWidget(m_transportSessionsTable, 1);
     m_tabs->addTab(transportPanel, tr("传输会话"));
+
+    auto *codecHealthPanel = new QWidget;
+    auto *codecHealthLayout = new QVBoxLayout(codecHealthPanel);
+    codecHealthLayout->setContentsMargins(10, 10, 10, 10);
+    codecHealthLayout->setSpacing(10);
+    auto *codecMetrics = new QGridLayout;
+    codecMetrics->setSpacing(8);
+    codecMetrics->addWidget(makeMetricCard(tr("编码"), &m_codecMetric, "#2F91C7"), 0, 0);
+    codecMetrics->addWidget(makeMetricCard(tr("健康状态"), &m_codecStatusMetric, "#34B58A"), 0, 1);
+    codecMetrics->addWidget(makeMetricCard(tr("参数集"), &m_codecParameterMetric, "#8A74D6"), 0, 2);
+    codecMetrics->addWidget(makeMetricCard(tr("Slice / 关键帧"), &m_codecSliceMetric, "#D08A3E"), 1, 0);
+    codecMetrics->addWidget(makeMetricCard(tr("问题"), &m_codecIssueMetric, "#D35D6E"), 1, 1);
+    codecMetrics->addWidget(makeMetricCard(tr("分辨率变化"), &m_codecResolutionMetric, "#4E9EAD"), 1, 2);
+    codecHealthLayout->addLayout(codecMetrics);
+
+    auto *codecDetails = new QTabWidget;
+    codecDetails->setDocumentMode(true);
+    m_codecIssuesTable = new QTableWidget;
+    m_codecIssuesTable->setColumnCount(4);
+    m_codecIssuesTable->setHorizontalHeaderLabels({tr("状态"), "Offset", tr("问题"), tr("来源")});
+    m_codecIssuesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_codecIssuesTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_codecIssuesTable->setAlternatingRowColors(true);
+    m_codecIssuesTable->verticalHeader()->hide();
+    m_codecIssuesTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_codecIssuesTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_codecIssuesTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    m_codecIssuesTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    connect(m_codecIssuesTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 8);
+        m_tabs->setCurrentWidget(m_hexView);
+        m_statusText->setText(tr("码流问题定位  |  Offset 0x%1").arg(offset, 0, 16).toUpper());
+    });
+    codecDetails->addTab(m_codecIssuesTable, tr("问题"));
+
+    m_codecParametersTable = new QTableWidget;
+    m_codecParametersTable->setColumnCount(5);
+    m_codecParametersTable->setHorizontalHeaderLabels({tr("集合"), tr("数量"), tr("定义 / 引用 ID"), tr("缺失 ID"), tr("状态")});
+    m_codecParametersTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_codecParametersTable->setAlternatingRowColors(true);
+    m_codecParametersTable->verticalHeader()->hide();
+    m_codecParametersTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_codecParametersTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_codecParametersTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    m_codecParametersTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    m_codecParametersTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    codecDetails->addTab(m_codecParametersTable, tr("参数集引用"));
+
+    m_codecResolutionsTable = new QTableWidget;
+    m_codecResolutionsTable->setColumnCount(5);
+    m_codecResolutionsTable->setHorizontalHeaderLabels({tr("SPS ID"), tr("宽"), tr("高"), "Offset", tr("事件")});
+    m_codecResolutionsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_codecResolutionsTable->setAlternatingRowColors(true);
+    m_codecResolutionsTable->verticalHeader()->hide();
+    m_codecResolutionsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    connect(m_codecResolutionsTable, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *item) {
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        showHex(offset, 8);
+        m_tabs->setCurrentWidget(m_hexView);
+    });
+    codecDetails->addTab(m_codecResolutionsTable, tr("分辨率事件"));
+    codecHealthLayout->addWidget(codecDetails, 1);
+    m_tabs->addTab(codecHealthPanel, tr("码流健康"));
     layout->addWidget(m_tabs);
     return panel;
 }
@@ -572,6 +636,8 @@ void MainWindow::buildShortcuts()
         auto *shortcut = new QShortcut(QKeySequence(QString("Ctrl+%1").arg(index + 1)), this);
         connect(shortcut, &QShortcut::activated, this, [this, index] { m_tabs->setCurrentIndex(index); });
     }
+    auto *codecHealthShortcut = new QShortcut(QKeySequence("Ctrl+0"), this);
+    connect(codecHealthShortcut, &QShortcut::activated, this, [this] { m_tabs->setCurrentIndex(9); });
 }
 
 void MainWindow::addRecentFile(const QString &path)
@@ -997,6 +1063,7 @@ void MainWindow::loadDocument(const QJsonDocument &document)
     populateFrames(frames);
     populateStreams(media.value("summary").toObject().value("ffprobe").toObject().value("streams").toArray());
     populateTransportSessions(media.value("summary").toObject().value("transport_sessions").toObject());
+    populateCodecHealth(media.value("summary").toObject().value("codec_health").toObject());
     populateDiagnostics(diagnostics, media);
     m_timeline->setData(frames, media.value("summary").toObject().value("timeline_summary").toObject());
 
@@ -1275,6 +1342,119 @@ void MainWindow::filterTransportSessions()
             {"visible", visible},
             {"total", m_transportSessionsTable->rowCount()},
             {"issues_only", issuesOnly},
+        };
+        QFile file(statePath);
+        QDir().mkpath(QFileInfo(statePath).absolutePath());
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+    }
+}
+
+void MainWindow::populateCodecHealth(const QJsonObject &health)
+{
+    if (!m_codecIssuesTable || !m_codecParametersTable || !m_codecResolutionsTable) return;
+    const bool available = health.value("available").toBool(false);
+    const auto parameterSets = health.value("parameter_sets").toObject();
+    const auto issues = health.value("issues").toArray();
+    const auto resolutionEvents = health.value("resolution_events").toArray();
+    const auto resolutionChanges = health.value("resolution_changes").toArray();
+    const auto idText = [](const QJsonArray &values) {
+        QStringList ids;
+        for (const auto &value : values) ids << displayValue(value);
+        return ids.isEmpty() ? QString("--") : ids.join(", ");
+    };
+
+    if (!available) {
+        m_codecMetric->setText(tr("不适用"));
+        m_codecStatusMetric->setText("--");
+        m_codecParameterMetric->setText("--");
+        m_codecSliceMetric->setText("--");
+        m_codecIssueMetric->setText("0");
+        m_codecResolutionMetric->setText("0");
+    } else {
+        const int vpsCount = static_cast<int>(jsonInteger(parameterSets.value("vps_count")));
+        const int spsCount = static_cast<int>(jsonInteger(parameterSets.value("sps_count")));
+        const int ppsCount = static_cast<int>(jsonInteger(parameterSets.value("pps_count")));
+        m_codecMetric->setText(health.value("codec").toString("--"));
+        m_codecStatusMetric->setText(health.value("status").toString() == "warning" ? tr("需要检查") : tr("正常"));
+        m_codecParameterMetric->setText(vpsCount > 0
+            ? tr("VPS %1 / SPS %2 / PPS %3").arg(vpsCount).arg(spsCount).arg(ppsCount)
+            : tr("SPS %1 / PPS %2").arg(spsCount).arg(ppsCount));
+        m_codecSliceMetric->setText(tr("%1 / %2").arg(jsonInteger(health.value("slices"))).arg(jsonInteger(health.value("keyframes"))));
+        m_codecIssueMetric->setText(QString::number(issues.size()));
+        m_codecResolutionMetric->setText(QString::number(resolutionChanges.size()));
+    }
+
+    m_codecIssuesTable->setRowCount(issues.size());
+    for (int row = 0; row < issues.size(); ++row) {
+        const auto issue = issues.at(row).toObject();
+        const qint64 offset = jsonInteger(issue.value("offset"));
+        const QStringList values = {
+            issue.value("severity").toString() == "warning" ? tr("警告") : issue.value("severity").toString(),
+            QString("0x%1").arg(offset, 0, 16).toUpper(),
+            issue.value("message").toString(),
+            issue.value("source").toString(),
+        };
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setData(OffsetRole, offset);
+            cell->setForeground(QColor(m_dark ? "#F5C76B" : "#8A5A00"));
+            m_codecIssuesTable->setItem(row, column, cell);
+        }
+    }
+
+    struct ParameterRow { QString name; QJsonArray ids; QJsonArray missing; };
+    const QList<ParameterRow> parameterRows = {
+        {"VPS", parameterSets.value("vps_ids").toArray(), health.value("missing_vps_ids").toArray()},
+        {"SPS", parameterSets.value("sps_ids").toArray(), health.value("missing_sps_ids").toArray()},
+        {"PPS", parameterSets.value("pps_ids").toArray(), health.value("missing_pps_ids").toArray()},
+        {tr("Slice -> PPS"), health.value("slice_pps_ids").toArray(), health.value("missing_pps_ids").toArray()},
+    };
+    int parameterRowCount = 0;
+    for (const auto &row : parameterRows)
+        parameterRowCount += !row.ids.isEmpty() || !row.missing.isEmpty();
+    m_codecParametersTable->setRowCount(parameterRowCount);
+    int tableRow = 0;
+    for (const auto &row : parameterRows) {
+        if (row.ids.isEmpty() && row.missing.isEmpty()) continue;
+        const bool warning = !row.missing.isEmpty();
+        const QStringList values = {row.name, QString::number(row.ids.size()), idText(row.ids), idText(row.missing), warning ? tr("缺失引用") : tr("完整")};
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            if (warning) cell->setForeground(QColor(m_dark ? "#F5C76B" : "#8A5A00"));
+            else if (column == 4) cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
+            m_codecParametersTable->setItem(tableRow, column, cell);
+        }
+        ++tableRow;
+    }
+
+    QSet<qint64> changeOffsets;
+    for (const auto &value : resolutionChanges)
+        changeOffsets.insert(jsonInteger(value.toObject().value("offset")));
+    m_codecResolutionsTable->setRowCount(resolutionEvents.size());
+    for (int row = 0; row < resolutionEvents.size(); ++row) {
+        const auto event = resolutionEvents.at(row).toObject();
+        const qint64 offset = jsonInteger(event.value("offset"));
+        const bool changed = changeOffsets.contains(offset);
+        const QStringList values = {
+            displayValue(event.value("parameter_set_id")), displayValue(event.value("width")),
+            displayValue(event.value("height")), QString("0x%1").arg(offset, 0, 16).toUpper(),
+            changed ? tr("分辨率变化") : tr("参数集出现"),
+        };
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setData(OffsetRole, offset);
+            if (changed) cell->setForeground(QColor(m_dark ? "#F5C76B" : "#8A5A00"));
+            m_codecResolutionsTable->setItem(row, column, cell);
+        }
+    }
+
+    const QString statePath = qEnvironmentVariable("AVSCOPE_CODEC_HEALTH_STATE");
+    if (!statePath.isEmpty()) {
+        QJsonObject state{
+            {"available", available}, {"codec", health.value("codec")}, {"status", health.value("status")},
+            {"issues", issues.size()}, {"parameter_rows", parameterRowCount},
+            {"resolution_events", resolutionEvents.size()}, {"resolution_changes", resolutionChanges.size()},
         };
         QFile file(statePath);
         QDir().mkpath(QFileInfo(statePath).absolutePath());

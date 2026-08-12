@@ -102,6 +102,43 @@ if (-not (Test-Path -LiteralPath $transportScreenshot)) {
 Copy-Item -LiteralPath "$root\tmp\qt-runtime\current-analysis.json" -Destination $transportJson -Force
 Remove-Item Env:\AVSCOPE_START_TAB, Env:\AVSCOPE_TRANSPORT_ISSUES_ONLY, Env:\AVSCOPE_TRANSPORT_STATE -ErrorAction SilentlyContinue
 
+$codecH264Screenshot = "$output\codec-health-h264.png"
+$codecH264Json = "$output\codec-health-h264.json"
+$codecH264State = "$output\codec-health-h264-state.json"
+Remove-Item -LiteralPath $codecH264Screenshot, $codecH264Json, $codecH264State -Force -ErrorAction SilentlyContinue
+$env:AVSCOPE_START_TAB = "9"
+$env:AVSCOPE_THEME = "dark"
+$env:AVSCOPE_CODEC_HEALTH_STATE = $codecH264State
+$env:AVSCOPE_SCREENSHOT = $codecH264Screenshot
+$codecH264Process = Start-Process -FilePath $executable -ArgumentList "$root\samples\sample_h264_issues.h264" -WindowStyle Hidden -PassThru
+if (-not $codecH264Process.WaitForExit(10000)) {
+    $codecH264Process.Kill()
+    throw "Qt H.264 codec health smoke test timed out"
+}
+if (-not (Test-Path -LiteralPath $codecH264Screenshot)) {
+    throw "Qt H.264 codec health screenshot was not generated"
+}
+Copy-Item -LiteralPath "$root\tmp\qt-runtime\current-analysis.json" -Destination $codecH264Json -Force
+
+$codecH265Screenshot = "$output\codec-health-h265.png"
+$codecH265Json = "$output\codec-health-h265.json"
+$codecH265State = "$output\codec-health-h265-state.json"
+Remove-Item -LiteralPath $codecH265Screenshot, $codecH265Json, $codecH265State -Force -ErrorAction SilentlyContinue
+$env:AVSCOPE_THEME = "light"
+$env:AVSCOPE_CODEC_HEALTH_STATE = $codecH265State
+$env:AVSCOPE_SCREENSHOT = $codecH265Screenshot
+$codecH265Process = Start-Process -FilePath $executable -ArgumentList "$root\samples\sample_h265_issues.h265" -WindowStyle Hidden -PassThru
+if (-not $codecH265Process.WaitForExit(10000)) {
+    $codecH265Process.Kill()
+    throw "Qt H.265 codec health smoke test timed out"
+}
+if (-not (Test-Path -LiteralPath $codecH265Screenshot)) {
+    throw "Qt H.265 codec health screenshot was not generated"
+}
+Copy-Item -LiteralPath "$root\tmp\qt-runtime\current-analysis.json" -Destination $codecH265Json -Force
+Remove-Item Env:\AVSCOPE_START_TAB, Env:\AVSCOPE_CODEC_HEALTH_STATE -ErrorAction SilentlyContinue
+$env:AVSCOPE_THEME = "dark"
+
 $diagnosticScreenshot = "$output\diagnostic-filter.png"
 $diagnosticJson = "$output\diagnostic-filter.json"
 $diagnosticState = "$output\diagnostic-filter-state.json"
@@ -231,7 +268,7 @@ Remove-Item Env:\AVSCOPE_COMPARE_MODE, Env:\AVSCOPE_COMPARE_PATH -ErrorAction Si
 Remove-Item Env:\AVSCOPE_WINDOW_WIDTH, Env:\AVSCOPE_WINDOW_HEIGHT -ErrorAction SilentlyContinue
 
 $env:PYTHONPATH = $root
-& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png'),Path(r'$output/timeline-pcap.png'),Path(r'$output/pcap-rtcp-preview.png'),Path(r'$output/transport-sessions.png'),Path(r'$output/media-streams.png'),Path(r'$output/diagnostic-filter.png'),Path(r'$output/raw-pcm.png'),Path(r'$output/raw-yuv.png'),Path(r'$output/raw-yuv-frame-2.png'),Path(r'$output/project-snapshot.png'),Path(r'$output/compare-protocol.png')]; dims=[png_dimensions(p) for p in paths]; assert len(set(dims)) == 1, dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; assert all(p.stat().st_size > 50000 for p in paths), [(p.name,p.stat().st_size) for p in paths]; compact=Path(r'$compactScreenshot'); compact_dims=png_dimensions(compact); assert compact_dims == (1680,1080), compact_dims; assert compact.stat().st_size > 40000; settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'dimensions': dims, 'compact': {'path': str(compact), 'dimensions': compact_dims}, 'dpi_scale': round(width / 1560, 2), 'settings': str(settings)})"
+& "E:\DevelopmentEnvironment\python\python.exe" -c "from pathlib import Path; from avscope.ffmpeg_preview import png_dimensions; paths=[Path(r'$output/dark.png'),Path(r'$output/light.png'),Path(r'$output/timeline-pcap.png'),Path(r'$output/pcap-rtcp-preview.png'),Path(r'$output/transport-sessions.png'),Path(r'$output/codec-health-h264.png'),Path(r'$output/codec-health-h265.png'),Path(r'$output/media-streams.png'),Path(r'$output/diagnostic-filter.png'),Path(r'$output/raw-pcm.png'),Path(r'$output/raw-yuv.png'),Path(r'$output/raw-yuv-frame-2.png'),Path(r'$output/project-snapshot.png'),Path(r'$output/compare-protocol.png')]; dims=[png_dimensions(p) for p in paths]; assert len(set(dims)) == 1, dims; width,height=dims[0]; assert width >= 1560 and height >= 940, dims; assert abs(width / height - 1560 / 940) < 0.01, dims; assert all(p.stat().st_size > 50000 for p in paths), [(p.name,p.stat().st_size) for p in paths]; compact=Path(r'$compactScreenshot'); compact_dims=png_dimensions(compact); assert compact_dims == (1680,1080), compact_dims; assert compact.stat().st_size > 40000; settings=Path(r'$root/data/qt-settings.ini'); assert settings.exists() and settings.stat().st_size > 0; print({'screenshots': [str(p) for p in paths], 'dimensions': dims, 'compact': {'path': str(compact), 'dimensions': compact_dims}, 'dpi_scale': round(width / 1560, 2), 'settings': str(settings)})"
 if ($LASTEXITCODE -ne 0) { throw "Qt screenshot validation failed" }
 
 & "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; document=json.loads(Path(r'$root/tmp/qt-runtime/current-analysis.json').read_text(encoding='utf-8')); root=document['root']; assert root['children'] and root['children'][0]['fields']; streams=json.loads(Path(r'$streamsJson').read_text(encoding='utf-8'))['media']['summary']['ffprobe']['streams']; assert len(streams)==1 and streams[0]['codec_name']=='pcm_s16le' and streams[0]['sample_rate']=='8000', streams; diagnostic=json.loads(Path(r'$diagnosticJson').read_text(encoding='utf-8')); issues=[i for i in diagnostic['diagnostics'] if i['severity']=='warning' and i.get('offset') is not None]; assert issues and any('chunk offset' in i['message'] for i in issues), issues; state=json.loads(Path(r'$diagnosticState').read_text(encoding='utf-8')); assert state=={'visible':1,'total':3,'severity':'warning','source':'all','offset_only':True}, state; pcm=json.loads(Path(r'$rawPcmJson').read_text(encoding='utf-8'))['media']['summary']; assert (pcm['sample_rate'],pcm['channels'],pcm['bits_per_sample'],pcm['endian']) == (8000,1,16,'little'), pcm; yuv=json.loads(Path(r'$rawYuvJson').read_text(encoding='utf-8'))['media']['summary']; assert (yuv['width'],yuv['height'],yuv['pixel_format'],yuv['fps'],yuv['frames']) == (64,48,'yuv420p',30.0,3), yuv; yuv_next=json.loads(Path(r'$rawYuvNextJson').read_text(encoding='utf-8'))['media']['summary']['yuv_preview']; assert yuv_next['frame_index']==1 and yuv_next['total_frames']==3, yuv_next; snapshot=json.loads(Path(r'$snapshotPath').read_text(encoding='utf-8')); assert snapshot['analysis']['root']['children'] and snapshot['source_path'].endswith('sample.mp4') and len(snapshot['bookmarks'])==2; compare=json.loads(Path(r'$compareJson').read_text(encoding='utf-8')); assert len(compare['added']) == 1 and len(compare['changed']) >= 1, compare; print({'nodes': len(root['children']), 'first_fields': len(root['children'][0]['fields']), 'media_streams': streams, 'diagnostic_filter': state, 'raw_pcm': {k:pcm[k] for k in ('sample_rate','channels','bits_per_sample','endian')}, 'raw_yuv': {k:yuv[k] for k in ('width','height','pixel_format','fps','frames')}, 'yuv_navigation': yuv_next['frame_index'], 'project_snapshot': {'source':snapshot['source_path'],'bookmarks':len(snapshot['bookmarks'])}, 'protocol_compare': {k:len(compare[k]) for k in ('added','removed','changed')}})"
@@ -242,6 +279,9 @@ if ($LASTEXITCODE -ne 0) { throw "Qt RTCP protocol tree or preview contract is i
 
 & "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; document=json.loads(Path(r'$transportJson').read_text(encoding='utf-8')); transport=document['media']['summary']['transport_sessions']; state=json.loads(Path(r'$transportState').read_text(encoding='utf-8')); assert (transport['session_count'],transport['warning_sessions'])==(2,1), transport; assert (transport['estimated_lost_packets'],transport['duplicate_packets'],transport['reordered_packets'])==(1,1,1), transport; warning=next(item for item in transport['sessions'] if item['status']=='warning'); clean=next(item for item in transport['sessions'] if item['status']=='normal'); assert warning['ssrc']=='0x12345678' and clean['ssrc']=='0xABCDEF01', transport; assert state=={'visible':1,'total':2,'issues_only':True}, state; print({'transport': {k:transport[k] for k in ('session_count','warning_sessions','estimated_lost_packets','duplicate_packets','reordered_packets')}, 'filter':state, 'warning_ssrc':warning['ssrc']})"
 if ($LASTEXITCODE -ne 0) { throw "Qt transport session table or filter contract is incomplete" }
+
+& "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; h264=json.loads(Path(r'$codecH264Json').read_text(encoding='utf-8'))['media']['summary']['codec_health']; h265=json.loads(Path(r'$codecH265Json').read_text(encoding='utf-8'))['media']['summary']['codec_health']; s264=json.loads(Path(r'$codecH264State').read_text(encoding='utf-8')); s265=json.loads(Path(r'$codecH265State').read_text(encoding='utf-8')); assert h264['issue_count']==4 and h264['missing_pps_ids']==[7] and h264['missing_sps_ids']==[9], h264; assert h264['resolution_changes'][0]['from_width']==640 and h264['resolution_changes'][0]['to_width']==320, h264; assert h265['issue_count']==5 and h265['missing_pps_ids']==[7] and h265['missing_sps_ids']==[8] and h265['missing_vps_ids']==[9], h265; assert h265['resolution_changes'][0]['from_width']==640 and h265['resolution_changes'][0]['to_width']==1280, h265; assert s264=={'available':True,'codec':'H.264 Annex-B','status':'warning','issues':4,'parameter_rows':3,'resolution_events':2,'resolution_changes':1}, s264; assert s265=={'available':True,'codec':'H.265 Annex-B','status':'warning','issues':5,'parameter_rows':4,'resolution_events':2,'resolution_changes':1}, s265; print({'h264':s264,'h265':s265})"
+if ($LASTEXITCODE -ne 0) { throw "Qt H.26x codec health page contract is incomplete" }
 
 & "E:\DevelopmentEnvironment\python\python.exe" -c "import json; from pathlib import Path; pcm=json.loads(Path(r'$rawPcmJson').read_text(encoding='utf-8'))['media']['summary']; yuv=json.loads(Path(r'$rawYuvJson').read_text(encoding='utf-8'))['media']['summary']; assert pcm['waveform']['energy']['peak_level'] > 0.5; preview=Path(yuv['yuv_preview']['path']); assert yuv['yuv_preview']['available'] and preview.exists() and preview.stat().st_size > 100; source=Path(r'$root/qt/src/MainWindow.cpp').read_text(encoding='utf-8'); assert 'waitForFinished' not in source; print({'pcm_peak': pcm['waveform']['energy']['peak_level'], 'yuv_preview': str(preview), 'async_tasks': True})"
 if ($LASTEXITCODE -ne 0) { throw "Qt media visualization or asynchronous task validation failed" }

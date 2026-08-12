@@ -82,6 +82,7 @@ private:
     void populateFrames(const QJsonArray &frames);
     void populateStreams(const QJsonArray &streams);
     void populateTransportSessions(const QJsonObject &transport);
+    void populateCodecHealth(const QJsonObject &health);
     void filterTransportSessions();
     void populateBookmarks();
     void populateDiagnostics(const QJsonArray &diagnostics, const QJsonObject &media);
@@ -134,6 +135,9 @@ private:
     QTableWidget *m_framesTable = nullptr;
     QTableWidget *m_streamsTable = nullptr;
     QTableWidget *m_transportSessionsTable = nullptr;
+    QTableWidget *m_codecIssuesTable = nullptr;
+    QTableWidget *m_codecParametersTable = nullptr;
+    QTableWidget *m_codecResolutionsTable = nullptr;
     QTableWidget *m_bookmarksTable = nullptr;
     QTreeWidget *m_compareTree = nullptr;
     QPlainTextEdit *m_hexView = nullptr;
@@ -145,6 +149,12 @@ private:
     QCheckBox *m_transportIssuesOnly = nullptr;
     QLabel *m_diagnosticSummary = nullptr;
     QLabel *m_transportSummary = nullptr;
+    QLabel *m_codecMetric = nullptr;
+    QLabel *m_codecStatusMetric = nullptr;
+    QLabel *m_codecParameterMetric = nullptr;
+    QLabel *m_codecSliceMetric = nullptr;
+    QLabel *m_codecIssueMetric = nullptr;
+    QLabel *m_codecResolutionMetric = nullptr;
     QPlainTextEdit *m_selectionDetails = nullptr;
     QPlainTextEdit *m_log = nullptr;
     QTabWidget *m_tabs = nullptr;

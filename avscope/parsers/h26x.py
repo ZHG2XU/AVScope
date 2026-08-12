@@ -18,6 +18,12 @@ H264_TYPES = {
 }
 
 H265_TYPES = {
+    16: "BLA W LP",
+    17: "BLA W RADL",
+    18: "BLA N LP",
+    19: "IDR W RADL",
+    20: "IDR N LP",
+    21: "CRA",
     32: "VPS",
     33: "SPS",
     34: "PPS",
@@ -149,6 +155,7 @@ class _AnnexBParser(FormatParser):
             return ParseResult(media_info(source, self.name, nalu_count=0), root, diagnostics=diagnostics)
 
         seen_parameter_sets: set[int] = set()
+        health = self._new_health_state()
         summary: dict = {"nalu_count": len(starts)}
         for index, (start_offset, code_len) in enumerate(starts[:20000]):
             payload_offset = start_offset + code_len
@@ -161,7 +168,7 @@ class _AnnexBParser(FormatParser):
             type_name = self.nal_types.get(nal_type, f"NAL type {nal_type}")
             if type_name in {"SPS", "PPS", "VPS"}:
                 seen_parameter_sets.add(nal_type)
-            keyframe = type_name == "IDR Slice" or nal_type in {19, 20}
+            keyframe = type_name == "IDR Slice" or nal_type in {16, 17, 18, 19, 20, 21}
             node = root.add_child(ParseNode(f"NALU[{index}] {type_name}", "nalu", start_offset, code_len + nalu_size))
             node.fields.extend(
                 [
@@ -170,13 +177,18 @@ class _AnnexBParser(FormatParser):
                     FieldInfo("payload_size", nalu_size, payload_offset, nalu_size),
                 ]
             )
-            self._parse_nalu_payload(source, node, nal_type, payload_offset, nalu_size, summary, diagnostics)
+            self._parse_nalu_payload(source, node, nal_type, payload_offset, nalu_size, summary, diagnostics, health)
             if keyframe and not self._has_required_parameter_sets(seen_parameter_sets):
-                node.severity = Severity.WARNING
-                diagnostics.append(warn("关键帧前缺少参数集", start_offset, self.name))
+                _add_health_issue(health, diagnostics, node, "关键帧前缺少参数集", start_offset)
             frames.append(FrameInfo(index, start_offset, code_len + nalu_size, frame_type=type_name, keyframe=keyframe))
 
-        diagnostics.extend(self._parameter_set_warnings(seen_parameter_sets))
+        parameter_issues = self._parameter_set_warnings(seen_parameter_sets)
+        diagnostics.extend(parameter_issues)
+        for issue in parameter_issues:
+            health["issues"].append(
+                {"message": issue.message, "offset": issue.offset, "source": issue.source, "severity": issue.severity.value}
+            )
+        summary["codec_health"] = self._finalize_health(health, diagnostics)
         summary["parsed_nalu"] = len(root.children)
         return ParseResult(media_info(source, self.name, **summary), root, frames, diagnostics)
 
@@ -202,8 +214,41 @@ class _AnnexBParser(FormatParser):
                 break
         return [(offset, length) for offset, length in starts if 0 <= offset < source.size]
 
-    def _parse_nalu_payload(self, source: ByteSource, node: ParseNode, nal_type: int, payload_offset: int, nalu_size: int, summary: dict, diagnostics: list) -> None:
+    def _parse_nalu_payload(
+        self,
+        source: ByteSource,
+        node: ParseNode,
+        nal_type: int,
+        payload_offset: int,
+        nalu_size: int,
+        summary: dict,
+        diagnostics: list,
+        health: dict,
+    ) -> None:
         return None
+
+    def _new_health_state(self) -> dict:
+        return {
+            "slices": 0,
+            "keyframes": 0,
+            "issues": [],
+            "resolution_events": [],
+            "resolution_changes": [],
+            "last_resolution": None,
+        }
+
+    def _finalize_health(self, health: dict, diagnostics: list) -> dict:
+        return {
+            "available": True,
+            "codec": self.name,
+            "status": "warning" if health["issues"] else "normal",
+            "issues": list(health["issues"]),
+            "issue_count": len(health["issues"]),
+            "slices": health["slices"],
+            "keyframes": health["keyframes"],
+            "resolution_events": list(health["resolution_events"]),
+            "resolution_changes": list(health["resolution_changes"]),
+        }
 
     def _nal_type(self, header: bytes) -> int:
         raise NotImplementedError
@@ -223,10 +268,41 @@ class H264AnnexBParser(_AnnexBParser):
     def _nal_type(self, header: bytes) -> int:
         return header[0] & 0x1F
 
-    def _parse_nalu_payload(self, source: ByteSource, node: ParseNode, nal_type: int, payload_offset: int, nalu_size: int, summary: dict, diagnostics: list) -> None:
+    def _new_health_state(self) -> dict:
+        health = super()._new_health_state()
+        health.update({"sps": {}, "pps": {}, "slice_pps_ids": set(), "missing_pps_ids": set(), "missing_sps_ids": set()})
+        return health
+
+    def _parse_nalu_payload(
+        self, source: ByteSource, node: ParseNode, nal_type: int, payload_offset: int, nalu_size: int,
+        summary: dict, diagnostics: list, health: dict,
+    ) -> None:
         if nalu_size <= 1:
             return
         payload = source.read_at(payload_offset + 1, min(nalu_size - 1, 4096))
+        if nal_type in {1, 5}:
+            health["slices"] += 1
+            health["keyframes"] += int(nal_type == 5)
+            try:
+                first_mb, slice_type, pps_id = parse_h264_slice_header(payload)
+            except ValueError as exc:
+                _add_health_issue(health, diagnostics, node, f"H.264 Slice header 解析失败: {exc}", payload_offset)
+                return
+            node.fields.extend(
+                [
+                    FieldInfo("first_mb_in_slice", first_mb, payload_offset + 1, 0),
+                    FieldInfo("slice_type", slice_type, payload_offset + 1, 0),
+                    FieldInfo("slice_pic_parameter_set_id", pps_id, payload_offset + 1, 0),
+                ]
+            )
+            health["slice_pps_ids"].add(pps_id)
+            if pps_id not in health["pps"]:
+                health["missing_pps_ids"].add(pps_id)
+                _add_health_issue(
+                    health, diagnostics, node,
+                    f"H.264 Slice 引用尚未出现的 PPS id={pps_id}", payload_offset,
+                )
+            return
         if nal_type == 8:
             try:
                 pps = parse_h264_pps(payload)
@@ -250,6 +326,11 @@ class H264AnnexBParser(_AnnexBParser):
             )
             summary["pps_id"] = pps.pic_parameter_set_id
             summary["pps_sps_id"] = pps.seq_parameter_set_id
+            health["pps"][pps.pic_parameter_set_id] = {
+                "sps_id": pps.seq_parameter_set_id,
+                "offset": payload_offset,
+                "node": node,
+            }
             return
         if nal_type != 7:
             return
@@ -276,6 +357,37 @@ class H264AnnexBParser(_AnnexBParser):
         summary["height"] = sps.height
         summary["profile_idc"] = sps.profile_idc
         summary["level_idc"] = sps.level_idc
+        health["sps"][sps.seq_parameter_set_id] = {
+            "width": sps.width,
+            "height": sps.height,
+            "offset": payload_offset,
+            "node": node,
+        }
+        _record_resolution(health, diagnostics, node, sps.seq_parameter_set_id, sps.width, sps.height, payload_offset, self.name)
+
+    def _finalize_health(self, health: dict, diagnostics: list) -> dict:
+        for pps_id, record in health["pps"].items():
+            sps_id = record["sps_id"]
+            if sps_id not in health["sps"]:
+                health["missing_sps_ids"].add(sps_id)
+                _add_health_issue(
+                    health, diagnostics, record["node"],
+                    f"H.264 PPS id={pps_id} 引用不存在的 SPS id={sps_id}", record["offset"],
+                )
+        result = super()._finalize_health(health, diagnostics)
+        result["parameter_sets"] = {
+            "sps_ids": sorted(health["sps"]),
+            "pps_ids": sorted(health["pps"]),
+            "sps_count": len(health["sps"]),
+            "pps_count": len(health["pps"]),
+        }
+        result["slice_pps_ids"] = sorted(health["slice_pps_ids"])
+        result["missing_pps_ids"] = sorted(health["missing_pps_ids"])
+        result["missing_sps_ids"] = sorted(health["missing_sps_ids"])
+        result["status"] = "warning" if health["issues"] else "normal"
+        result["issue_count"] = len(health["issues"])
+        result["issues"] = list(health["issues"])
+        return result
 
     def _has_required_parameter_sets(self, seen: set[int]) -> bool:
         return 7 in seen and 8 in seen
@@ -297,10 +409,43 @@ class H265AnnexBParser(_AnnexBParser):
     def _nal_type(self, header: bytes) -> int:
         return (header[0] >> 1) & 0x3F
 
-    def _parse_nalu_payload(self, source: ByteSource, node: ParseNode, nal_type: int, payload_offset: int, nalu_size: int, summary: dict, diagnostics: list) -> None:
+    def _new_health_state(self) -> dict:
+        health = super()._new_health_state()
+        health.update(
+            {"vps": {}, "sps": {}, "pps": {}, "slice_pps_ids": set(), "missing_pps_ids": set(),
+             "missing_sps_ids": set(), "missing_vps_ids": set()}
+        )
+        return health
+
+    def _parse_nalu_payload(
+        self, source: ByteSource, node: ParseNode, nal_type: int, payload_offset: int, nalu_size: int,
+        summary: dict, diagnostics: list, health: dict,
+    ) -> None:
         if nalu_size <= 2:
             return
         payload = source.read_at(payload_offset + 2, min(nalu_size - 2, 4096))
+        if 0 <= nal_type <= 31:
+            health["slices"] += 1
+            health["keyframes"] += int(nal_type in {16, 17, 18, 19, 20, 21})
+            try:
+                first_slice, pps_id = parse_h265_slice_header(payload, nal_type)
+            except ValueError as exc:
+                _add_health_issue(health, diagnostics, node, f"H.265 Slice header 解析失败: {exc}", payload_offset)
+                return
+            node.fields.extend(
+                [
+                    FieldInfo("first_slice_segment_in_pic_flag", first_slice, payload_offset + 2, 0),
+                    FieldInfo("slice_pic_parameter_set_id", pps_id, payload_offset + 2, 0),
+                ]
+            )
+            health["slice_pps_ids"].add(pps_id)
+            if pps_id not in health["pps"]:
+                health["missing_pps_ids"].add(pps_id)
+                _add_health_issue(
+                    health, diagnostics, node,
+                    f"H.265 Slice 引用尚未出现的 PPS id={pps_id}", payload_offset,
+                )
+            return
         if nal_type == 32:
             try:
                 vps = parse_h265_vps(payload)
@@ -323,6 +468,7 @@ class H265AnnexBParser(_AnnexBParser):
             summary["max_sub_layers"] = vps.max_sub_layers_minus1 + 1
             summary["profile_idc"] = vps.profile_idc
             summary["level_idc"] = vps.level_idc
+            health["vps"][vps.video_parameter_set_id] = {"offset": payload_offset, "node": node}
             return
         if nal_type == 34:
             try:
@@ -344,6 +490,11 @@ class H265AnnexBParser(_AnnexBParser):
             )
             summary["pps_id"] = pps.pic_parameter_set_id
             summary["pps_sps_id"] = pps.seq_parameter_set_id
+            health["pps"][pps.pic_parameter_set_id] = {
+                "sps_id": pps.seq_parameter_set_id,
+                "offset": payload_offset,
+                "node": node,
+            }
             return
         if nal_type == 33:
             try:
@@ -380,6 +531,49 @@ class H265AnnexBParser(_AnnexBParser):
             summary["sps_id"] = sps.seq_parameter_set_id
             summary["profile_idc"] = sps.profile_idc
             summary["level_idc"] = sps.level_idc
+            health["sps"][sps.seq_parameter_set_id] = {
+                "vps_id": sps.video_parameter_set_id,
+                "width": sps.width,
+                "height": sps.height,
+                "offset": payload_offset,
+                "node": node,
+            }
+            _record_resolution(health, diagnostics, node, sps.seq_parameter_set_id, sps.width, sps.height, payload_offset, self.name)
+
+    def _finalize_health(self, health: dict, diagnostics: list) -> dict:
+        for sps_id, record in health["sps"].items():
+            vps_id = record["vps_id"]
+            if vps_id not in health["vps"]:
+                health["missing_vps_ids"].add(vps_id)
+                _add_health_issue(
+                    health, diagnostics, record["node"],
+                    f"H.265 SPS id={sps_id} 引用不存在的 VPS id={vps_id}", record["offset"],
+                )
+        for pps_id, record in health["pps"].items():
+            sps_id = record["sps_id"]
+            if sps_id not in health["sps"]:
+                health["missing_sps_ids"].add(sps_id)
+                _add_health_issue(
+                    health, diagnostics, record["node"],
+                    f"H.265 PPS id={pps_id} 引用不存在的 SPS id={sps_id}", record["offset"],
+                )
+        result = super()._finalize_health(health, diagnostics)
+        result["parameter_sets"] = {
+            "vps_ids": sorted(health["vps"]),
+            "sps_ids": sorted(health["sps"]),
+            "pps_ids": sorted(health["pps"]),
+            "vps_count": len(health["vps"]),
+            "sps_count": len(health["sps"]),
+            "pps_count": len(health["pps"]),
+        }
+        result["slice_pps_ids"] = sorted(health["slice_pps_ids"])
+        result["missing_pps_ids"] = sorted(health["missing_pps_ids"])
+        result["missing_sps_ids"] = sorted(health["missing_sps_ids"])
+        result["missing_vps_ids"] = sorted(health["missing_vps_ids"])
+        result["status"] = "warning" if health["issues"] else "normal"
+        result["issue_count"] = len(health["issues"])
+        result["issues"] = list(health["issues"])
+        return result
 
     def _has_required_parameter_sets(self, seen: set[int]) -> bool:
         return 32 in seen and 33 in seen and 34 in seen
@@ -393,6 +587,72 @@ class H265AnnexBParser(_AnnexBParser):
         if 34 not in seen:
             issues.append(warn("未发现 H.265 PPS", 0, self.name))
         return issues
+
+
+def parse_h264_slice_header(payload: bytes) -> tuple[int, int, int]:
+    reader = BitReader(remove_emulation_prevention_bytes(payload))
+    first_mb_in_slice = reader.read_ue()
+    slice_type = reader.read_ue()
+    pic_parameter_set_id = reader.read_ue()
+    return first_mb_in_slice, slice_type, pic_parameter_set_id
+
+
+def parse_h265_slice_header(payload: bytes, nal_type: int) -> tuple[int, int]:
+    reader = BitReader(remove_emulation_prevention_bytes(payload))
+    first_slice_segment_in_pic_flag = reader.read_bit()
+    if 16 <= nal_type <= 23:
+        reader.read_bit()
+    slice_pic_parameter_set_id = reader.read_ue()
+    return first_slice_segment_in_pic_flag, slice_pic_parameter_set_id
+
+
+def _add_health_issue(
+    health: dict,
+    diagnostics: list,
+    node: ParseNode,
+    message: str,
+    offset: int,
+) -> None:
+    node.severity = Severity.WARNING
+    node.description = node.description or message
+    diagnostics.append(warn(message, offset, "codec_health"))
+    health["issues"].append(
+        {"message": message, "offset": offset, "source": "codec_health", "severity": "warning"}
+    )
+
+
+def _record_resolution(
+    health: dict,
+    diagnostics: list,
+    node: ParseNode,
+    parameter_set_id: int,
+    width: int,
+    height: int,
+    offset: int,
+    codec_name: str,
+) -> None:
+    current = (width, height)
+    event = {"parameter_set_id": parameter_set_id, "width": width, "height": height, "offset": offset}
+    health["resolution_events"].append(event)
+    previous = health.get("last_resolution")
+    if previous is not None and previous != current:
+        change = {
+            "from_width": previous[0],
+            "from_height": previous[1],
+            "to_width": width,
+            "to_height": height,
+            "parameter_set_id": parameter_set_id,
+            "offset": offset,
+        }
+        health["resolution_changes"].append(change)
+        _add_health_issue(
+            health,
+            diagnostics,
+            node,
+            f"{codec_name} 分辨率变化: {previous[0]}x{previous[1]} -> {width}x{height}",
+            offset,
+        )
+    health["last_resolution"] = current
 
 
 def parse_h264_sps(payload: bytes) -> H264SpsInfo:

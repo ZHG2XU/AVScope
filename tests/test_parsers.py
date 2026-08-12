@@ -53,7 +53,7 @@ from avscope.models import FieldInfo, FrameInfo, MediaInfo, ParseNode, ParseResu
 from avscope.packet_stats import build_packet_stats
 from avscope.plugins import build_plugin_template_manifest, load_plugin_parsers, normalize_extension, normalize_magic_hex, write_plugin_template
 from avscope.report import export_csv, export_html, export_json, export_project, timeline_issue_label_map, timeline_issue_rows
-from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps
+from avscope.samples import generate_samples, make_h264_baseline_sps, make_h264_pps, make_h264_slice_header
 from avscope.search import find_pattern, parse_search_pattern
 from avscope.settings import AppSettings, MAX_RECENT_FILES
 from scripts.release_manifest import build_release_manifest, write_release_manifest
@@ -260,7 +260,11 @@ class ParserTests(unittest.TestCase):
         self.assertIn("syncword", csv_text)
 
     def test_h264_parser(self):
-        data = b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(640, 480) + b"\x00\x00\x01\x68" + make_h264_pps() + b"\x00\x00\x01\x65\x88"
+        data = (
+            b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(640, 480)
+            + b"\x00\x00\x01\x68" + make_h264_pps()
+            + b"\x00\x00\x01\x65" + make_h264_slice_header(pps_id=0, slice_type=2)
+        )
         result = self.analyzer.analyze(write(ROOT / "ok.h264", data))
         self.assertEqual(result.media.format_name, "H.264 Annex-B")
         self.assertGreaterEqual(result.media.summary["nalu_count"], 3)
@@ -273,6 +277,42 @@ class ParserTests(unittest.TestCase):
         pps_fields = {field.name: field.value for field in result.root.children[1].fields}
         self.assertEqual(pps_fields["pic_parameter_set_id"], 0)
         self.assertEqual(pps_fields["seq_parameter_set_id"], 0)
+        slice_fields = {field.name: field.value for field in result.root.children[2].fields}
+        self.assertEqual(slice_fields["slice_pic_parameter_set_id"], 0)
+        health = result.media.summary["codec_health"]
+        self.assertEqual(health["status"], "normal")
+        self.assertEqual(health["parameter_sets"], {"sps_ids": [0], "pps_ids": [0], "sps_count": 1, "pps_count": 1})
+        self.assertEqual(health["slice_pps_ids"], [0])
+        self.assertEqual(health["issue_count"], 0)
+
+    def test_h264_codec_health_diagnostics(self):
+        sample_dir = ROOT / "h264_health"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample_h264_issues.h264")
+        health = result.media.summary["codec_health"]
+        self.assertEqual(health["status"], "warning")
+        self.assertEqual(health["issue_count"], 4)
+        self.assertEqual(health["parameter_sets"]["sps_ids"], [0, 1])
+        self.assertEqual(health["parameter_sets"]["pps_ids"], [0, 1])
+        self.assertEqual(health["slice_pps_ids"], [0, 1, 7])
+        self.assertEqual(health["missing_pps_ids"], [7])
+        self.assertEqual(health["missing_sps_ids"], [9])
+        self.assertEqual(health["resolution_changes"][0]["from_width"], 640)
+        self.assertEqual(health["resolution_changes"][0]["to_width"], 320)
+        messages = [issue["message"] for issue in health["issues"]]
+        self.assertTrue(any("关键帧前缺少参数集" in message for message in messages))
+        self.assertTrue(any("PPS id=1 引用不存在的 SPS id=9" in message for message in messages))
+        self.assertTrue(any("分辨率变化" in message for message in messages))
+        self.assertTrue(any(node.severity == Severity.WARNING for node in result.root.children))
+        html_path = ROOT / "h264_health.html"
+        csv_path = ROOT / "h264_health.csv"
+        export_html(result, html_path)
+        export_csv(result, csv_path)
+        self.assertIn("H.26x 码流健康", html_path.read_text(encoding="utf-8"))
+        self.assertIn("640x480 -&gt; 320x240", html_path.read_text(encoding="utf-8"))
+        csv_text = csv_path.read_text(encoding="utf-8-sig")
+        self.assertIn("codec_health_summary", csv_text)
+        self.assertEqual(csv_text.count("codec_health_issue"), 4)
 
     def test_h265_parser(self):
         sample_dir = ROOT / "h265_sample"
@@ -292,6 +332,33 @@ class ParserTests(unittest.TestCase):
         pps_fields = {field.name: field.value for field in result.root.children[2].fields}
         self.assertEqual(pps_fields["pps_pic_parameter_set_id"], 0)
         self.assertEqual(pps_fields["pps_seq_parameter_set_id"], 0)
+        slice_fields = {field.name: field.value for field in result.root.children[3].fields}
+        self.assertEqual(slice_fields["slice_pic_parameter_set_id"], 0)
+        health = result.media.summary["codec_health"]
+        self.assertEqual(health["status"], "normal")
+        self.assertEqual(health["parameter_sets"]["vps_ids"], [0])
+        self.assertEqual(health["issue_count"], 0)
+
+    def test_h265_codec_health_diagnostics(self):
+        sample_dir = ROOT / "h265_health"
+        generate_samples(sample_dir)
+        result = self.analyzer.analyze(sample_dir / "sample_h265_issues.h265")
+        health = result.media.summary["codec_health"]
+        self.assertEqual(health["status"], "warning")
+        self.assertEqual(health["issue_count"], 5)
+        self.assertEqual(health["parameter_sets"]["vps_ids"], [0])
+        self.assertEqual(health["parameter_sets"]["sps_ids"], [0, 1])
+        self.assertEqual(health["parameter_sets"]["pps_ids"], [0, 1])
+        self.assertEqual(health["slice_pps_ids"], [0, 1, 7])
+        self.assertEqual(health["missing_pps_ids"], [7])
+        self.assertEqual(health["missing_sps_ids"], [8])
+        self.assertEqual(health["missing_vps_ids"], [9])
+        change = health["resolution_changes"][0]
+        self.assertEqual((change["from_width"], change["from_height"]), (640, 360))
+        self.assertEqual((change["to_width"], change["to_height"]), (1280, 720))
+        messages = [issue["message"] for issue in health["issues"]]
+        self.assertTrue(any("SPS id=1 引用不存在的 VPS id=9" in message for message in messages))
+        self.assertTrue(any("PPS id=1 引用不存在的 SPS id=8" in message for message in messages))
 
     def test_mp4_parser_and_reports(self):
         ftyp_payload = b"isom" + struct.pack(">I", 0) + b"isomiso2"
@@ -923,10 +990,12 @@ class ParserTests(unittest.TestCase):
         self.assertIn("F4", shortcuts)
         self.assertIn("Ctrl+Shift+I", shortcuts)
         self.assertIn("Ctrl+9", shortcuts)
+        self.assertIn("Ctrl+0", shortcuts)
         samples = format_sample_files_help()
         self.assertIn("G:\\AVScope\\samples", samples)
         self.assertIn("sample.mp4", samples)
         self.assertIn("sample_rtp_anomalies.pcap", samples)
+        self.assertIn("sample_h264_issues.h264", samples)
         empty_state = format_empty_state_text()
         self.assertIn("工作区待命", empty_state)
         self.assertIn("H.264/H.265", empty_state)

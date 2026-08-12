@@ -16,6 +16,8 @@ def generate_samples(directory: str | Path) -> list[Path]:
         _write(target / "sample.aac", _aac_sample()),
         _write(target / "sample.h264", _h264_sample()),
         _write(target / "sample.h265", _h265_sample()),
+        _write(target / "sample_h264_issues.h264", _h264_issue_sample()),
+        _write(target / "sample_h265_issues.h265", _h265_issue_sample()),
         _write(target / "sample.mp4", _mp4_sample()),
         _write(target / "sample_changed.mp4", _mp4_sample(extra_free=True)),
         _write(target / "sample.avi", _avi_sample()),
@@ -93,8 +95,8 @@ def _h264_sample() -> bytes:
     return (
         b"\x00\x00\x00\x01\x67" + make_h264_baseline_sps(width=640, height=480)
         + b"\x00\x00\x01\x68" + make_h264_pps()
-        + b"\x00\x00\x01\x65\x88\x84\x21\xa0"
-        b"\x00\x00\x01\x41\x9a\x22\x11"
+        + b"\x00\x00\x01\x65" + make_h264_slice_header(pps_id=0, slice_type=2)
+        + b"\x00\x00\x01\x41" + make_h264_slice_header(pps_id=0, slice_type=0)
     )
 
 
@@ -103,7 +105,32 @@ def _h265_sample() -> bytes:
         _h265_nalu(32, make_h265_vps())
         + _h265_nalu(33, make_h265_sps(width=640, height=360))
         + _h265_nalu(34, make_h265_pps())
-        + _h265_nalu(19, b"\x80")
+        + _h265_nalu(19, make_h265_slice_header(pps_id=0, irap=True))
+    )
+
+
+def _h264_issue_sample() -> bytes:
+    return (
+        b"\x00\x00\x00\x01\x65" + make_h264_slice_header(pps_id=7, slice_type=2)
+        + b"\x00\x00\x01\x67" + make_h264_baseline_sps(width=640, height=480, seq_parameter_set_id=0)
+        + b"\x00\x00\x01\x68" + make_h264_pps(pic_parameter_set_id=0, seq_parameter_set_id=0)
+        + b"\x00\x00\x01\x65" + make_h264_slice_header(pps_id=0, slice_type=2)
+        + b"\x00\x00\x01\x67" + make_h264_baseline_sps(width=320, height=240, seq_parameter_set_id=1)
+        + b"\x00\x00\x01\x68" + make_h264_pps(pic_parameter_set_id=1, seq_parameter_set_id=9)
+        + b"\x00\x00\x01\x41" + make_h264_slice_header(pps_id=1, slice_type=0)
+    )
+
+
+def _h265_issue_sample() -> bytes:
+    return (
+        _h265_nalu(19, make_h265_slice_header(pps_id=7, irap=True))
+        + _h265_nalu(32, make_h265_vps(video_parameter_set_id=0))
+        + _h265_nalu(33, make_h265_sps(width=640, height=360, video_parameter_set_id=0, seq_parameter_set_id=0))
+        + _h265_nalu(34, make_h265_pps(pic_parameter_set_id=0, seq_parameter_set_id=0))
+        + _h265_nalu(19, make_h265_slice_header(pps_id=0, irap=True))
+        + _h265_nalu(33, make_h265_sps(width=1280, height=720, video_parameter_set_id=9, seq_parameter_set_id=1))
+        + _h265_nalu(34, make_h265_pps(pic_parameter_set_id=1, seq_parameter_set_id=8))
+        + _h265_nalu(1, make_h265_slice_header(pps_id=1, irap=False))
     )
 
 
@@ -363,14 +390,20 @@ def _encode_pcr(pcr_base: int, pcr_extension: int = 0) -> bytes:
     )
 
 
-def make_h264_baseline_sps(width: int = 640, height: int = 480, profile_idc: int = 66, level_idc: int = 30) -> bytes:
+def make_h264_baseline_sps(
+    width: int = 640,
+    height: int = 480,
+    profile_idc: int = 66,
+    level_idc: int = 30,
+    seq_parameter_set_id: int = 0,
+) -> bytes:
     if width % 16 or height % 16:
         raise ValueError("synthetic SPS helper expects dimensions divisible by 16")
     writer = _BitWriter()
     writer.write_bits(profile_idc, 8)
     writer.write_bits(0, 8)
     writer.write_bits(level_idc, 8)
-    writer.write_ue(0)
+    writer.write_ue(seq_parameter_set_id)
     writer.write_ue(0)
     writer.write_ue(0)
     writer.write_ue(0)
@@ -395,9 +428,17 @@ def make_h264_pps(pic_parameter_set_id: int = 0, seq_parameter_set_id: int = 0) 
     return writer.finish()
 
 
-def make_h265_vps(profile_idc: int = 1, level_idc: int = 120) -> bytes:
+def make_h264_slice_header(pps_id: int = 0, slice_type: int = 2, first_mb: int = 0) -> bytes:
     writer = _BitWriter()
-    writer.write_bits(0, 4)
+    writer.write_ue(first_mb)
+    writer.write_ue(slice_type)
+    writer.write_ue(pps_id)
+    return writer.finish()
+
+
+def make_h265_vps(profile_idc: int = 1, level_idc: int = 120, video_parameter_set_id: int = 0) -> bytes:
+    writer = _BitWriter()
+    writer.write_bits(video_parameter_set_id, 4)
     writer.write_bit(1)
     writer.write_bit(1)
     writer.write_bits(0, 6)
@@ -414,13 +455,20 @@ def make_h265_vps(profile_idc: int = 1, level_idc: int = 120) -> bytes:
     return writer.finish()
 
 
-def make_h265_sps(width: int = 640, height: int = 360, profile_idc: int = 1, level_idc: int = 120) -> bytes:
+def make_h265_sps(
+    width: int = 640,
+    height: int = 360,
+    profile_idc: int = 1,
+    level_idc: int = 120,
+    video_parameter_set_id: int = 0,
+    seq_parameter_set_id: int = 0,
+) -> bytes:
     writer = _BitWriter()
-    writer.write_bits(0, 4)
+    writer.write_bits(video_parameter_set_id, 4)
     writer.write_bits(0, 3)
     writer.write_bit(1)
     _write_h265_profile_tier_level(writer, profile_idc, level_idc)
-    writer.write_ue(0)
+    writer.write_ue(seq_parameter_set_id)
     writer.write_ue(1)
     writer.write_ue(width)
     writer.write_ue(height)
@@ -444,6 +492,15 @@ def make_h265_pps(pic_parameter_set_id: int = 0, seq_parameter_set_id: int = 0) 
     writer.write_bits(0, 3)
     writer.write_bit(0)
     writer.write_bit(0)
+    return writer.finish()
+
+
+def make_h265_slice_header(pps_id: int = 0, irap: bool = True) -> bytes:
+    writer = _BitWriter()
+    writer.write_bit(1)
+    if irap:
+        writer.write_bit(0)
+    writer.write_ue(pps_id)
     return writer.finish()
 
 

@@ -5,7 +5,7 @@
 ## 当前已知边界
 
 - 当前版本是可安装 MVP，不是完整播放器；视频预览支持按 1 秒生成上一/下一预览帧、按秒跳转预览时间、按帧号跳转、上一/下一关键帧预览并显示当前帧元信息，音频预览支持 Peak/RMS 能量摘要和按起始时间/时长播放短片段，暂不提供连续播放列表或精确逐帧解码控制。
-- MP4、H.264、H.265 的字段解析覆盖常用排障字段，深层级码流语法、GOP 图和质量指标仍需后续扩展。
+- MP4、H.264、H.265 的字段解析覆盖常用排障字段；H.26x 已支持参数集引用链、关键帧前参数集和分辨率变化健康诊断，深层级 Slice 语法、GOP 图和解码质量指标仍需后续扩展。
 - Raw YUV 当前支持 `yuv420p`、`nv12`、`nv21`、`yuyv422` 逐帧预览，暂不支持所有像素格式。
 - PCAP/RTP/RTCP 当前支持按端点与 SSRC 聚合会话、sequence 回绕、估算丢包/重复/乱序、marker 和 payload 码率，并支持 RTCP Compound、SR/RR 与 Report Block 关联；暂未解析 SDES/BYE/反馈包，也未扩展到 RTSP/GB28181 信令与媒体会话关联。
 - 插件系统当前提供声明式魔数识别和字段模板示例，暂不执行第三方代码插件。
@@ -33,5 +33,6 @@
 - 已补充基础时间线曲线摘要：PTS/DTS 范围、非单调计数、时间戳异常点、码率 bucket、关键帧/GOP 间隔、GOP 分组结构、RTP sequence 摘要、MPEG-TS PCR 摘要和抽样曲线点会写入 `timeline_summary`。
 - PCAP 已按 Ethernet/IPv4/UDP/RTP/RTCP 分层展示，新增 RTCP SR/RR、Report Block、丢包与边界诊断；Qt 媒体预览、HTML 和 CSV 会显示同一份会话质量摘要。
 - 新增“传输会话”工作页，按端点与 SSRC 展示 RTP 包、payload、sequence 范围、估算丢失、重复、乱序、marker、码率和 RTCP 指标，并支持异常筛选与首包 Hex 定位。
+- 新增“码流健康”工作页，汇总 H.264/H.265 参数集、Slice/关键帧、缺失引用和分辨率事件；问题可按精确 Offset 定位 Hex，并同步导出 HTML/JSON/CSV。新增两个正式异常码流样例用于回归验证。
 - GUI 时间线页已叠加 PTS/DTS 曲线、码率曲线、GOP 分段、RTP sequence 曲线、PCR 曲线和异常标记，时间戳、RTP sequence 与带行号 PCR 异常会在表格中高亮并通过 `Issue` 列说明原因，同时提供“只看时间线异常”筛选；预览页会显示时间线曲线摘要和统一的时间线异常原因摘要；HTML 报告会汇总时间戳、RTP sequence 和 PCR 异常清单，并在帧列表/Packet 时间线中标注 `Issue` 原因，宽表在窄屏下可横向滚动；CSV 导出会写入可筛选的 `timeline_issue` section；HTML/JSON/CSV 导出已包含同一份结构化数据，PCAP/RTP/RTCP 还会显示 sequence 曲线、跳变点与 RTCP 会话质量，MPEG-TS 会显示 PCR 曲线。
 - 后续仍建议继续扩展 RTP sequence 多流对齐视图、后台索引、取消任务和 10GB 级自动化压力测试。
