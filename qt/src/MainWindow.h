@@ -44,6 +44,7 @@ private slots:
     void onFieldSelectionChanged();
     void onFrameSelectionChanged();
     void onDiagnosticSelectionChanged();
+    void filterDiagnostics();
     void searchNext();
     void filterProtocolTree();
     void copyCurrentOffset();
@@ -82,6 +83,7 @@ private:
     void populateStreams(const QJsonArray &streams);
     void populateBookmarks();
     void populateDiagnostics(const QJsonArray &diagnostics, const QJsonObject &media);
+    void filterDiagnostics(const QString &formatName);
     void showSelectionDetails(const QJsonObject &node, const QJsonObject &field = {});
     void showHex(qint64 offset, qint64 size = 1);
     void setAnalysisBusy(bool busy);
@@ -134,6 +136,10 @@ private:
     QPlainTextEdit *m_hexView = nullptr;
     MediaPreviewWidget *m_preview = nullptr;
     QTableWidget *m_diagnosticsTable = nullptr;
+    QComboBox *m_diagnosticSeverityFilter = nullptr;
+    QComboBox *m_diagnosticSourceFilter = nullptr;
+    QCheckBox *m_diagnosticOffsetOnly = nullptr;
+    QLabel *m_diagnosticSummary = nullptr;
     QPlainTextEdit *m_selectionDetails = nullptr;
     QPlainTextEdit *m_log = nullptr;
     QTabWidget *m_tabs = nullptr;
@@ -152,4 +158,5 @@ private:
     QPushButton *m_lightButton = nullptr;
     QPushButton *m_cancelButton = nullptr;
     QJsonArray m_bookmarks;
+    QJsonArray m_diagnostics;
 };

@@ -60,7 +60,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 5. 使用“视图”菜单切换 Hex、字段表、帧列表、时间线、预览和诊断面板，并按 `Ctrl+L` 显示/隐藏底部日志；在协议树展开任意节点，确认字段和值以子项直接显示，长值可通过底部横向滚动条查看。
 6. 在协议树分别选中节点、数值字段、文本字段和异常字段，确认选中背景与选中文字保持清晰对比，未选中字段按数值、文本、Hex、布尔值和 warning/error 使用不同颜色；通过“视图 / 深色主题”和“视图 / 浅色主题”切换后再次确认上述对比度和可读性。
 7. 在 Qt 工作台输入字段名确认协议树实时过滤且保留祖先路径；勾选“只看异常”确认只保留 warning/error 路径；使用展开/折叠、字段/帧选择、`Ctrl+C`、`Ctrl+Shift+O` 和 `Esc`，确认详情、Hex 跳转、复制与取消分析生效。关闭后重新打开，确认主题、窗口、分栏、当前标签和最近文件恢复，且状态只写入 `G:\AVScope\data\qt-settings.ini`。
-8. 运行 `PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1`，确认 Qt 构建、协议树数据契约、深浅主题、时间线、媒体流表、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复、协议对比截图、高 DPI、异步任务约束和 G 盘状态文件检查通过；验证证据位于 `G:\AVScope\tmp\qt-ui-validation`。
+8. 运行 `PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1`，确认 Qt 构建、协议树数据契约、深浅主题、时间线、媒体流表、诊断筛选、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复、协议对比截图、高 DPI、异步任务约束和 G 盘状态文件检查通过；验证证据位于 `G:\AVScope\tmp\qt-ui-validation`。
 9. 打开 `sample.pcap`、`sample.ts` 和带帧视频，确认时间线显示帧大小、PTS/DTS、码率、关键帧和异常标记；悬停显示帧详情，点击图形跳到帧表并联动 Hex。点击全局诊断中带 Offset 的行，确认直接切到 Hex 对应位置。
 6. 打开 `G:\AVScope\samples\sample.wav`，检查“预览”页是否显示音频波形图、Peak/RMS 音频能量和裁剪样本数；使用“分析 / 播放音频片段”“分析 / 播放指定音频片段”和“分析 / 停止音频播放”确认可试听短片段、可指定起始时间/时长且不会阻塞界面。
 7. 对真实含视频流文件打开后，在“预览”页检查是否出现“视频预览帧”和当前帧 PTS/DTS、duration、帧类型、关键帧、帧大小、分辨率、像素格式等信息；使用“分析 / 下一预览帧”“分析 / 上一预览帧”“分析 / 跳转预览时间”“分析 / 跳转预览帧号”“分析 / 下一关键帧预览”和“分析 / 上一关键帧预览”确认可按 1 秒步进、按秒跳转、按帧号跳转或按关键帧跳转刷新画面；若文件不可解码，预览区应给出 ffmpeg/ffprobe 错误文本而不是崩溃。
@@ -90,6 +90,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 29. 使用“对比 / 帧级对比”对比两个 AAC/H.264/H.265 等可提取帧列表的样例文件，确认“对比结果”页按新增、删除和变化分组显示 size/PTS/DTS/duration/type/keyframe 左右值，长任务不会冻结窗口。
 30. 在可疑协议位置按 `Ctrl+B` 添加 Offset 书签并写备注，确认“书签”页双击可返回 Hex；使用“文件 / 保存工程快照”保存 `.avscope.json`，确认文件包含当前分析结果、源文件路径、Raw 参数、主题、标签页和书签。关闭后重新打开快照应恢复全部内容；源文件移动时应提示但仍能离线查看协议树、诊断和书签。
 31. 打开 WAV 或真实多路音视频文件，在“媒体流”页检查每路流的 codec、profile、分辨率/声道、采样率、帧率、time_base、duration、bitrate 和像素/采样格式；音频与视频使用不同文字色。
+32. 打开损坏 MP4/FLV/AAC 等文件，在右侧诊断面板组合选择级别、来源和“有 Offset”，确认“显示 N / 总数”正确；点击带 Offset 的行应定位 Hex，右键“添加当前诊断为书签”应直接保存问题消息与来源。
 31. 检查 Qt 绿色版目录中存在 `platforms\qwindows.dll`、`engine\AVScopeEngine.exe`、`engine\_internal\ffprobe.exe`、`ffmpeg.exe` 和 `plugins\demo_magic.json`，并打开发布清单确认安装包、绿色版、源码包、Qt DLL、引擎与插件文件均记录 size 和 SHA256。
 32. 打开 `G:\AVScope\dist\sample-reports\sample_wav_report.html` 和 `G:\AVScope\dist\sample-reports\sample_mp4_report.json`，确认交付目录包含示例分析报告。
 33. 打开 `G:\AVScope\dist\AVScope-validation-report.md`，确认一键验证通过项和关键产物大小已写入测试报告。

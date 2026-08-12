@@ -36,6 +36,8 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QSet>
+#include <QSignalBlocker>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QShortcut>
@@ -408,6 +410,30 @@ QWidget *MainWindow::buildInspector()
     auto *hint = new QLabel(tr("warning / error 与媒体探测摘要"));
     hint->setObjectName("sectionHint");
     layout->addWidget(hint);
+    auto *diagnosticTools = new QWidget;
+    auto *diagnosticLayout = new QHBoxLayout(diagnosticTools);
+    diagnosticLayout->setContentsMargins(0, 0, 0, 0);
+    diagnosticLayout->setSpacing(5);
+    m_diagnosticSeverityFilter = new QComboBox;
+    m_diagnosticSeverityFilter->addItem(tr("全部级别"), "all");
+    m_diagnosticSeverityFilter->addItem(tr("仅 Warning"), "warning");
+    m_diagnosticSeverityFilter->addItem(tr("仅 Error"), "error");
+    m_diagnosticSeverityFilter->setToolTip(tr("按诊断级别筛选"));
+    m_diagnosticSourceFilter = new QComboBox;
+    m_diagnosticSourceFilter->addItem(tr("全部来源"), "all");
+    m_diagnosticSourceFilter->setToolTip(tr("按诊断来源筛选"));
+    m_diagnosticOffsetOnly = new QCheckBox(tr("有 Offset"));
+    m_diagnosticOffsetOnly->setToolTip(tr("仅显示可以定位到 Hex 的诊断"));
+    m_diagnosticSummary = new QLabel;
+    m_diagnosticSummary->setObjectName("sectionHint");
+    diagnosticLayout->addWidget(m_diagnosticSeverityFilter, 1);
+    diagnosticLayout->addWidget(m_diagnosticSourceFilter, 1);
+    diagnosticLayout->addWidget(m_diagnosticOffsetOnly);
+    diagnosticLayout->addWidget(m_diagnosticSummary);
+    connect(m_diagnosticSeverityFilter, &QComboBox::currentIndexChanged, this, [this] { filterDiagnostics(); });
+    connect(m_diagnosticSourceFilter, &QComboBox::currentIndexChanged, this, [this] { filterDiagnostics(); });
+    connect(m_diagnosticOffsetOnly, &QCheckBox::toggled, this, [this] { filterDiagnostics(); });
+    layout->addWidget(diagnosticTools);
     m_diagnosticsTable = new QTableWidget;
     m_diagnosticsTable->setColumnCount(4);
     m_diagnosticsTable->setHorizontalHeaderLabels({tr("级别"), tr("来源"), tr("Offset"), tr("问题")});
@@ -420,6 +446,24 @@ QWidget *MainWindow::buildInspector()
     m_diagnosticsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
     m_diagnosticsTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     connect(m_diagnosticsTable, &QTableWidget::itemSelectionChanged, this, &MainWindow::onDiagnosticSelectionChanged);
+    m_diagnosticsTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_diagnosticsTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &position) {
+        const auto *item = m_diagnosticsTable->itemAt(position);
+        if (!item) return;
+        const qint64 offset = item->data(OffsetRole).toLongLong();
+        if (offset < 0) return;
+        m_diagnosticsTable->selectRow(item->row());
+        showHex(offset, 1);
+        QMenu menu(this);
+        menu.addAction(tr("添加当前诊断为书签"), this, [this, row = item->row(), offset] {
+            const QString source = m_diagnosticsTable->item(row, 1)->text();
+            const QString message = m_diagnosticsTable->item(row, 3)->text();
+            m_bookmarks.append(QJsonObject{{"offset", offset}, {"note", message}, {"location", source}});
+            populateBookmarks();
+            m_statusText->setText(tr("诊断已加入书签：0x%1").arg(offset, 0, 16).toUpper());
+        });
+        menu.exec(m_diagnosticsTable->viewport()->mapToGlobal(position));
+    });
     layout->addWidget(m_diagnosticsTable, 1);
     return panel;
 }
@@ -1165,33 +1209,98 @@ void MainWindow::showSelectionDetails(const QJsonObject &node, const QJsonObject
 
 void MainWindow::populateDiagnostics(const QJsonArray &diagnostics, const QJsonObject &media)
 {
-    m_diagnosticsTable->setRowCount(qMax(1, diagnostics.size()));
-    if (diagnostics.isEmpty()) {
-        const QStringList values = {tr("通过"), media.value("format_name").toString(), QString(), tr("未发现 warning / error")};
-        for (int column = 0; column < values.size(); ++column) {
-            auto *cell = new QTableWidgetItem(values.at(column));
-            cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
-            m_diagnosticsTable->setItem(0, column, cell);
-        }
-        return;
+    m_diagnostics = diagnostics;
+    QSignalBlocker severityBlocker(m_diagnosticSeverityFilter);
+    QSignalBlocker sourceBlocker(m_diagnosticSourceFilter);
+    const QString previousSource = m_diagnosticSourceFilter->currentData().toString();
+    m_diagnosticSourceFilter->clear();
+    m_diagnosticSourceFilter->addItem(tr("全部来源"), "all");
+    QSet<QString> sources;
+    for (const auto &value : diagnostics) sources.insert(value.toObject().value("source").toString());
+    QStringList sortedSources = sources.values();
+    sortedSources.sort(Qt::CaseInsensitive);
+    for (const auto &source : sortedSources) {
+        if (!source.isEmpty()) m_diagnosticSourceFilter->addItem(source, source);
     }
-    for (int row = 0; row < diagnostics.size(); ++row) {
-        const auto issue = diagnostics.at(row).toObject();
-        const QString severity = issue.value("severity").toString();
+    const QString configuredSource = qEnvironmentVariable("AVSCOPE_DIAGNOSTIC_SOURCE");
+    const QString sourceSelection = configuredSource.isEmpty()
+        ? (previousSource.isEmpty() ? m_settings.value("diagnostics/source", "all").toString() : previousSource)
+        : configuredSource;
+    const int sourceIndex = m_diagnosticSourceFilter->findData(sourceSelection);
+    m_diagnosticSourceFilter->setCurrentIndex(sourceIndex >= 0 ? sourceIndex : 0);
+    const QString severity = qEnvironmentVariable("AVSCOPE_DIAGNOSTIC_SEVERITY",
+        m_settings.value("diagnostics/severity", "all").toString());
+    const int severityIndex = m_diagnosticSeverityFilter->findData(severity);
+    m_diagnosticSeverityFilter->setCurrentIndex(severityIndex >= 0 ? severityIndex : 0);
+    m_diagnosticOffsetOnly->setChecked(qEnvironmentVariableIntValue("AVSCOPE_DIAGNOSTIC_OFFSET_ONLY") != 0
+        || m_settings.value("diagnostics/offsetOnly", false).toBool());
+    filterDiagnostics(media.value("format_name").toString());
+}
+
+void MainWindow::filterDiagnostics()
+{
+    filterDiagnostics(QString());
+}
+
+void MainWindow::filterDiagnostics(const QString &formatName)
+{
+    const QString severity = m_diagnosticSeverityFilter->currentData().toString();
+    const QString source = m_diagnosticSourceFilter->currentData().toString();
+    const bool offsetOnly = m_diagnosticOffsetOnly->isChecked();
+    const bool automated = !qEnvironmentVariableIsEmpty("AVSCOPE_DIAGNOSTIC_SEVERITY")
+        || !qEnvironmentVariableIsEmpty("AVSCOPE_DIAGNOSTIC_SOURCE")
+        || !qEnvironmentVariableIsEmpty("AVSCOPE_DIAGNOSTIC_OFFSET_ONLY");
+    if (!automated) {
+        m_settings.setValue("diagnostics/severity", severity);
+        m_settings.setValue("diagnostics/source", source);
+        m_settings.setValue("diagnostics/offsetOnly", offsetOnly);
+    }
+
+    m_diagnosticsTable->setRowCount(0);
+    int visible = 0;
+    for (const auto &value : m_diagnostics) {
+        const auto issue = value.toObject();
+        const QString issueSeverity = issue.value("severity").toString();
+        const QString issueSource = issue.value("source").toString();
         const bool hasOffset = !issue.value("offset").isNull();
+        if (severity != "all" && issueSeverity != severity) continue;
+        if (source != "all" && issueSource != source) continue;
+        if (offsetOnly && !hasOffset) continue;
+        m_diagnosticsTable->insertRow(visible);
         const qint64 offset = hasOffset ? jsonInteger(issue.value("offset")) : -1;
         const QStringList values = {
-            severity.toUpper(), issue.value("source").toString(),
+            issueSeverity.toUpper(), issueSource,
             hasOffset ? QString("0x%1").arg(offset, 0, 16).toUpper() : QString(), issue.value("message").toString()
         };
-        const QColor color = severity == "error" ? QColor(m_dark ? "#FF7B81" : "#B42318")
+        const QColor color = issueSeverity == "error" ? QColor(m_dark ? "#FF7B81" : "#B42318")
                                                    : QColor(m_dark ? "#F5C567" : "#8A5A00");
         for (int column = 0; column < values.size(); ++column) {
             auto *cell = new QTableWidgetItem(values.at(column));
             cell->setForeground(color);
             cell->setToolTip(issue.value("message").toString());
             cell->setData(OffsetRole, offset);
-            m_diagnosticsTable->setItem(row, column, cell);
+            m_diagnosticsTable->setItem(visible, column, cell);
+        }
+        ++visible;
+    }
+    if (m_diagnostics.isEmpty() && visible == 0) {
+        m_diagnosticsTable->setRowCount(1);
+        const QStringList values = {tr("通过"), formatName, QString(), tr("未发现 warning / error")};
+        for (int column = 0; column < values.size(); ++column) {
+            auto *cell = new QTableWidgetItem(values.at(column));
+            cell->setForeground(QColor(m_dark ? "#73D2B3" : "#17785A"));
+            m_diagnosticsTable->setItem(0, column, cell);
+        }
+    }
+    m_diagnosticSummary->setText(tr("显示 %1 / %2").arg(visible).arg(m_diagnostics.size()));
+    const QString statePath = qEnvironmentVariable("AVSCOPE_DIAGNOSTIC_STATE");
+    if (!statePath.isEmpty()) {
+        QFile stateFile(statePath);
+        QDir().mkpath(QFileInfo(statePath).absolutePath());
+        if (stateFile.open(QIODevice::WriteOnly)) {
+            const QJsonObject state{{"visible", visible}, {"total", m_diagnostics.size()}, {"severity", severity},
+                                    {"source", source}, {"offset_only", offsetOnly}};
+            stateFile.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
         }
     }
 }
@@ -1570,7 +1679,10 @@ void MainWindow::applyTheme(bool dark)
         QPushButton:checked { background: %7; color: %8; border-color: #2F91C7; }
         #primaryButton { background: #247DAA; color: white; border-color: #247DAA; font-weight: 600; }
         #primaryButton:hover { background: #2F91C7; }
-        QLineEdit { color: %4; background: %2; border: 1px solid %6; border-radius: 5px; padding: 7px 10px; selection-background-color: %7; selection-color: %8; }
+        QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox { color: %4; background: %2; border: 1px solid %6; border-radius: 5px; padding: 7px 10px; selection-background-color: %7; selection-color: %8; }
+        QComboBox::drop-down { border: 0; width: 22px; }
+        QComboBox QAbstractItemView { color: %4; background: %2; border: 1px solid %6; selection-background-color: %7; selection-color: %8; }
+        QCheckBox { color: %4; spacing: 5px; }
         QFrame#panel, QFrame[metricCard="true"] { background: %2; border: 1px solid %6; border-radius: 7px; }
         QFrame[metricCard="true"] { border-left: 3px solid #2F91C7; }
         #metricValue { color: %4; font-size: 16px; font-weight: 700; }
