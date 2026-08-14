@@ -35,6 +35,9 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QPlainTextEdit>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPixmap>
 #include <QProcessEnvironment>
 #include <QProgressBar>
 #include <QPushButton>
@@ -46,6 +49,7 @@
 #include <QShortcut>
 #include <QSpinBox>
 #include <QTableWidget>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QTextBlock>
 #include <QTextCursor>
@@ -75,6 +79,66 @@ QLabel *sectionLabel(const QString &text)
     auto *label = new QLabel(text);
     label->setObjectName("sectionLabel");
     return label;
+}
+
+QIcon protocolTreeIcon(bool field, bool container, bool root, const QString &severity, bool dark)
+{
+    QPixmap pixmap(18, 18);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    const QColor outline = dark ? QColor("#7F95A7") : QColor("#607789");
+    const QColor nodeFill = dark ? QColor("#244C63") : QColor("#DCEEF8");
+    const QColor fieldFill = dark ? QColor("#24333F") : QColor("#F5F8FA");
+
+    if (root) {
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(dark ? QColor("#3A93BD") : QColor("#2F83AD"));
+        painter.drawRoundedRect(QRectF(1.5, 3.0, 15.0, 12.5), 3.0, 3.0);
+        QPolygonF play;
+        play << QPointF(7.1, 6.2) << QPointF(12.2, 9.2) << QPointF(7.1, 12.2);
+        painter.setBrush(Qt::white);
+        painter.drawPolygon(play);
+    } else if (container) {
+        painter.setPen(QPen(outline, 1.1));
+        painter.setBrush(nodeFill);
+        painter.drawRoundedRect(QRectF(2.0, 5.2, 14.0, 10.5), 2.0, 2.0);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(dark ? QColor("#57A8CB") : QColor("#4D9DC2"));
+        painter.drawRoundedRect(QRectF(3.0, 2.5, 7.0, 4.5), 1.3, 1.3);
+        painter.setPen(QPen(dark ? QColor("#9ED2E7") : QColor("#317A9C"), 1.0));
+        painter.drawLine(QPointF(5.0, 9.0), QPointF(13.0, 9.0));
+        painter.drawLine(QPointF(5.0, 12.0), QPointF(11.0, 12.0));
+    } else {
+        painter.setPen(QPen(outline, 1.1));
+        painter.setBrush(field ? fieldFill : nodeFill);
+        QPainterPath page;
+        page.moveTo(3.5, 1.8);
+        page.lineTo(11.2, 1.8);
+        page.lineTo(15.0, 5.7);
+        page.lineTo(15.0, 16.0);
+        page.lineTo(3.5, 16.0);
+        page.closeSubpath();
+        painter.drawPath(page);
+        painter.drawLine(QPointF(11.2, 2.0), QPointF(11.2, 5.8));
+        painter.drawLine(QPointF(11.2, 5.8), QPointF(14.8, 5.8));
+        painter.setPen(QPen(field ? (dark ? QColor("#8FA7B9") : QColor("#7890A0"))
+                                  : (dark ? QColor("#69B4D5") : QColor("#3287AD")), 1.0));
+        painter.drawLine(QPointF(6.0, 9.0), QPointF(12.5, 9.0));
+        painter.drawLine(QPointF(6.0, 12.0), QPointF(11.0, 12.0));
+    }
+
+    if (severity == "warning" || severity == "error") {
+        const QColor badge = severity == "error"
+            ? (dark ? QColor("#FF7780") : QColor("#D64550"))
+            : (dark ? QColor("#F2BE5C") : QColor("#C88413"));
+        painter.setPen(QPen(dark ? QColor("#121A22") : Qt::white, 1.0));
+        painter.setBrush(badge);
+        painter.drawEllipse(QRectF(11.0, 11.0, 6.0, 6.0));
+    }
+
+    return QIcon(pixmap);
 }
 }
 
@@ -269,6 +333,10 @@ QWidget *MainWindow::buildProtocolPanel()
     m_protocolTree->setHeaderLabels({tr("名称"), tr("类型"), tr("值"), tr("Offset"), tr("Size")});
     m_protocolTree->setAlternatingRowColors(true);
     m_protocolTree->setUniformRowHeights(true);
+    m_protocolTree->setAnimated(true);
+    m_protocolTree->setIndentation(19);
+    m_protocolTree->setIconSize(QSize(18, 18));
+    m_protocolTree->setAllColumnsShowFocus(true);
     m_protocolTree->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_protocolTree->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
     m_protocolTree->header()->setStretchLastSection(false);
@@ -293,6 +361,8 @@ QWidget *MainWindow::buildWorkspace()
     m_tabs = new QTabWidget;
     m_tabs->setDocumentMode(true);
     m_tabs->setMovable(true);
+    m_tabs->tabBar()->setUsesScrollButtons(false);
+    m_tabs->tabBar()->setElideMode(Qt::ElideRight);
 
     m_hexPanel = new QWidget;
     auto *hexLayout = new QVBoxLayout(m_hexPanel);
@@ -571,6 +641,8 @@ QWidget *MainWindow::buildWorkspace()
     });
     m_transportDetails = new QTabWidget;
     m_transportDetails->setDocumentMode(true);
+    m_transportDetails->tabBar()->setUsesScrollButtons(false);
+    m_transportDetails->tabBar()->setElideMode(Qt::ElideRight);
     m_transportDetails->addTab(m_transportSessionsTable, tr("会话质量"));
 
     auto *videoPayloadPanel = new QWidget;
@@ -846,6 +918,8 @@ QWidget *MainWindow::buildWorkspace()
 
     auto *codecDetails = new QTabWidget;
     codecDetails->setDocumentMode(true);
+    codecDetails->tabBar()->setUsesScrollButtons(false);
+    codecDetails->tabBar()->setElideMode(Qt::ElideRight);
     m_codecIssuesTable = new QTableWidget;
     m_codecIssuesTable->setColumnCount(4);
     m_codecIssuesTable->setHorizontalHeaderLabels({tr("状态"), "Offset", tr("问题"), tr("来源")});
@@ -1550,19 +1624,31 @@ void MainWindow::populateProtocolTree(const QJsonObject &node, QTreeWidgetItem *
     auto *item = parent ? new QTreeWidgetItem(parent) : new QTreeWidgetItem(m_protocolTree);
     const qint64 offset = jsonInteger(node.value("offset"));
     const qint64 size = jsonInteger(node.value("size"));
+    const QString severity = node.value("severity").toString();
+    const bool isRoot = parent == nullptr;
+    const bool isContainer = !node.value("children").toArray().isEmpty();
     item->setText(0, node.value("name").toString());
     item->setText(1, node.value("node_type").toString());
     item->setText(3, QString("0x%1").arg(offset, 0, 16).toUpper());
     item->setText(4, QString::number(size));
+    item->setIcon(0, protocolTreeIcon(false, isContainer, isRoot, severity, m_dark));
     item->setData(0, NodeRole, node);
     item->setData(0, OffsetRole, offset);
     item->setData(0, SizeRole, size);
     item->setToolTip(0, node.value("description").toString());
-    const QString severity = node.value("severity").toString();
-    if (severity == "warning")
-        item->setForeground(0, QColor("#D79B32"));
-    else if (severity == "error")
-        item->setForeground(0, QColor("#EA5B62"));
+    QFont nodeFont = item->font(0);
+    nodeFont.setWeight(isRoot ? QFont::DemiBold : (isContainer ? QFont::Medium : QFont::Normal));
+    item->setFont(0, nodeFont);
+    item->setForeground(0, QColor(m_dark ? "#DCE6EF" : "#243442"));
+    item->setForeground(1, QColor(m_dark ? "#72B8D8" : "#2D7296"));
+    item->setForeground(3, QColor(m_dark ? "#8EA0B0" : "#667987"));
+    item->setForeground(4, QColor(m_dark ? "#8EA0B0" : "#667987"));
+    if (severity == "warning" || severity == "error") {
+        const QColor severityColor = severity == "error"
+            ? QColor(m_dark ? "#FF7780" : "#C83E4B")
+            : QColor(m_dark ? "#F2BE5C" : "#A96D0D");
+        item->setForeground(0, severityColor);
+    }
 
     for (const auto &fieldValue : node.value("fields").toArray()) {
         const auto field = fieldValue.toObject();
@@ -1576,14 +1662,20 @@ void MainWindow::populateProtocolTree(const QJsonObject &node, QTreeWidgetItem *
         fieldItem->setText(2, displayValue(field.value("value")));
         fieldItem->setText(3, QString("0x%1").arg(fieldOffset, 0, 16).toUpper());
         fieldItem->setText(4, QString::number(fieldSize));
+        const QString fieldSeverity = field.value("severity").toString();
+        fieldItem->setIcon(0, protocolTreeIcon(true, false, false, fieldSeverity, m_dark));
         fieldItem->setData(0, NodeRole, node);
         fieldItem->setData(0, FieldRole, field);
         fieldItem->setData(0, OffsetRole, fieldOffset);
         fieldItem->setData(0, SizeRole, fieldSize);
         fieldItem->setToolTip(0, field.value("description").toString());
-        const auto color = fieldColor(field.value("value"), field.value("hex_value").toString(), field.value("severity").toString());
-        for (int column = 0; column < m_protocolTree->columnCount(); ++column)
-            fieldItem->setForeground(column, color);
+        const QColor valueColor = fieldColor(field.value("value"), field.value("hex_value").toString(), fieldSeverity);
+        fieldItem->setForeground(0, fieldSeverity == "warning" || fieldSeverity == "error"
+                                        ? valueColor : QColor(m_dark ? "#B7C5D0" : "#435867"));
+        fieldItem->setForeground(1, QColor(m_dark ? "#8093A4" : "#718493"));
+        fieldItem->setForeground(2, valueColor);
+        fieldItem->setForeground(3, QColor(m_dark ? "#8093A4" : "#718493"));
+        fieldItem->setForeground(4, QColor(m_dark ? "#8093A4" : "#718493"));
     }
     for (const auto &child : node.value("children").toArray())
         populateProtocolTree(child.toObject(), item);
@@ -3029,6 +3121,21 @@ void MainWindow::applyTheme(bool dark, bool persist)
         QScrollBar::handle { background: %6; border-radius: 3px; min-width: 28px; min-height: 28px; }
         #logPanel { background: %3; color: %5; border: 1px solid %6; border-radius: 6px; }
     )").arg(bg, panel, panelAlt, text, muted, border, select, selectText, hover));
+    m_protocolTree->setStyleSheet(QString(R"(
+        QTreeWidget#protocolTree {
+            alternate-background-color: %1;
+            outline: 0;
+        }
+        QTreeWidget#protocolTree::item {
+            min-height: 27px;
+            padding: 3px 5px;
+            border-bottom: 1px solid %2;
+        }
+        QTreeWidget#protocolTree::item:hover { background: %3; }
+        QTreeWidget#protocolTree::item:selected { background: %4; color: %5; }
+    )").arg(dark ? "#151F28" : "#F7F9FB",
+             dark ? "#1C2833" : "#EEF2F5",
+             hover, select, selectText));
     m_timeline->setDarkTheme(dark);
     m_hexCompare->setDarkTheme(dark);
     m_preview->setDarkTheme(dark);
