@@ -8,10 +8,10 @@ import sys
 import wave
 from pathlib import Path
 from typing import Any
+from avscope.runtime import bundled_file, temp_dir
 
 
-DEFAULT_AUDIO_PREVIEW_DIR = Path("G:/AVScope/tmp/audio-previews")
-DEFAULT_FFMPEG = Path("E:/DevelopmentEnvironment/ffmpeg-8.1-essentials_build/bin/ffmpeg.exe")
+DEFAULT_AUDIO_PREVIEW_DIR = temp_dir("audio-previews")
 
 
 def build_audio_preview_clip(
@@ -84,8 +84,9 @@ def find_ffmpeg() -> str | None:
     for bundled in candidates:
         if bundled.exists():
             return str(bundled)
-    if DEFAULT_FFMPEG.exists():
-        return str(DEFAULT_FFMPEG)
+    bundled = bundled_file("ffmpeg.exe")
+    if bundled:
+        return str(bundled)
     return shutil.which("ffmpeg")
 
 

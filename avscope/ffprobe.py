@@ -6,9 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
-
-
-DEFAULT_FFPROBE = Path("E:/DevelopmentEnvironment/ffmpeg-8.1-essentials_build/bin/ffprobe.exe")
+from avscope.runtime import bundled_file
 
 
 def find_ffprobe() -> str | None:
@@ -22,8 +20,9 @@ def find_ffprobe() -> str | None:
     for bundled in candidates:
         if bundled.exists():
             return str(bundled)
-    if DEFAULT_FFPROBE.exists():
-        return str(DEFAULT_FFPROBE)
+    bundled = bundled_file("ffprobe.exe")
+    if bundled:
+        return str(bundled)
     return shutil.which("ffprobe")
 
 

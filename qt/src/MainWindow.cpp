@@ -23,6 +23,7 @@
 #include <QFrame>
 #include <QGridLayout>
 #include <QHeaderView>
+#include <QStandardPaths>
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -79,7 +80,7 @@ QLabel *sectionLabel(const QString &text)
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), m_process(new QProcess(this)),
-      m_settings(QDir(qEnvironmentVariable("AVSCOPE_ROOT", "G:/AVScope")).filePath("data/qt-settings.ini"), QSettings::IniFormat)
+      m_settings(QDir(qEnvironmentVariable("AVSCOPE_ROOT", QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))).filePath("data/qt-settings.ini"), QSettings::IniFormat)
 {
     setWindowTitle(tr("AVScope - 音视频协议分析工作台"));
     setWindowIcon(QIcon(":/icons/avscope.png"));
@@ -1118,7 +1119,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::chooseFile()
 {
-    const auto path = QFileDialog::getOpenFileName(this, tr("打开音视频或协议文件"), "G:/AVScope/samples");
+    const auto path = QFileDialog::getOpenFileName(this, tr("打开音视频或协议文件"), QDir(QCoreApplication::applicationDirPath()).filePath("samples"));
     if (!path.isEmpty())
         openPath(path);
 }
@@ -2799,7 +2800,7 @@ void MainWindow::exportHtml()
 {
     if (m_currentPath.isEmpty())
         return;
-    const auto path = QFileDialog::getSaveFileName(this, tr("导出 HTML 报告"), "G:/AVScope/tmp/AVScope-report.html", "HTML (*.html)");
+    const auto path = QFileDialog::getSaveFileName(this, tr("导出 HTML 报告"), QDir(projectRoot()).filePath("tmp/AVScope-report.html"), "HTML (*.html)");
     if (!path.isEmpty())
         runExport("html", path);
 }
@@ -2808,7 +2809,7 @@ void MainWindow::exportJson()
 {
     if (m_currentPath.isEmpty())
         return;
-    const auto path = QFileDialog::getSaveFileName(this, tr("导出 JSON 报告"), "G:/AVScope/tmp/AVScope-report.json", "JSON (*.json)");
+    const auto path = QFileDialog::getSaveFileName(this, tr("导出 JSON 报告"), QDir(projectRoot()).filePath("tmp/AVScope-report.json"), "JSON (*.json)");
     if (!path.isEmpty())
         runExport("json", path);
 }
@@ -2938,7 +2939,7 @@ void MainWindow::populateCompare(const QString &mode, const QJsonDocument &docum
 void MainWindow::saveProjectSnapshot()
 {
     if (m_document.isNull() || m_currentPath.isEmpty()) return;
-    const QString suggested = QString("G:/AVScope/tmp/%1.avscope.json").arg(QFileInfo(m_currentPath).completeBaseName());
+    const QString suggested = QDir(projectRoot()).filePath(QString("tmp/%1.avscope.json").arg(QFileInfo(m_currentPath).completeBaseName()));
     const QString path = QFileDialog::getSaveFileName(this, tr("保存工程快照"), suggested, tr("AVScope 工程 (*.avscope.json)"));
     if (path.isEmpty()) return;
     QJsonObject snapshot;
@@ -3061,13 +3062,13 @@ QString MainWindow::projectRoot() const
             return dir.absolutePath();
         dir.cdUp();
     }
-    return "G:/AVScope";
+    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
 }
 
 QString MainWindow::pythonExecutable() const
 {
     const auto env = qEnvironmentVariable("AVSCOPE_PYTHON");
-    return env.isEmpty() ? QString("E:/DevelopmentEnvironment/python/python.exe") : env;
+    return env.isEmpty() ? QStringLiteral("python") : env;
 }
 
 QString MainWindow::engineExecutable() const

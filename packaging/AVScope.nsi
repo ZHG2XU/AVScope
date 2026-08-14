@@ -1,14 +1,14 @@
 Unicode true
 Name "AVScope"
-OutFile "G:\AVScope\dist\AVScope-Setup.exe"
-InstallDir "G:\AVScopeInstalled\AVScope"
+OutFile "..\dist\AVScope-Setup.exe"
+InstallDir "$LOCALAPPDATA\Programs\AVScope"
 RequestExecutionLevel user
-Icon "G:\AVScope\qt\resources\avscope.ico"
-UninstallIcon "G:\AVScope\qt\resources\avscope.ico"
+Icon "..\qt\resources\avscope.ico"
+UninstallIcon "..\qt\resources\avscope.ico"
 
 !define APP_NAME "AVScope"
 !define APP_EXE "AVScope.exe"
-!define SOURCE_DIR "G:\AVScope\dist\AVScopeQt"
+!define SOURCE_DIR "..\dist\AVScopeQt"
 
 Page directory
 Page instfiles

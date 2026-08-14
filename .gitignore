@@ -14,3 +14,7 @@ data/*
 *.bak
 
 packaging/*.spec
+
+# Local build tools and agent/workspace metadata
+tools/
+AGENTS.md

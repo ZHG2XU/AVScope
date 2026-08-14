@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from avscope.runtime import temp_dir
 from typing import Any
 
 
-DEFAULT_YUV_PREVIEW_DIR = Path("G:/AVScope/tmp/yuv-previews")
+DEFAULT_YUV_PREVIEW_DIR = temp_dir("yuv-previews")
 SUPPORTED_PIXEL_FORMATS = {"yuv420p", "nv12", "nv21", "yuyv422"}
 
 

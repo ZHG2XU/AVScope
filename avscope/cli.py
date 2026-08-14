@@ -10,6 +10,7 @@ from avscope.ffmpeg_preview import build_video_preview
 from avscope.report import export_csv, export_html, export_json
 from avscope.samples import generate_samples
 from avscope.yuv_preview import build_yuv_preview
+from avscope.runtime import app_root
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -52,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     frames.add_argument("--json")
 
     samples = sub.add_parser("make-samples", help="Generate small validation samples")
-    samples.add_argument("--out", default="G:/AVScope/samples")
+    samples.add_argument("--out", default=str(app_root() / "samples"))
 
     args = parser.parse_args(argv)
     if args.command == "analyze":

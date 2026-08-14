@@ -4,11 +4,12 @@ import math
 import hashlib
 import wave
 from pathlib import Path
+from avscope.runtime import temp_dir
 from typing import Iterable
 
 
 MAX_FRAMES_TO_SCAN = 1_000_000
-DEFAULT_WAVEFORM_PREVIEW_DIR = Path("G:/AVScope/tmp/waveform-previews")
+DEFAULT_WAVEFORM_PREVIEW_DIR = temp_dir("waveform-previews")
 
 
 def build_waveform_summary(path: str | Path, format_name: str, media_summary: dict, points: int = 96) -> dict:

@@ -9,10 +9,11 @@ from avscope.byte_source import ByteSource
 from avscope.models import FieldInfo, ParseNode, ParseResult
 from avscope.parsers.base import FormatParser
 from avscope.parsers.common import media_info, root_node, warn
+from avscope.runtime import user_data_dir
 
 
 PLUGIN_SCHEMA_VERSION = 1
-DEFAULT_PLUGIN_DIR = Path("G:/AVScope/plugins")
+DEFAULT_PLUGIN_DIR = user_data_dir() / "plugins"
 
 
 class PluginTemplateParser(FormatParser):
@@ -152,6 +153,7 @@ def _candidate_plugin_dirs(plugin_dir: str | Path | None) -> list[Path]:
         executable_dir / "plugins",
         executable_dir / "_internal" / "plugins",
         source_root / "plugins",
+        user_data_dir() / "plugins",
     ]
     seen = set()
     unique = []
