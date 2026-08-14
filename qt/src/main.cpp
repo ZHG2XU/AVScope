@@ -23,13 +23,16 @@ int main(int argc, char *argv[])
     app.setFont(font);
 
     MainWindow window;
-    window.show();
     bool widthOk = false;
     bool heightOk = false;
     const int requestedWidth = qEnvironmentVariableIntValue("AVSCOPE_WINDOW_WIDTH", &widthOk);
     const int requestedHeight = qEnvironmentVariableIntValue("AVSCOPE_WINDOW_HEIGHT", &heightOk);
-    if (widthOk && heightOk)
+    if (widthOk && heightOk) {
         window.resize(requestedWidth, requestedHeight);
+        window.show();
+    } else {
+        window.showMaximized();
+    }
     if (argc > 1) {
         window.openPath(QString::fromLocal8Bit(argv[1]));
     }

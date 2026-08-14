@@ -160,7 +160,6 @@ MainWindow::MainWindow(QWidget *parent)
 {
     setWindowTitle(tr("AVScope - 音视频协议分析工作台"));
     setWindowIcon(QIcon(":/icons/avscope.png"));
-    resize(1560, 940);
     setMinimumSize(1120, 720);
     setAcceptDrops(true);
     buildUi();
