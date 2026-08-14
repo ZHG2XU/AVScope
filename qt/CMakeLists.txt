@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Multimedia)
 
 qt_add_executable(AVScopeQt WIN32
     src/main.cpp
@@ -25,7 +25,7 @@ qt_add_executable(AVScopeQt WIN32
     resources/avscope.rc
 )
 
-target_link_libraries(AVScopeQt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(AVScopeQt PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia)
 target_compile_definitions(AVScopeQt PRIVATE AVSCOPE_VERSION="${PROJECT_VERSION}")
 
 set_target_properties(AVScopeQt PROPERTIES

@@ -1219,7 +1219,12 @@ void MainWindow::restoreWorkspaceState()
     const QByteArray splitterState = m_settings.value("splitterState").toByteArray();
     if (!splitterState.isEmpty())
         m_mainSplitter->restoreState(splitterState);
-    m_tabs->setCurrentIndex(qBound(0, m_settings.value("currentTab", 0).toInt(), m_tabs->count() - 1));
+    for (int index = 0; index < m_tabs->count(); ++index) {
+        if (m_tabs->isTabVisible(index)) {
+            m_tabs->setCurrentIndex(index);
+            break;
+        }
+    }
     if (qEnvironmentVariableIsEmpty("AVSCOPE_THEME"))
         applyTheme(m_settings.value("theme", "dark").toString() != "light", false);
 }

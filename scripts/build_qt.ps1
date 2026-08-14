@@ -84,6 +84,7 @@ if (-not $SkipDeploy) {
         "$build\bin\Qt6Core.dll",
         "$build\bin\Qt6Gui.dll",
         "$build\bin\Qt6Widgets.dll",
+        "$build\bin\Qt6Multimedia.dll",
         "$build\bin\libgcc_s_seh-1.dll",
         "$build\bin\libstdc++-6.dll",
         "$build\bin\libwinpthread-1.dll",
