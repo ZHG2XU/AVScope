@@ -19,6 +19,8 @@ qt_add_executable(AVScopeQt WIN32
     src/TimelineWidget.h
     src/HexCompareWidget.cpp
     src/HexCompareWidget.h
+    src/HexView.cpp
+    src/HexView.h
     resources/avscope.qrc
     resources/avscope.rc
 )

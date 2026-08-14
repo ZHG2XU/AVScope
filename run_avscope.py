@@ -9,8 +9,8 @@ from pathlib import Path
 def main() -> None:
     root = Path(__file__).resolve().parent
     candidates = [
-        root / "dist" / "AVScopeQt" / "AVScope.exe",
         root / "build" / "qt6" / "bin" / "AVScope.exe",
+        root / "dist" / "AVScopeQt" / "AVScope.exe",
     ]
     for executable in candidates:
         if executable.exists() and not getattr(sys, "frozen", False):

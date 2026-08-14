@@ -24,6 +24,7 @@ class QTreeWidgetItem;
 class TimelineWidget;
 class MediaPreviewWidget;
 class HexCompareWidget;
+class HexView;
 
 class MainWindow final : public QMainWindow
 {
@@ -95,6 +96,7 @@ private:
     void populateDiagnostics(const QJsonArray &diagnostics, const QJsonObject &media);
     void filterDiagnostics(const QString &formatName);
     void showSelectionDetails(const QJsonObject &node, const QJsonObject &field = {});
+    void syncProtocolTreeToRange(qint64 offset, qint64 size);
     void showHex(qint64 offset, qint64 size = 1);
     void renderHexPage(qint64 pageStart, qint64 focusOffset = -1, qint64 focusSize = 1);
     void updateHexNavigation();
@@ -137,6 +139,8 @@ private:
     qint64 m_hexOffset = 0;
     qint64 m_hexPageStart = 0;
     qint64 m_hexPageSize = 4 * 1024;
+    qint64 m_hexFocusSize = 1;
+    bool m_hexFullLineSelection = false;
     QJsonDocument m_document;
     QProcess *m_process = nullptr;
     QSettings m_settings;
@@ -168,7 +172,7 @@ private:
     QTreeWidget *m_compareTree = nullptr;
     HexCompareWidget *m_hexCompare = nullptr;
     QWidget *m_hexPanel = nullptr;
-    QPlainTextEdit *m_hexView = nullptr;
+    HexView *m_hexView = nullptr;
     QLineEdit *m_hexOffsetEdit = nullptr;
     QComboBox *m_hexPageSizeCombo = nullptr;
     QLabel *m_hexRangeLabel = nullptr;
