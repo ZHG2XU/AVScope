@@ -145,6 +145,7 @@ private:
     QProcess *m_process = nullptr;
     QSettings m_settings;
     QSplitter *m_mainSplitter = nullptr;
+    QWidget *m_inspector = nullptr;
     QTreeWidget *m_protocolTree = nullptr;
     QTableWidget *m_fieldsTable = nullptr;
     QTableWidget *m_framesTable = nullptr;
@@ -212,8 +213,8 @@ private:
     QLabel *m_nodeMetric = nullptr;
     QLabel *m_issueMetric = nullptr;
     QLabel *m_statusText = nullptr;
-    QPushButton *m_darkButton = nullptr;
-    QPushButton *m_lightButton = nullptr;
+    QPushButton *m_openButton = nullptr;
+    QPushButton *m_reloadButton = nullptr;
     QPushButton *m_cancelButton = nullptr;
     QAction *m_darkThemeAction = nullptr;
     QAction *m_lightThemeAction = nullptr;

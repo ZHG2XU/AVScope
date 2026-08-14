@@ -187,7 +187,8 @@ void MainWindow::buildUi()
     m_mainSplitter->setChildrenCollapsible(false);
     m_mainSplitter->addWidget(buildProtocolPanel());
     m_mainSplitter->addWidget(buildWorkspace());
-    m_mainSplitter->addWidget(buildInspector());
+    m_inspector = buildInspector();
+    m_mainSplitter->addWidget(m_inspector);
     m_mainSplitter->setStretchFactor(0, 2);
     m_mainSplitter->setStretchFactor(1, 6);
     m_mainSplitter->setStretchFactor(2, 2);
@@ -254,12 +255,12 @@ QWidget *MainWindow::buildHeader()
     connect(m_search, &QLineEdit::textChanged, this, &MainWindow::filterProtocolTree);
     layout->addWidget(m_search);
 
-    auto *open = commandButton(tr("打开文件"), "primaryButton");
-    connect(open, &QPushButton::clicked, this, &MainWindow::chooseFile);
-    layout->addWidget(open);
-    auto *reload = commandButton(tr("重新分析"));
-    connect(reload, &QPushButton::clicked, this, &MainWindow::reloadCurrent);
-    layout->addWidget(reload);
+    m_openButton = commandButton(tr("打开文件"), "primaryButton");
+    connect(m_openButton, &QPushButton::clicked, this, &MainWindow::chooseFile);
+    layout->addWidget(m_openButton);
+    m_reloadButton = commandButton(tr("重新分析"));
+    connect(m_reloadButton, &QPushButton::clicked, this, &MainWindow::reloadCurrent);
+    layout->addWidget(m_reloadButton);
 
     m_cancelButton = commandButton(tr("取消"));
     m_cancelButton->setObjectName("dangerButton");
@@ -267,14 +268,6 @@ QWidget *MainWindow::buildHeader()
     connect(m_cancelButton, &QPushButton::clicked, this, &MainWindow::cancelAnalysis);
     layout->addWidget(m_cancelButton);
 
-    m_darkButton = commandButton(tr("夜间"));
-    m_lightButton = commandButton(tr("浅色"));
-    m_darkButton->setCheckable(true);
-    m_lightButton->setCheckable(true);
-    connect(m_darkButton, &QPushButton::clicked, this, &MainWindow::setDarkTheme);
-    connect(m_lightButton, &QPushButton::clicked, this, &MainWindow::setLightTheme);
-    layout->addWidget(m_darkButton);
-    layout->addWidget(m_lightButton);
     return header;
 }
 
@@ -442,6 +435,7 @@ QWidget *MainWindow::buildWorkspace()
     m_fieldsTable->setAlternatingRowColors(true);
     m_fieldsTable->verticalHeader()->hide();
     m_fieldsTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
+    m_fieldsTable->setToolTip(tr("选中字段后按 Ctrl+C 复制字段值"));
     connect(m_fieldsTable, &QTableWidget::itemSelectionChanged, this, &MainWindow::onFieldSelectionChanged);
     m_tabs->addTab(m_fieldsTable, tr("字段"));
 
@@ -1001,6 +995,7 @@ QWidget *MainWindow::buildInspector()
     m_selectionDetails->setReadOnly(true);
     m_selectionDetails->setMaximumHeight(260);
     m_selectionDetails->setPlaceholderText(tr("选择协议节点或字段后显示详情"));
+    m_selectionDetails->setToolTip(tr("选中文本后按 Ctrl+C 复制"));
     layout->addWidget(m_selectionDetails);
     layout->addWidget(sectionLabel(tr("全局诊断")));
     auto *hint = new QLabel(tr("warning / error 与媒体探测摘要"));
@@ -1092,9 +1087,42 @@ void MainWindow::buildMenus()
     compareMenu->addAction(tr("帧级对比..."), this, &MainWindow::compareFrames);
 
     auto *viewMenu = menuBar()->addMenu(tr("视图"));
+    auto *toolbarMenu = viewMenu->addMenu(tr("功能栏"));
+    for (int index = 0; index < m_tabs->count(); ++index) {
+        const QString title = m_tabs->tabText(index);
+        auto *action = toolbarMenu->addAction(title);
+        action->setCheckable(true);
+        const QString key = QString("view/tabVisible/%1").arg(index);
+        const bool visible = m_settings.value(key, true).toBool();
+        m_tabs->setTabVisible(index, visible);
+        action->setChecked(visible);
+        connect(action, &QAction::toggled, this, [this, action, index, key](bool checked) {
+            int visibleCount = 0;
+            for (int tab = 0; tab < m_tabs->count(); ++tab)
+                visibleCount += m_tabs->isTabVisible(tab) ? 1 : 0;
+            if (!checked && visibleCount == 1) {
+                QSignalBlocker blocker(action);
+                action->setChecked(true);
+                return;
+            }
+            m_tabs->setTabVisible(index, checked);
+            if (!checked && m_tabs->currentIndex() == index) {
+                for (int tab = 0; tab < m_tabs->count(); ++tab) {
+                    if (m_tabs->isTabVisible(tab)) {
+                        m_tabs->setCurrentIndex(tab);
+                        break;
+                    }
+                }
+            }
+            m_settings.setValue(key, checked);
+            m_settings.sync();
+        });
+    }
+    viewMenu->addSeparator();
+    auto *themeMenu = viewMenu->addMenu(tr("主题"));
     auto *themes = new QActionGroup(this);
-    m_darkThemeAction = viewMenu->addAction(tr("夜间主题"));
-    m_lightThemeAction = viewMenu->addAction(tr("浅色主题"));
+    m_darkThemeAction = themeMenu->addAction(tr("夜间主题"));
+    m_lightThemeAction = themeMenu->addAction(tr("浅色主题"));
     m_darkThemeAction->setCheckable(true);
     m_lightThemeAction->setCheckable(true);
     themes->addAction(m_darkThemeAction);
@@ -1102,13 +1130,8 @@ void MainWindow::buildMenus()
     connect(m_darkThemeAction, &QAction::triggered, this, &MainWindow::setDarkTheme);
     connect(m_lightThemeAction, &QAction::triggered, this, &MainWindow::setLightTheme);
     viewMenu->addSeparator();
-    viewMenu->addAction(tr("传输会话"), QKeySequence("Ctrl+Alt+T"), this, [this] {
-        m_tabs->setCurrentWidget(m_transportPanel);
-    });
-    viewMenu->addAction(tr("码流健康"), QKeySequence("Ctrl+0"), this, [this] {
-        m_tabs->setCurrentWidget(m_codecHealthPanel);
-    });
-    viewMenu->addAction(tr("切换 Hex 字节/整行高亮"), QKeySequence("Ctrl+Shift+L"), this, [this] {
+    auto *hexMenu = viewMenu->addMenu(tr("Hex 显示"));
+    hexMenu->addAction(tr("切换字节 / 整行高亮"), QKeySequence("Ctrl+Shift+L"), this, [this] {
         if (m_tabs->currentWidget() != m_hexPanel)
             return;
         m_hexFullLineSelection = !m_hexFullLineSelection;
@@ -1117,9 +1140,9 @@ void MainWindow::buildMenus()
             ? tr("Hex 已切换为整行高亮（Ctrl+Shift+L 恢复仅高亮字节）")
             : tr("Hex 已切换为仅高亮对应字节（Ctrl+Shift+L 切换整行）"));
     });
-    viewMenu->addSeparator();
-    viewMenu->addAction(tr("展开协议树"), QKeySequence("Ctrl+Shift+E"), m_protocolTree, &QTreeWidget::expandAll);
-    viewMenu->addAction(tr("折叠协议树"), QKeySequence("Ctrl+Shift+C"), m_protocolTree, &QTreeWidget::collapseAll);
+    auto *treeMenu = viewMenu->addMenu(tr("协议树"));
+    treeMenu->addAction(tr("展开全部"), QKeySequence("Ctrl+Shift+E"), m_protocolTree, &QTreeWidget::expandAll);
+    treeMenu->addAction(tr("折叠全部"), QKeySequence("Ctrl+Shift+C"), m_protocolTree, &QTreeWidget::collapseAll);
 
     auto *editMenu = menuBar()->addMenu(tr("编辑"));
     editMenu->addAction(tr("跳转到 Offset..."), QKeySequence("Ctrl+G"), this, &MainWindow::jumpToOffset);
@@ -2616,8 +2639,6 @@ void MainWindow::showSelectionDetails(const QJsonObject &node, const QJsonObject
         if (!field.value("bit_offset").isNull() || !field.value("bit_length").isNull())
             lines << tr("Bit  %1 / %2").arg(jsonInteger(field.value("bit_offset"))).arg(jsonInteger(field.value("bit_length")));
         lines << tr("状态  %1").arg(field.value("severity").toString());
-        if (!field.value("description").toString().isEmpty())
-            lines << tr("说明  %1").arg(field.value("description").toString());
     }
     m_selectionDetails->setPlainText(lines.join('\n'));
 }
@@ -2932,6 +2953,11 @@ void MainWindow::copyCurrentOffset()
 
 void MainWindow::copyCurrentValue()
 {
+    if (m_selectionDetails->hasFocus() && m_selectionDetails->textCursor().hasSelection()) {
+        QApplication::clipboard()->setText(m_selectionDetails->textCursor().selectedText());
+        m_statusText->setText(tr("已复制说明选区"));
+        return;
+    }
     if (m_hexView->hasFocus()) {
         const QString hexSelection = !m_hexView->columnSelectionText().isEmpty()
             ? m_hexView->columnSelectionText()
@@ -2939,6 +2965,13 @@ void MainWindow::copyCurrentValue()
         if (!hexSelection.isEmpty()) {
             QApplication::clipboard()->setText(hexSelection);
             m_statusText->setText(tr("已复制 Hex 选区"));
+            return;
+        }
+    }
+    if (m_fieldsTable->hasFocus() && m_fieldsTable->currentRow() >= 0) {
+        if (auto *valueItem = m_fieldsTable->item(m_fieldsTable->currentRow(), 1)) {
+            QApplication::clipboard()->setText(valueItem->text());
+            m_statusText->setText(tr("已复制字段值"));
             return;
         }
     }
@@ -3199,8 +3232,6 @@ void MainWindow::applyTheme(bool dark, bool persist)
         m_settings.setValue("theme", dark ? "dark" : "light");
         m_settings.sync();
     }
-    m_darkButton->setChecked(dark);
-    m_lightButton->setChecked(!dark);
     if (m_darkThemeAction) m_darkThemeAction->setChecked(dark);
     if (m_lightThemeAction) m_lightThemeAction->setChecked(!dark);
     const QString bg = dark ? "#0C1117" : "#F3F6F9";
