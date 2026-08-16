@@ -28,6 +28,9 @@ int main(int argc, char *argv[])
     const int requestedWidth = qEnvironmentVariableIntValue("AVSCOPE_WINDOW_WIDTH", &widthOk);
     const int requestedHeight = qEnvironmentVariableIntValue("AVSCOPE_WINDOW_HEIGHT", &heightOk);
     if (widthOk && heightOk) {
+        // Explicit validation/automation geometry must override a persisted
+        // maximized state from the previous interactive session.
+        window.setWindowState(Qt::WindowNoState);
         window.resize(requestedWidth, requestedHeight);
         window.show();
     } else {
