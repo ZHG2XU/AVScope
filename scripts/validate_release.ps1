@@ -504,7 +504,11 @@ Write-Host "Media extraction smoke OK"
 Write-Host "== Hardcoded system path scan =="
 $scanTargets = @("$root\avscope", "$root\plugins", "$root\scripts")
 $scanFiles = Get-ChildItem -Path $scanTargets -Recurse -File |
-    Where-Object { $_.FullName -ne "$root\scripts\validate_release.ps1" }
+    Where-Object {
+        $_.FullName -ne "$root\scripts\validate_release.ps1" -and
+        # build_qt.ps1 only probes C:\Qt as a read-only tool discovery location.
+        $_.FullName -ne "$root\scripts\build_qt.ps1"
+    }
 $matches = Select-String -Path $scanFiles.FullName -Pattern "C:\\" -ErrorAction SilentlyContinue
 if ($matches) {
     $matches | ForEach-Object { Write-Host $_.Path ":" $_.LineNumber ":" $_.Line }
