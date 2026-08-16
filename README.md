@@ -1,228 +1,112 @@
-# AVScope
+<p align="center">
+  <img src="qt/resources/avscope.png" width="112" alt="AVScope 图标">
+</p>
 
-当前桌面界面采用原生 `C++20 + Qt 6.9 Widgets + CMake/Ninja`。协议解析、诊断与报告核心继续由 Python 模块提供，Qt 与解析核心通过结构化 JSON 契约解耦。
+<h1 align="center">AVScope</h1>
 
-AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本使用 Python 标准库实现，优先保证在现有电脑环境中可运行，不需要安装新依赖。
+<p align="center">面向音视频工程排障的桌面分析工作台</p>
 
-## 明早验收入口
+<p align="center">
+  <a href="https://github.com/ZHG2XU/AVScope/releases/latest"><img src="https://img.shields.io/github/v/release/ZHG2XU/AVScope?display_name=tag&sort=semver" alt="Latest release"></a>
+  <a href="https://github.com/ZHG2XU/AVScope/releases/latest"><img src="https://img.shields.io/github/downloads/ZHG2XU/AVScope/total" alt="Downloads"></a>
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-1674EA" alt="Windows 10/11">
+  <img src="https://img.shields.io/badge/Qt-6.9-41CD52" alt="Qt 6.9">
+</p>
 
-- 直接运行 Qt 6 绿色版：`G:\AVScope\dist\AVScopeQt\AVScope.exe`
-- 安装包：`G:\AVScope\dist\AVScope-Setup.exe`，默认安装到 `C:\Program Files\AVScope`
-- 完整验证报告：`G:\AVScope\dist\AVScope-validation-report.md`
-- 发布产物清单：`G:\AVScope\dist\AVScope-release-manifest.json`
-- 示例报告目录：`G:\AVScope\dist\sample-reports`
-- 手工验收清单：`G:\AVScope\docs\ACCEPTANCE.md`
+AVScope 用于快速查看媒体文件、裸码流和网络抓包的协议结构、字段、Hex、帧/包时间线与诊断结果。桌面端采用 `C++20 + Qt 6.9 Widgets`，分析引擎使用 Python，并以独立侧车进程运行。
 
-## 当前能力
+## 下载
 
-- 只读打开本地媒体文件，支持菜单选择、打开文件夹、拖拽到窗口，以及将文件拖到 exe 图标上启动打开。
-- 支持打开文件夹、最近文件列表，以及 Hex/text 流式搜索。
-- 支持协议树节点搜索，以及只显示 warning/error 异常节点的过滤视图。
-- 协议树会将每个节点下的字段和值作为可展开子项直接展示，并用不同颜色区分数值、文本、Hex、布尔值和异常字段；树表支持横向滚动，便于查看长值。
-- 支持 Ctrl+O、Ctrl+R、Ctrl+F、Ctrl+G、Ctrl+B、F3、Ctrl+1~9、Ctrl+0、Ctrl+Shift+O 等快捷键，可直接跳转十进制/十六进制 Offset、添加书签、复制文件完整路径、当前值和 Offset；`Ctrl+0` 打开码流健康页。
-- 工具菜单提供时间戳计算器和码率计算器，便于换算 PTS/time_base、帧序号/FPS 和文件码率。
-- 自动识别 MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、PCAP/RTP/RTCP、WAV、AAC ADTS、H.264 Annex-B、H.265 Annex-B、raw PCM、raw YUV。
-- 大文件路径使用 `ByteSource` 只读随机访问，测试覆盖 128MB+ 文件头部、中部、尾部窗口读取。
-- H.264 SPS/PPS 可解析 profile、level、SPS/PPS id、Slice 引用 PPS、PPS 引用 SPS 和推导宽高，并诊断关键帧前缺参数集、引用不存在及分辨率变化。
-- H.265 VPS/SPS/PPS 可解析 profile、level、VPS/SPS/PPS id、Slice/PPS/SPS/VPS 引用链、位深和推导宽高，并诊断关键帧前缺参数集、引用不存在及分辨率变化。
-- MP4 `mvhd` 可解析 timescale、duration 和秒级时长。
-- MP4 `tkhd/mdhd/hdlr` 可解析 track id、宽高、媒体 timescale、duration、语言和 handler 类型。
-- MP4 `stsd/stts/stsc/stsz/stco/co64` 可解析样本描述、时间映射、chunk 映射、sample size 和 chunk offset，并诊断 chunk offset 越界或未落入 `mdat` 数据区。
-- AVI 可解析 RIFF/LIST 结构、`avih` 主头、基础 stream header、宽高、帧数和帧率。
-- FLV 可解析 header、tag 类型、data size、timestamp、stream id 和 PreviousTagSize。
-- Matroska/WebM 可解析 EBML header、Segment/Info/Tracks/Cluster、DocType、时长、轨道、视频宽高和 SimpleBlock 帧。
-- MPEG-PS 可解析 pack header、system header、PES stream id、packet length、PTS/DTS 和 payload offset。
-- MPEG-TS 可解析 188 字节 packet、PID、payload start、adaptation control 和 continuity counter，统计 PID 分布，并诊断 continuity counter 跳变。
-- PCAP/RTP/RTCP 按 PCAP record、Ethernet II、IPv4、UDP、RTP、RTCP Compound、SR/RR、SDES、BYE、RTPFB/PSFB 和反馈 FCI 分层展示；每层字段均带值、Offset、长度、原始 Hex 或位范围。
-- RTCP 支持 SR/RR 会话质量、SDES CNAME、BYE 结束原因、Generic NACK 丢失序号展开、PLI 和 FIR sequence；可诊断版本错误、长度越界、报告截断、丢包与视频刷新/重传请求。
-- RTCP RTPFB 支持 WebRTC Transport-Wide Congestion Control（TWCC），可展开 Run Length/Status Vector Chunk、逐包收到/丢失状态、Small/Large Delta、累计接收时间和反馈计数，并诊断反馈丢包与大 Delta。
-- RTCP PSFB 支持 Receiver Estimated Maximum Bitrate（REMB），解析目标 SSRC 列表及 6-bit exponent/18-bit mantissa 带宽估计，并关联到对应 RTP 会话。
-- RTP/RTCP 会按源/目的 IP、端口和 SSRC 聚合为传输会话，支持 16-bit sequence 回绕，并分别统计估算丢包、重复包、乱序、marker、payload 字节/码率、关联 RTCP 报告质量及 NACK/PLI/FIR/SDES/BYE 会话事件。
-- RTP 时序质量按静态 PT 或 SDP Clock Rate 计算到达间隔、媒体间隔、偏差、RFC 3550 Jitter 和超过 20 ms 的突发延迟；动态 PT 缺少 Clock Rate 时明确标为不可计算，避免错误假设。
-- RTP 视频负载支持 RFC 6184 H.264 Single NALU、STAP-A、FU-A，以及 RFC 7798 H.265 Single NALU、AP、FU；按 SSRC 汇总 codec、packetization、NALU 类型和分片完成度，并诊断缺起始包、缺结束包、序号断裂、timestamp 切换及聚合长度越界。
-- PCAP 支持 SIP/2.0 请求/响应、Call-ID、CSeq、Content-Type/Length 及全部 Header 字段，并解析 SDP `c=`、`m=`、`a=rtpmap`、`a=fmtp`、方向和所有原始行；动态 PT 按媒体地址/端口作用域映射到 RTP，避免同一 PT 跨会话冲突及音频误判为视频，同时使用协商 Clock Rate 修正 RTP 时间线秒值。
-- AAC ADTS 可解析 profile、采样率、声道布局、帧时长、平均码率，并在字段表和 HTML 报告中显示 header 字段 bit offset/bit length。
-- WAV 可解析 PCM 格式参数、data 字节数、帧数、时长，并校验 byte_rate/block_align。
-- Raw PCM/YUV 支持在 CLI 和 GUI 中手动指定采样率、声道、位深、大小端、有符号/无符号、宽高、像素格式和帧率。
-- Raw YUV 可在预览页逐帧查看画面，支持 `yuv420p`、`nv12`、`nv21`、`yuyv422`。
-- 显示协议树、字段表、Hex 分页视图、帧/包列表和带帧/packet 大小柱状图、PTS/DTS、码率、GOP、RTP sequence、PCR 与异常标记的时间线；单文件 Hex 支持上一页/下一页、Offset 跳转、1/4/16/64 KiB 页大小与完整文件范围提示，帧列表支持逐帧与关键帧导航，双击可定位 Hex。
-- 时间线支持滚轮缩放、Shift+滚轮或按钮左右平移、上一/下一时间戳异常导航；单击只联动帧表和 Hex，双击才切换到帧列表。
-- 顶部摘要条显示格式、大小、节点数、诊断数量和解析耗时，底部状态栏同步记录本次分析耗时。
-- 对解析器帧列表生成帧统计摘要，包含关键帧数、关键帧间隔、GOP 分组结构、平均帧大小、最大帧大小和帧类型分布。
-- 使用现有 FFmpeg/ffprobe 补充媒体流信息和 packet 时间线。
-- 对 ffprobe packet 时间线生成 packet 统计摘要，包含 stream 数、packet 数、关键包数、平均/最大 packet 大小和 PTS 跨度。
-- PCAP/RTP/RTCP 会在时间线摘要、预览页和 HTML/JSON/CSV 报告中显示 RTP sequence 曲线、SSRC 分组、marker 包数量和 sequence 跳变异常点；媒体预览与 HTML 报告另有 RTCP SR/RR、丢包率、jitter、DLSR 会话质量摘要，CSV 使用 `rtcp_summary` section。
-- “传输会话”页提供可排序的端点/SSRC 会话表、会话级异常摘要和“只看异常会话”筛选；双击会话可跳到首个 RTP header，HTML/JSON/CSV 使用同一份 `transport_sessions` 数据，CSV 每路会话写入 `transport_session` section。
-- 打开 PCAP 文件后，可通过“视图 / 传输会话”或 `Ctrl+Alt+T` 进入传输分析；主表用于查看每路端点、SSRC、PT、序号范围、估算丢包、重复、乱序、Marker、码率、RTCP、Jitter 和 DLSR，双击任意会话定位首包 Hex。页内子标签可继续检查视频负载、信令协商、控制反馈、时序质量与拥塞反馈。
-- “传输会话”页内新增“视频负载”和“负载问题”子页，展示 H.264/H.265、SSRC、STAP-A/AP/FU、NALU 类型和完成/未完成分片；负载异常会同步提升对应会话状态，双击流或问题可定位 payload Hex。
-- “传输会话 / 信令协商”使用上下分栏展示 SIP 时序和去重后的 SDP PT 映射；H.264/H.265、音频编码使用不同文字色，双击 SIP 或 SDP 行可定位 Hex，会话质量页直接显示协商编码和 Clock Rate。
-- “传输会话 / 控制反馈”上下分栏展示 NACK/PLI/FIR 与 SDES/BYE；不同反馈类型使用高对比语义色，双击事件可定位 RTCP Hex，CNAME 和结束原因同步关联到 RTP SSRC 会话。
-- “传输会话 / 时序质量”上下分栏展示每路 SSRC 的 Clock Rate 来源、RFC 3550 Jitter、到达间隔范围、最大偏差与突发包明细；双击会话或事件可定位 RTP Header Hex。
-- “传输会话 / 拥塞反馈”展示 TWCC 反馈包、逐包接收状态与 REMB 带宽估计；未接收、Large Delta、Small Delta 使用红/黄/绿高对比语义色，双击可定位反馈 Header、Delta 或 REMB Hex。
-- “码流健康”页提供编码、状态、参数集、Slice/关键帧、问题数和分辨率变化指标，分为问题、参数集引用和分辨率事件三张表；问题与分辨率事件可双击定位 Hex。HTML 使用专用“H.26x 码流健康”区，CSV 写入 `codec_health_summary` 与 `codec_health_issue` section。
-- 打开 H.264/H.265 裸码流或含对应编码的 RTP PCAP 后，可通过“视图 / 码流健康”或 `Ctrl+0` 进入；先看顶部健康状态与问题数，再检查“问题”“参数集引用”“分辨率事件”，双击带 Offset 的问题或分辨率事件可回到对应 Hex。
-- 对含视频流的文件使用现有 FFmpeg 生成 PNG 预览帧，支持在 GUI 中按 1 秒步进生成上一/下一预览帧，预览缓存写入 `G:\AVScope\tmp\previews`。
-- 视频预览帧会附带 ffprobe 帧元信息，预览页显示当前帧 PTS/DTS、duration、帧类型、关键帧标记、帧大小、分辨率和像素格式，并可通过“分析 / 跳转预览时间”“跳转预览帧号”“上一关键帧预览”“下一关键帧预览”按秒、帧号或关键帧跳转。
-- 分析菜单可使用现有 FFmpeg 提取当前文件的首路音频、首路视频或首个关键帧 PNG。
-- 为 WAV/PCM 生成抽样波形摘要，并在预览页显示波形图、Peak/RMS 音频能量和裁剪样本数；GUI 可播放 WAV、Raw PCM 或含音频流文件的短片段，并可指定起始时间和时长。
-- 桌面端提供深色/浅色专业工作台主题、品牌图标、关键指标摘要条和空状态，导出 HTML 报告带结构化视觉样式；选中行使用独立的高对比文字色，避免与选中背景混淆。
-- Windows 可执行文件、窗口、任务栏和安装/卸载程序统一使用 AVScope 多尺寸品牌图标。
-- Qt 工作台支持分析任务取消、最近文件、窗口/分栏/主题状态持久化、协议树实时搜索、只看异常、展开/折叠、节点与字段详情、字段/帧联动 Hex，以及复制当前值和 Offset；浅色或夜间主题会在退出时保存并于下次启动恢复，状态文件固定写入 `G:\AVScope\data\qt-settings.ini`。
-- Qt 工作台在打开 `.pcm`/`.yuv` 时提供原生 Raw 参数对话框并记住上次设置；“对比”菜单提供二进制、协议结构和帧级对比。二进制对比使用完整左右双栏 Hex/ASCII、相同 Offset 对齐、同步滚动、差异/缺失字节高亮、Offset 跳转和上一/下一差异导航；结构差异继续按新增、删除、变化分组显示。
-- “媒体预览”页使用原生 Qt 画布显示 WAV/PCM 波形、Peak/RMS、Raw YUV 彩色画面、视频首帧和 RTCP 会话状态，并将媒体参数或 SR/RR、丢包率、jitter、DLSR 整理为可扫描的指标卡片。
-- 媒体预览右上角提供上一/下一导航：视频按 1 秒异步步进，Raw YUV 按帧步进并显示当前帧号/总帧数；内置 `sample.yuv` 含 3 帧不同相位彩条，便于直接验收。
-- 分析、报告导出和三种文件对比统一使用异步侧车任务，运行期间界面保持响应，并可通过顶部“取消”或 `Esc` 终止；协议/帧差异会展开到具体属性的左右值。
-- “媒体流”页按流列出 index、类型、codec、profile、分辨率/声道、采样率、帧率、time_base、duration、bitrate 和像素/采样格式；ffprobe 无流信息时会从裸流解析结果或 RTP SSRC 会话构造流模型，双击可定位首帧/首包 Hex。
-- “书签”页可用 `Ctrl+B` 保存当前 Offset、现场备注和协议位置，双击返回 Hex，书签会随工程快照保存与恢复。
-- 右侧诊断面板可按 Warning/Error、来源和“有 Offset”组合筛选，显示当前/总诊断计数；带 Offset 的诊断可直接定位 Hex，并可通过右键一键记录为书签。
-- Qt 全局诊断采用结构化级别/来源/Offset/问题表格，点击带 Offset 的诊断可直接定位 Hex；时间线叠加帧大小、PTS/DTS、码率、关键帧和异常标记，支持悬停查看帧信息并点击跳转帧表与 Hex。
-- 视图菜单可快速切换 Hex、字段、帧列表、时间线、预览和诊断面板，底部日志会记录打开、搜索、对比、导出等操作状态。
-- 输出基础诊断 warning/error，ffprobe 媒体流或 packet 时间线探测失败会转为可读 warning，并基于解析结构/packet 时间线提示 MP4 chunk offset 异常、PTS/DTS 非单调、音视频时长差异和帧/packet 大小尖峰。
-- 单元测试覆盖 MP4/WAV/AAC/H.264/AVI/FLV/Matroska/MPEG-PS/MPEG-TS/PCAP 典型损坏文件，验证解析失败不会导致程序崩溃并会输出诊断。
-- 支持保存并重新打开 `.avscope.json` 工程快照，恢复当前分析结果、源文件路径、Raw 参数、主题、标签页和 Offset 书签；源文件仍在时保留 Hex 与预览联动，源文件移动后仍可离线查看协议树、诊断和书签。
-- 导出独立 HTML、JSON、CSV 报告，支持写入用户备注；HTML 报告包含音频波形图、结构化统计摘要、帧/packet 大小图、PTS/DTS 曲线、码率曲线、GOP 结构图、RTP sequence 曲线、PCR 曲线、时间线异常清单、帧列表、packet 时间线和协议结构，CSV 可按 section 筛选媒体摘要、备注、诊断、时间线异常、帧统计、packet 统计、帧、packet、节点和字段。
-- 支持两个文件的二进制差异扫描，并输出 offset 对齐的左右 Hex/ASCII 并排差异表；GUI 可用 F4 跳转下一个差异窗口。
-- 支持两个文件的帧级对比，按 frame index 汇总新增、删除和 size/PTS/DTS/duration/type/keyframe 差异，并可从 GUI 或 CLI 导出 JSON。
-- 预留声明式插件模板机制，可在 `plugins\*.json` 中按魔数扩展私有格式识别和字段展示。
-- GUI 提供“插件”菜单查看、重新加载和新建声明式协议模板，并在“帮助”菜单提供快捷键、示例文件和关于信息。
-- 发布构建会生成 `G:\AVScope\dist\AVScope-release-manifest.json`，记录安装包、绿色版、源码包和内置 FFmpeg/插件文件的大小与 SHA256。
-- 完整验证通过后会生成 `G:\AVScope\dist\AVScope-validation-report.md`，作为明早验收测试报告。
-- 交付目录会生成 `G:\AVScope\dist\sample-reports`，包含 WAV/MP4 示例分析报告和对比 JSON。
-- 深色/浅色主题。
+前往 [GitHub Releases](https://github.com/ZHG2XU/AVScope/releases/latest) 获取最新版本。
 
-## 运行
+| 版本 | 适用场景 | 下载 |
+| --- | --- | --- |
+| Windows 安装版 | 推荐大多数用户使用，带安装向导和快捷方式选项 | [下载 AVScope-Setup.exe](https://github.com/ZHG2XU/AVScope/releases/latest/download/AVScope-Setup.exe) |
+| Windows 绿色版 | 解压即用，不写入安装目录和注册表 | [下载 AVScope-portable-win-x64.zip](https://github.com/ZHG2XU/AVScope/releases/latest/download/AVScope-portable-win-x64.zip) |
+| 源码包 | 开发、审阅或自行构建 | [查看全部发布文件](https://github.com/ZHG2XU/AVScope/releases/latest) |
 
-```powershell
-Set-Location G:\AVScope
-E:\DevelopmentEnvironment\python\python.exe run_avscope.py
-```
+系统要求：Windows 10/11 64 位。安装版默认安装到 `C:\Program Files\AVScope`，需要管理员授权。当前安装包尚未进行商业代码签名；运行前可使用 Release 附带的 `AVScope-release-manifest.json` 核对 SHA256。
 
-也可以运行：
+## 快速使用
 
-```powershell
-G:\AVScope\scripts\run_avscope.bat
-```
+1. 安装或解压 AVScope，启动 `AVScope.exe`。
+2. 拖入媒体文件、裸码流或 PCAP 抓包，也可以通过“文件 / 打开”选择文件。
+3. 使用协议树、字段表、Hex、帧列表、时间线、媒体预览和诊断面板定位问题。
+4. 需要共享结果时，导出 HTML、JSON 或 CSV 报告。
 
-以上入口默认启动 Qt 6 工作台。构建、部署和双主题界面验证：
+## 核心能力
 
-```powershell
-PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\build_qt.ps1
-PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\deploy_qt.ps1
-PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_qt_ui.ps1
-```
+- 结构分析：按协议层级展示节点、字段值、Offset、长度、原始 Hex 与诊断级别。
+- Hex 工作台：分页读取、Offset 跳转、字段联动、书签、搜索和双文件差异对比。
+- 时间线诊断：帧/包大小、PTS/DTS、码率、GOP、RTP sequence、PCR 与异常标记。
+- 网络媒体分析：RTP/RTCP 会话、丢包/重复/乱序、Jitter、NACK/PLI/FIR、TWCC、REMB、SIP/SDP。
+- 码流健康：H.264/H.265 参数集引用、关键帧、分辨率变化与分片完整性诊断。
+- 媒体预览：视频帧、WAV/PCM 波形、Raw YUV、音频片段播放和流信息。
+- 报告与快照：HTML/JSON/CSV 报告、`.avscope.json` 工程快照和 Offset 书签。
+- 稳健解析：遇到截断或畸形输入时返回结构化诊断，避免因单个坏文件崩溃。
 
-UI 验证会在 `G:\AVScope\tmp\qt-ui-validation` 留下深浅主题、PCAP 时间线、RTCP 会话预览、异常传输会话筛选、RTP H.264/H.265 视频负载、SIP/SDP 信令协商、RTCP 控制反馈、RTP 时序质量、TWCC 拥塞反馈、H.264 深色/H.265 浅色码流健康、媒体流、Raw PCM 波形、Raw YUV 第 1/2 帧、工程书签恢复、协议对比和双栏 Hex 对比截图，以及对应的数据契约 JSON。
+## 支持格式
 
-Qt 工具链复用电脑已有的 `E:\QT\6.9.0`、MinGW 13.1、CMake 和 Ninja，本轮没有安装新工具。旧 Tk 界面仅保留为未构建源码环境的兼容回退。
-
-Windows 桌面端支持把媒体文件直接拖入窗口打开；也支持把文件拖到 `AVScope.exe` 图标上启动打开。
+| 类别 | 格式 |
+| --- | --- |
+| 容器与音频 | MP4/MOV、AVI、FLV、Matroska/WebM、WAV、AAC ADTS |
+| 广播与系统流 | MPEG-PS、MPEG-TS |
+| 视频裸流 | H.264 Annex-B、H.265 Annex-B |
+| 原始媒体 | Raw PCM、Raw YUV（`yuv420p`、`nv12`、`nv21`、`yuyv422`） |
+| 网络抓包 | PCAP、Ethernet II、IPv4、UDP、RTP、RTCP、SIP、SDP |
+| 扩展格式 | `plugins/*.json` 声明式私有格式模板 |
 
 ## 命令行
 
-生成示例文件：
+从仓库根目录运行：
+
+```powershell
+$env:PYTHONPATH = (Get-Location).Path
+
+python -m avscope analyze samples\sample.wav `
+  --html tmp\sample.html `
+  --json tmp\sample.json `
+  --csv tmp\sample.csv
+
+python -m avscope compare-protocol samples\sample.mp4 samples\sample_changed.mp4 `
+  --json tmp\protocol-compare.json
+```
+
+## 开发与验证
 
 ```powershell
 Set-Location G:\AVScope
-$env:PYTHONPATH='G:\AVScope'
-E:\DevelopmentEnvironment\python\python.exe -m avscope make-samples --out G:\AVScope\samples
+$env:PYTHONPATH = (Get-Location).Path
+
+# Python 测试
+python -m unittest discover -s tests -v
+
+# Qt 构建与部署
+PowerShell -ExecutionPolicy Bypass -File scripts\build_qt.ps1
+PowerShell -ExecutionPolicy Bypass -File scripts\deploy_qt.ps1
+
+# 安装包、绿色版和完整发布验证
+PowerShell -ExecutionPolicy Bypass -File scripts\build_installer.ps1
+PowerShell -ExecutionPolicy Bypass -File scripts\make_portable_zip.ps1
+PowerShell -ExecutionPolicy Bypass -File scripts\validate_release.ps1
 ```
 
-分析并导出报告：
+本机构建默认复用已配置的 Qt、CMake、Ninja、MinGW、Python、PyInstaller、NSIS 和 FFmpeg。具体要求见 [packaging/README.md](packaging/README.md)。
 
-```powershell
-E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.wav --html G:\AVScope\samples\sample_report.html --json G:\AVScope\samples\sample_report.json --csv G:\AVScope\samples\sample_report.csv
-E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.pcm --sample-rate 8000 --channels 1 --bits-per-sample 16 --endian little --json G:\AVScope\samples\sample_pcm_report.json
-E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.yuv --width 64 --height 48 --pixel-format yuv420p --fps 30 --json G:\AVScope\samples\sample_yuv_report.json
-E:\DevelopmentEnvironment\python\python.exe -m avscope analyze G:\AVScope\samples\sample.wav --note "现场备注：客户样例" --json G:\AVScope\samples\sample_note_report.json
-```
-
-协议结构对比：
-
-```powershell
-E:\DevelopmentEnvironment\python\python.exe -m avscope compare-protocol G:\AVScope\samples\sample.mp4 G:\AVScope\samples\sample_changed.mp4 --json G:\AVScope\samples\protocol_compare.json
-```
-
-帧级对比：
-```powershell
-E:\DevelopmentEnvironment\python\python.exe -m avscope compare-frames G:\AVScope\samples\sample.aac G:\AVScope\samples\sample.aac --json G:\AVScope\samples\sample_frame_compare.json
-```
-
-## 测试
-
-```powershell
-Set-Location G:\AVScope
-$env:PYTHONPATH='G:\AVScope'
-$env:TEMP='G:\AVScope\tmp'
-$env:TMP='G:\AVScope\tmp'
-E:\DevelopmentEnvironment\python\python.exe -m unittest discover -s tests
-```
-
-明早验收前可运行完整验证：
-
-```powershell
-PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
-```
-
-验收清单见 `G:\AVScope\docs\ACCEPTANCE.md`。
-
-已知边界与后续规划见 `G:\AVScope\docs\KNOWN_ISSUES_AND_ROADMAP.md`。
-
-## 目录结构
+## 项目结构
 
 ```text
-G:\AVScope
-├── qt\                  Qt 6/C++20 现代桌面 UI
-├── avscope\             核心代码与桌面 UI
-│   ├── parsers\         格式解析器
-│   ├── analyzer.py      格式识别与解析入口
-│   ├── byte_source.py   大文件随机读取抽象
-│   ├── compare.py       二进制对比
-│   ├── report.py        HTML/JSON/CSV 报告
-│   └── app.py           旧 Tk 兼容 UI
-├── tests\               单元测试
-├── samples\             示例文件目录
-├── packaging\           打包说明
-├── scripts\             启动和交付辅助脚本
-├── data\                本地设置与最近文件列表
-└── run_avscope.py       启动入口
+avscope/       Python 分析引擎、CLI、报告与格式解析器
+qt/            Qt 6/C++20 桌面端
+tests/         unittest 回归测试
+samples/       示例媒体与抓包
+scripts/       构建、打包和发布验证脚本
+packaging/     NSIS 安装器及品牌资源
+docs/          验收说明、已知问题与规划
 ```
 
-## 打包说明
+## 发布与许可说明
 
-已安装的打包工具记录见 `G:\AVScope\INSTALLATIONS.md`。
-
-生成 GUI `.exe` 目录：
-
-```powershell
-Set-Location G:\AVScope
-$env:PYTHONPATH='G:\AVScope;E:\AVScopeTools\python-packages'
-$env:PYINSTALLER_CONFIG_DIR='E:\AVScopeTools\pyinstaller-config'
-$env:TEMP='G:\AVScope\tmp'
-$env:TMP='G:\AVScope\tmp'
-E:\DevelopmentEnvironment\python\python.exe -m PyInstaller --noconfirm --clean --windowed --name AVScope --add-binary "E:\DevelopmentEnvironment\ffmpeg-8.1-essentials_build\bin\ffprobe.exe;." --add-binary "E:\DevelopmentEnvironment\ffmpeg-8.1-essentials_build\bin\ffmpeg.exe;." --add-data "G:\AVScope\plugins;plugins" --distpath G:\AVScope\dist --workpath G:\AVScope\build --specpath G:\AVScope\packaging G:\AVScope\run_avscope.py
-```
-
-当前交付构建会额外携带现有 `E:\DevelopmentEnvironment\ffmpeg-8.1-essentials_build\bin\ffprobe.exe` 和 `ffmpeg.exe`，用于补充媒体流信息、packet 时间线和视频预览帧生成。
-
-生成安装包：
-
-```powershell
-PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\build_installer.ps1
-```
-
-生成绿色版、源码包和发布产物清单：
-
-```powershell
-PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\make_portable_zip.ps1
-PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\make_sample_reports.ps1
-PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\make_release_manifest.ps1
-```
-
-当前安装包默认安装到 `C:\Program Files\AVScope`，安装时需要管理员授权；安装页面可选择是否创建桌面和开始菜单快捷方式。
-
-## 时间线曲线摘要
-
-- 分析结果会写入 `media.summary.timeline_summary`，包含 PTS/DTS 范围、非单调计数、码率 bucket 曲线、关键帧/GOP 间隔、GOP 分组结构、RTP sequence 摘要、MPEG-TS PCR 摘要和抽样后的曲线点。
-- GUI “时间线”页会在帧/packet 大小柱状图上叠加 PTS/DTS 曲线、码率曲线、GOP 分段、RTP sequence 曲线、PCR 曲线和异常标记；异常行会高亮并在 `Issue` 列显示原因，可勾选“只看时间线异常”筛选。
-- “预览”页会显示 PTS/DTS、码率、GOP 结构、RTP sequence、PCR 和统一的时间线异常原因摘要。
-- HTML 报告会显示“时间线曲线摘要”表、时间线异常清单、PTS/DTS 曲线、码率曲线、GOP 结构图、RTP sequence 曲线、PCR 曲线和异常点，并在帧列表/Packet 时间线的 `Issue` 列标注异常原因；JSON 报告会保留 `timeline_summary` 结构化数据，CSV 报告会额外写入可筛选的 `timeline_issue` section。
+- 版本变化见 [CHANGELOG.md](CHANGELOG.md)。
+- 第三方组件及其许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+- 当前仓库尚未声明项目自身的开源许可证；未经版权方许可，不应将源码的公开可见视为获得了复制、修改或再分发授权。

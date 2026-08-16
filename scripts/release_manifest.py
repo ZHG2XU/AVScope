@@ -13,6 +13,7 @@ DEFAULT_ARTIFACTS = [
     "dist/AVScopeQt/Qt6Gui.dll",
     "dist/AVScopeQt/Qt6Widgets.dll",
     "dist/AVScopeQt/platforms/qwindows.dll",
+    "dist/AVScopeQt/THIRD_PARTY_NOTICES.md",
     "dist/AVScopeQt/engine/AVScopeEngine.exe",
     "dist/AVScopeQt/engine/_internal/ffprobe.exe",
     "dist/AVScopeQt/engine/_internal/ffmpeg.exe",

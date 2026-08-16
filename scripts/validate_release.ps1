@@ -1,3 +1,7 @@
+param(
+    [switch]$SkipInstallerSmoke
+)
+
 $ErrorActionPreference = "Stop"
 
 $root = "G:\AVScope"
@@ -9,6 +13,7 @@ $ffprobe = "G:\AVScope\dist\AVScopeQt\engine\_internal\ffprobe.exe"
 $ffmpeg = "G:\AVScope\dist\AVScopeQt\engine\_internal\ffmpeg.exe"
 $pluginTemplate = "G:\AVScope\dist\AVScopeQt\engine\_internal\plugins\demo_magic.json"
 $qtPlatform = "G:\AVScope\dist\AVScopeQt\platforms\qwindows.dll"
+$thirdPartyNotices = "G:\AVScope\dist\AVScopeQt\THIRD_PARTY_NOTICES.md"
 $portableZip = "G:\AVScope\dist\AVScope-portable-win-x64.zip"
 $sourceZip = "G:\AVScope\dist\AVScope-portable-source.zip"
 $manifestPath = "G:\AVScope\dist\AVScope-release-manifest.json"
@@ -72,6 +77,7 @@ $artifacts = @(
     $ffmpeg,
     $pluginTemplate,
     $qtPlatform,
+    $thirdPartyNotices,
     $setup,
     $portableZip,
     $sourceZip,
@@ -122,6 +128,7 @@ $expectedManifestEntries = @(
     "dist\AVScopeQt\Qt6Gui.dll",
     "dist\AVScopeQt\Qt6Widgets.dll",
     "dist\AVScopeQt\platforms\qwindows.dll",
+    "dist\AVScopeQt\THIRD_PARTY_NOTICES.md",
     "dist\AVScopeQt\engine\AVScopeEngine.exe",
     "dist\AVScopeQt\engine\_internal\ffprobe.exe",
     "dist\AVScopeQt\engine\_internal\ffmpeg.exe",
@@ -515,39 +522,45 @@ Stop-Process -Id $process.Id -Force
 Write-Host "Dist executable smoke OK"
 
 Write-Host "== Installer smoke =="
-Start-Process -FilePath $setup -ArgumentList @("/S", "/D=$installDir") -Wait -WindowStyle Hidden
-if (-not (Test-Path "$installDir\AVScope.exe")) {
-    throw "Installed AVScope.exe not found"
+$installerSmokeStatus = "passed"
+if ($SkipInstallerSmoke) {
+    $installerSmokeStatus = "skipped"
+    Write-Host "Installer smoke skipped (-SkipInstallerSmoke); elevated install/uninstall requires manual validation"
+} else {
+    Start-Process -FilePath $setup -ArgumentList @("/S", "/D=$installDir") -Wait -WindowStyle Hidden
+    if (-not (Test-Path "$installDir\AVScope.exe")) {
+        throw "Installed AVScope.exe not found"
+    }
+    if (-not (Test-Path "$installDir\engine\_internal\ffprobe.exe")) {
+        throw "Installed ffprobe.exe not found"
+    }
+    if (-not (Test-Path "$installDir\engine\_internal\ffmpeg.exe")) {
+        throw "Installed ffmpeg.exe not found"
+    }
+    if (-not (Test-Path "$installDir\engine\AVScopeEngine.exe")) {
+        throw "Installed AVScopeEngine.exe not found"
+    }
+    if (-not (Test-Path "$installDir\engine\_internal\plugins\demo_magic.json")) {
+        throw "Installed plugin template not found"
+    }
+    if (-not (Test-Path "$installDir\platforms\qwindows.dll")) {
+        throw "Installed Qt platform plugin not found"
+    }
+    $installedProcess = Start-Process -FilePath "$installDir\AVScope.exe" -WindowStyle Hidden -PassThru
+    Start-Sleep -Seconds 3
+    if ($installedProcess.HasExited) {
+        throw "Installed AVScope.exe exited early with code $($installedProcess.ExitCode)"
+    }
+    Stop-Process -Id $installedProcess.Id -Force
+    Start-Process -FilePath "$installDir\Uninstall.exe" -ArgumentList "/S" -Wait -WindowStyle Hidden
+    if (Test-Path "$installDir\AVScope.exe") {
+        throw "Uninstall did not remove AVScope.exe"
+    }
+    Write-Host "Installer smoke OK"
 }
-if (-not (Test-Path "$installDir\engine\_internal\ffprobe.exe")) {
-    throw "Installed ffprobe.exe not found"
-}
-if (-not (Test-Path "$installDir\engine\_internal\ffmpeg.exe")) {
-    throw "Installed ffmpeg.exe not found"
-}
-if (-not (Test-Path "$installDir\engine\AVScopeEngine.exe")) {
-    throw "Installed AVScopeEngine.exe not found"
-}
-if (-not (Test-Path "$installDir\engine\_internal\plugins\demo_magic.json")) {
-    throw "Installed plugin template not found"
-}
-if (-not (Test-Path "$installDir\platforms\qwindows.dll")) {
-    throw "Installed Qt platform plugin not found"
-}
-$installedProcess = Start-Process -FilePath "$installDir\AVScope.exe" -WindowStyle Hidden -PassThru
-Start-Sleep -Seconds 3
-if ($installedProcess.HasExited) {
-    throw "Installed AVScope.exe exited early with code $($installedProcess.ExitCode)"
-}
-Stop-Process -Id $installedProcess.Id -Force
-Start-Process -FilePath "$installDir\Uninstall.exe" -ArgumentList "/S" -Wait -WindowStyle Hidden
-if (Test-Path "$installDir\AVScope.exe") {
-    throw "Uninstall did not remove AVScope.exe"
-}
-Write-Host "Installer smoke OK"
 
 Write-Host "== Validation report =="
-& $python "$root\scripts\validation_report.py" --root $root --output $validationReportPath
+& $python "$root\scripts\validation_report.py" --root $root --output $validationReportPath --installer-smoke $installerSmokeStatus
 if (-not (Test-Path $validationReportPath)) {
     throw "Validation report was not generated"
 }

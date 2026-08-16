@@ -17,6 +17,7 @@ if (-not (Test-Path -LiteralPath $source)) {
 
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 Copy-Item -LiteralPath $source -Destination "$output\AVScope.exe" -Force
+Copy-Item -LiteralPath "$root\THIRD_PARTY_NOTICES.md" -Destination $output -Force
 & $deploy --release --no-translations --no-opengl-sw "$output\AVScope.exe"
 if ($LASTEXITCODE -ne 0) { throw "Qt deployment failed" }
 

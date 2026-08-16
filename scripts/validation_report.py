@@ -11,6 +11,7 @@ DEFAULT_ARTIFACTS = [
     "dist/AVScopeQt/Qt6Gui.dll",
     "dist/AVScopeQt/Qt6Widgets.dll",
     "dist/AVScopeQt/platforms/qwindows.dll",
+    "dist/AVScopeQt/THIRD_PARTY_NOTICES.md",
     "dist/AVScopeQt/engine/AVScopeEngine.exe",
     "dist/AVScopeQt/engine/_internal/ffprobe.exe",
     "dist/AVScopeQt/engine/_internal/ffmpeg.exe",
@@ -93,25 +94,38 @@ VALIDATED_CHECKS = [
 ]
 
 
-def build_validation_report(root: str | Path, artifacts: list[str] | None = None) -> str:
+def build_validation_report(
+    root: str | Path,
+    artifacts: list[str] | None = None,
+    installer_smoke: str = "passed",
+) -> str:
     root_path = Path(root)
     artifact_rows = []
     for relative in artifacts or DEFAULT_ARTIFACTS:
         path = root_path / relative
         artifact_rows.append((relative.replace("/", "\\"), path.exists(), path.stat().st_size if path.exists() else 0))
 
+    checks = list(VALIDATED_CHECKS)
+    result = "通过"
+    command = "PowerShell -ExecutionPolicy Bypass -File G:\\AVScope\\scripts\\validate_release.ps1"
+    if installer_smoke == "skipped":
+        checks.remove("安装包静默安装、启动、卸载冒烟测试")
+        checks.append("安装包提升权限安装/卸载冒烟未执行，需在管理员会话中手工复验")
+        result = "通过（安装包提升权限冒烟未执行）"
+        command += " -SkipInstallerSmoke"
+
     lines = [
         "# AVScope 发布验证报告",
         "",
         f"- 生成时间：{datetime.now().isoformat(timespec='seconds')}",
         f"- 项目目录：{root_path}",
-        "- 验证结果：通过",
-        "- 验证命令：`PowerShell -ExecutionPolicy Bypass -File G:\\AVScope\\scripts\\validate_release.ps1`",
+        f"- 验证结果：{result}",
+        f"- 验证命令：`{command}`",
         "",
         "## 已验证项目",
         "",
     ]
-    lines.extend(f"- {check}" for check in VALIDATED_CHECKS)
+    lines.extend(f"- {check}" for check in checks)
     lines.extend(
         [
             "",
@@ -137,8 +151,13 @@ def build_validation_report(root: str | Path, artifacts: list[str] | None = None
     return "\n".join(lines) + "\n"
 
 
-def write_validation_report(root: str | Path, output: str | Path, artifacts: list[str] | None = None) -> str:
-    report = build_validation_report(root, artifacts)
+def write_validation_report(
+    root: str | Path,
+    output: str | Path,
+    artifacts: list[str] | None = None,
+    installer_smoke: str = "passed",
+) -> str:
+    report = build_validation_report(root, artifacts, installer_smoke)
     output_path = Path(output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(report, encoding="utf-8")
@@ -149,8 +168,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Write AVScope release validation report")
     parser.add_argument("--root", default="G:/AVScope")
     parser.add_argument("--output", default="G:/AVScope/dist/AVScope-validation-report.md")
+    parser.add_argument("--installer-smoke", choices=("passed", "skipped"), default="passed")
     args = parser.parse_args(argv)
-    write_validation_report(args.root, args.output)
+    write_validation_report(args.root, args.output, installer_smoke=args.installer_smoke)
     print(str(args.output))
     return 0
 
