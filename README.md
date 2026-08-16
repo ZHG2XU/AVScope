@@ -7,7 +7,7 @@ AVScope 是面向音视频工程排障的桌面分析工具 MVP。当前版本�
 ## 明早验收入口
 
 - 直接运行 Qt 6 绿色版：`G:\AVScope\dist\AVScopeQt\AVScope.exe`
-- 安装包：`G:\AVScope\dist\AVScope-Setup.exe`，默认安装到 `G:\AVScopeInstalled\AVScope`
+- 安装包：`G:\AVScope\dist\AVScope-Setup.exe`，默认安装到 `C:\Program Files\AVScope`
 - 完整验证报告：`G:\AVScope\dist\AVScope-validation-report.md`
 - 发布产物清单：`G:\AVScope\dist\AVScope-release-manifest.json`
 - 示例报告目录：`G:\AVScope\dist\sample-reports`
@@ -207,7 +207,7 @@ E:\DevelopmentEnvironment\python\python.exe -m PyInstaller --noconfirm --clean -
 生成安装包：
 
 ```powershell
-E:\AVScopeTools\nsis_extract\nsis-3.12\makensis.exe G:\AVScope\packaging\AVScope.nsi
+PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\build_installer.ps1
 ```
 
 生成绿色版、源码包和发布产物清单：
@@ -218,7 +218,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\make_sample_reports.
 PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\make_release_manifest.ps1
 ```
 
-当前安装包默认安装到 `G:\AVScopeInstalled\AVScope`，不创建桌面或开始菜单快捷方式，避免向 `C:\` 写入文件。
+当前安装包默认安装到 `C:\Program Files\AVScope`，安装时需要管理员授权；安装页面可选择是否创建桌面和开始菜单快捷方式。
 
 ## 时间线曲线摘要
 

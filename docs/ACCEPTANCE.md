@@ -6,7 +6,7 @@
 2. 查看完整验证报告：`G:\AVScope\dist\AVScope-validation-report.md`。
 3. 查看发布产物清单：`G:\AVScope\dist\AVScope-release-manifest.json`。
 4. 打开示例报告目录：`G:\AVScope\dist\sample-reports`。
-5. 需要安装包验收时运行：`G:\AVScope\dist\AVScope-Setup.exe`，默认安装目录为 `G:\AVScopeInstalled\AVScope`。
+5. 需要安装包验收时运行：`G:\AVScope\dist\AVScope-Setup.exe`，默认安装目录为 `C:\Program Files\AVScope`。
 6. 需要重新验证时运行：
 
 ```powershell
@@ -103,7 +103,7 @@ PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1
 33. 打开 `G:\AVScope\dist\AVScope-validation-report.md`，确认一键验证通过项和关键产物大小已写入测试报告。
 34. 导出 HTML/JSON/CSV 报告并打开检查，确认可选用户备注会写入报告；HTML 字段表的 `Bit / Size` 列会显示 AAC ADTS bit 字段位置，并包含音频波形图、结构化统计摘要表、帧/packet 大小图和“帧列表”章节；CSV 应包含 `media`、`notes`、`diagnostic`、`timeline_issue`、`frame_stats`、`packet_stats`、`frame`、`packet`、`node`、`field` 等 section。
 35. 打开 `G:\AVScope\docs\KNOWN_ISSUES_AND_ROADMAP.md`，确认当前 MVP 边界和后续规划已有明确说明。
-36. 运行安装包，默认安装目录应为 `G:\AVScopeInstalled\AVScope`。
+36. 运行安装包，默认安装目录应为 `C:\Program Files\AVScope`，并可选择是否创建桌面和开始菜单快捷方式。
 
 ## 当前已知边界
 

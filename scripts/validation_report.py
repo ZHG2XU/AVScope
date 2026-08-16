@@ -80,7 +80,7 @@ VALIDATED_CHECKS = [
     "RTCP TWCC chunks, packet status vectors, delta bounds and HTML/CSV report smoke test",
     "H.264/H.265 parameter-set reference, resolution-change and HTML/CSV codec-health smoke test",
     "视频预览帧信息、步进、按秒跳转、按帧号跳转和关键帧跳转冒烟测试",
-    "C 盘写入目标扫描",
+    "系统目录使用与硬编码路径检查",
     "音频波形/能量与短片段、视频预览帧步进、Raw YUV 逐帧预览冒烟测试",
     "帧级对比冒烟测试",
     "插件模板创建与加载冒烟测试",

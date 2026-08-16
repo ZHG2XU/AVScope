@@ -494,16 +494,16 @@ $extractCheck | & $python -
 Remove-Item Env:\AVSCOPE_FFMPEG -ErrorAction SilentlyContinue
 Write-Host "Media extraction smoke OK"
 
-Write-Host "== Path constraint scan =="
-$scanTargets = @("$root\avscope", "$root\packaging", "$root\plugins", "$root\scripts")
+Write-Host "== Hardcoded system path scan =="
+$scanTargets = @("$root\avscope", "$root\plugins", "$root\scripts")
 $scanFiles = Get-ChildItem -Path $scanTargets -Recurse -File |
     Where-Object { $_.FullName -ne "$root\scripts\validate_release.ps1" }
-$matches = Select-String -Path $scanFiles.FullName -Pattern "C:\\|PROGRAMFILES|DESKTOP|SMPROGRAMS" -ErrorAction SilentlyContinue
+$matches = Select-String -Path $scanFiles.FullName -Pattern "C:\\" -ErrorAction SilentlyContinue
 if ($matches) {
     $matches | ForEach-Object { Write-Host $_.Path ":" $_.LineNumber ":" $_.Line }
-    throw "Path constraint scan found forbidden target references"
+    throw "Hardcoded system path scan found forbidden target references"
 }
-Write-Host "Path constraint scan OK"
+Write-Host "Hardcoded system path scan OK"
 
 Write-Host "== Dist executable smoke =="
 $process = Start-Process -FilePath $appExe -WindowStyle Hidden -PassThru
