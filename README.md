@@ -4,7 +4,7 @@
 
 <h1 align="center">AVScope</h1>
 
-<p align="center">面向音视频工程排障的桌面分析工作台</p>
+<p align="center">音视频协议分析工具</p>
 
 <p align="center">
   <a href="https://github.com/ZHG2XU/AVScope/releases/latest"><img src="https://img.shields.io/github/v/release/ZHG2XU/AVScope?display_name=tag&sort=semver" alt="Latest release"></a>
