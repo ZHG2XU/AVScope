@@ -18,5 +18,5 @@
 ### 改进
 
 - 新增 AVScope 品牌化 Modern UI 2 安装向导。
-- 默认安装到 `C:\Program Files\AVScope`，支持桌面和开始菜单快捷方式。
+- 默认安装到 `%ProgramFiles%\AVScope`，支持桌面和开始菜单快捷方式。
 - 完善深色/浅色主题、异步任务、窗口布局、媒体播放控制和高 DPI 显示。

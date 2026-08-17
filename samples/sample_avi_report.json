@@ -2,7 +2,7 @@
   "generated_at": "2026-08-12T03:19:44",
   "tool_version": "0.1.0",
   "media": {
-    "path": "G:\\AVScope\\samples\\sample.avi",
+    "path": "<repo>\\samples\\sample.avi",
     "size": 172,
     "format_name": "AVI",
     "summary": {

@@ -1,6 +1,6 @@
 {
-  "left_path": "G:\\AVScope\\samples\\sample.mp4",
-  "right_path": "G:\\AVScope\\samples\\sample_changed.mp4",
+  "left_path": "<repo>\\samples\\sample.mp4",
+  "right_path": "<repo>\\samples\\sample_changed.mp4",
   "left_format": "MP4/MOV",
   "right_format": "MP4/MOV",
   "added": [

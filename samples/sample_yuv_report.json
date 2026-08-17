@@ -2,7 +2,7 @@
   "generated_at": "2026-08-12T03:19:45",
   "tool_version": "0.1.0",
   "media": {
-    "path": "G:\\AVScope\\samples\\sample.yuv",
+    "path": "<repo>\\samples\\sample.yuv",
     "size": 4608,
     "format_name": "Raw YUV",
     "summary": {

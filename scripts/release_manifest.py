@@ -89,9 +89,10 @@ def _sha256(path: Path) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    project_root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description="Write AVScope release artifact manifest")
-    parser.add_argument("--root", default="G:/AVScope")
-    parser.add_argument("--output", default="G:/AVScope/dist/AVScope-release-manifest.json")
+    parser.add_argument("--root", default=str(project_root))
+    parser.add_argument("--output", default=str(project_root / "dist" / "AVScope-release-manifest.json"))
     args = parser.parse_args(argv)
     manifest = write_release_manifest(args.root, args.output)
     print(json.dumps({"output": str(args.output), "artifacts": len(manifest["artifacts"])}, ensure_ascii=False))

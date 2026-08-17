@@ -107,7 +107,7 @@ def build_validation_report(
 
     checks = list(VALIDATED_CHECKS)
     result = "通过"
-    command = "PowerShell -ExecutionPolicy Bypass -File G:\\AVScope\\scripts\\validate_release.ps1"
+    command = f"PowerShell -ExecutionPolicy Bypass -File {root_path / 'scripts' / 'validate_release.ps1'}"
     if installer_smoke == "skipped":
         checks.remove("安装包静默安装、启动、卸载冒烟测试")
         checks.append("安装包提升权限安装/卸载冒烟未执行，需在管理员会话中手工复验")
@@ -143,9 +143,9 @@ def build_validation_report(
             "",
             "## 约束确认",
             "",
-            "- 项目文件、构建产物和临时验证文件均位于 G 盘项目目录或 G 盘安装验证目录。",
+            "- 项目文件、构建产物和临时验证文件均位于当前项目目录或系统临时目录。",
             "- 本轮验证未安装新的工具或运行库。",
-            "- E 盘工具清单仍以 `E:\\AVScopeTools\\INSTALL_MANIFEST.txt` 为准。",
+            "- 外部工具位置由 PATH 或 AVSCOPE_* 环境变量提供。",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -165,9 +165,10 @@ def write_validation_report(
 
 
 def main(argv: list[str] | None = None) -> int:
+    project_root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description="Write AVScope release validation report")
-    parser.add_argument("--root", default="G:/AVScope")
-    parser.add_argument("--output", default="G:/AVScope/dist/AVScope-validation-report.md")
+    parser.add_argument("--root", default=str(project_root))
+    parser.add_argument("--output", default=str(project_root / "dist" / "AVScope-validation-report.md"))
     parser.add_argument("--installer-smoke", choices=("passed", "skipped"), default="passed")
     args = parser.parse_args(argv)
     write_validation_report(args.root, args.output, installer_smoke=args.installer_smoke)

@@ -99,9 +99,10 @@ def build_sample_reports(root: str | Path, output_dir: str | Path) -> list[Path]
 
 
 def main(argv: list[str] | None = None) -> int:
+    project_root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description="Write AVScope sample analysis reports")
-    parser.add_argument("--root", default="G:/AVScope")
-    parser.add_argument("--output-dir", default="G:/AVScope/dist/sample-reports")
+    parser.add_argument("--root", default=str(project_root))
+    parser.add_argument("--output-dir", default=str(project_root / "dist" / "sample-reports"))
     args = parser.parse_args(argv)
     outputs = build_sample_reports(args.root, args.output_dir)
     print(json.dumps({"output_dir": str(args.output_dir), "reports": [str(path) for path in outputs]}, ensure_ascii=False))

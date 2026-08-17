@@ -2,7 +2,7 @@
   "generated_at": "2026-08-12T03:44:13",
   "tool_version": "0.1.0",
   "media": {
-    "path": "G:\\AVScope\\samples\\sample.wav",
+    "path": "<repo>\\samples\\sample.wav",
     "size": 1068,
     "format_name": "WAV",
     "summary": {

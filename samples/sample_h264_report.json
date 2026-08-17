@@ -2,7 +2,7 @@
   "generated_at": "2026-08-12T03:37:17",
   "tool_version": "0.1.0",
   "media": {
-    "path": "G:\\AVScope\\samples\\sample.h264",
+    "path": "<repo>\\samples\\sample.h264",
     "size": 33,
     "format_name": "H.264 Annex-B",
     "summary": {

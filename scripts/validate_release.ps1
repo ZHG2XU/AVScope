@@ -4,21 +4,22 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$root = "G:\AVScope"
-$python = "E:\DevelopmentEnvironment\python\python.exe"
-$setup = "G:\AVScope\dist\AVScope-Setup.exe"
-$appExe = "G:\AVScope\dist\AVScopeQt\AVScope.exe"
-$engineExe = "G:\AVScope\dist\AVScopeQt\engine\AVScopeEngine.exe"
-$ffprobe = "G:\AVScope\dist\AVScopeQt\engine\_internal\ffprobe.exe"
-$ffmpeg = "G:\AVScope\dist\AVScopeQt\engine\_internal\ffmpeg.exe"
-$pluginTemplate = "G:\AVScope\dist\AVScopeQt\engine\_internal\plugins\demo_magic.json"
-$qtPlatform = "G:\AVScope\dist\AVScopeQt\platforms\qwindows.dll"
-$thirdPartyNotices = "G:\AVScope\dist\AVScopeQt\THIRD_PARTY_NOTICES.md"
-$portableZip = "G:\AVScope\dist\AVScope-portable-win-x64.zip"
-$sourceZip = "G:\AVScope\dist\AVScope-portable-source.zip"
-$manifestPath = "G:\AVScope\dist\AVScope-release-manifest.json"
-$validationReportPath = "G:\AVScope\dist\AVScope-validation-report.md"
-$sampleReportDir = "G:\AVScope\dist\sample-reports"
+$root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$python = if ($env:AVSCOPE_PYTHON) { $env:AVSCOPE_PYTHON } else { (Get-Command python -ErrorAction Stop).Source }
+$distRoot = Join-Path $root "dist"
+$setup = Join-Path $distRoot "AVScope-Setup.exe"
+$appExe = Join-Path $distRoot "AVScopeQt\AVScope.exe"
+$engineExe = Join-Path $distRoot "AVScopeQt\engine\AVScopeEngine.exe"
+$ffprobe = Join-Path $distRoot "AVScopeQt\engine\_internal\ffprobe.exe"
+$ffmpeg = Join-Path $distRoot "AVScopeQt\engine\_internal\ffmpeg.exe"
+$pluginTemplate = Join-Path $distRoot "AVScopeQt\engine\_internal\plugins\demo_magic.json"
+$qtPlatform = Join-Path $distRoot "AVScopeQt\platforms\qwindows.dll"
+$thirdPartyNotices = Join-Path $distRoot "AVScopeQt\THIRD_PARTY_NOTICES.md"
+$portableZip = Join-Path $distRoot "AVScope-portable-win-x64.zip"
+$sourceZip = Join-Path $distRoot "AVScope-portable-source.zip"
+$manifestPath = Join-Path $distRoot "AVScope-release-manifest.json"
+$validationReportPath = Join-Path $distRoot "AVScope-validation-report.md"
+$sampleReportDir = Join-Path $distRoot "sample-reports"
 $sampleWavHtml = "$sampleReportDir\sample_wav_report.html"
 $sampleWavJson = "$sampleReportDir\sample_wav_report.json"
 $sampleWavCsv = "$sampleReportDir\sample_wav_report.csv"
@@ -41,12 +42,16 @@ $sampleRtcpTwccJson = "$sampleReportDir\sample_rtcp_twcc_report.json"
 $sampleRtcpTwccCsv = "$sampleReportDir\sample_rtcp_twcc_report.csv"
 $sampleProtocolCompare = "$sampleReportDir\sample_protocol_compare.json"
 $sampleFrameCompare = "$sampleReportDir\sample_frame_compare.json"
-$knownIssuesRoadmap = "G:\AVScope\docs\KNOWN_ISSUES_AND_ROADMAP.md"
-$installDir = "G:\AVScopeInstalled\ValidationSmoke-$([DateTime]::Now.ToString('yyyyMMddHHmmss'))"
+$knownIssuesRoadmap = Join-Path $root "docs\KNOWN_ISSUES_AND_ROADMAP.md"
+$installBase = if ($env:AVSCOPE_INSTALL_TEST_ROOT) { $env:AVSCOPE_INSTALL_TEST_ROOT } else { Join-Path ([System.IO.Path]::GetTempPath()) "AVScopeInstalled" }
+$installDir = Join-Path $installBase "ValidationSmoke-$([DateTime]::Now.ToString('yyyyMMddHHmmss'))"
+$tmpRoot = Join-Path $root "tmp"
+New-Item -ItemType Directory -Force -Path $tmpRoot | Out-Null
 
 $env:PYTHONPATH = $root
-$env:TEMP = "G:\AVScope\tmp"
-$env:TMP = "G:\AVScope\tmp"
+$env:TEMP = $tmpRoot
+$env:TMP = $tmpRoot
+Set-Location -LiteralPath $root
 
 Write-Host "== AVScope release validation =="
 Write-Host "Root: $root"
@@ -212,13 +217,13 @@ $waveformCheck = @'
 from pathlib import Path
 from avscope.analyzer import Analyzer
 from avscope.waveform import build_waveform_preview
-source = Path("G:/AVScope/samples/sample.wav")
+source = Path("samples/sample.wav")
 analysis = Analyzer().analyze(source)
 energy = analysis.media.summary.get("waveform", {}).get("energy", {})
 print(energy)
 if "peak_level" not in energy or "rms_level" not in energy:
     raise SystemExit(f"Waveform energy stats missing: {energy}")
-result = build_waveform_preview(source, analysis.media.format_name, analysis.media.summary, output_dir=Path("G:/AVScope/tmp/waveform-preview-validation"))
+result = build_waveform_preview(source, analysis.media.format_name, analysis.media.summary, output_dir=Path("tmp/waveform-preview-validation"))
 print(result)
 if not result.get("available") or not result.get("path"):
     raise SystemExit("Waveform preview was not generated")
@@ -234,17 +239,17 @@ from pathlib import Path
 from avscope.analyzer import Analyzer
 from avscope.audio_preview import build_audio_preview_clip
 analyzer = Analyzer()
-wav_source = Path("G:/AVScope/samples/sample.wav")
+wav_source = Path("samples/sample.wav")
 wav_analysis = analyzer.analyze(wav_source)
-pcm_source = Path("G:/AVScope/samples/sample.pcm")
+pcm_source = Path("samples/sample.pcm")
 pcm_analysis = analyzer.analyze(
     pcm_source,
     {"sample_rate": 8000, "channels": 1, "bits_per_sample": 16, "endian": "little", "signed": True},
 )
 outputs = [
-    build_audio_preview_clip(wav_source, wav_analysis.media.format_name, wav_analysis.media.summary, output_dir=Path("G:/AVScope/tmp/audio-preview-validation")),
-    build_audio_preview_clip(pcm_source, pcm_analysis.media.format_name, pcm_analysis.media.summary, output_dir=Path("G:/AVScope/tmp/audio-preview-validation")),
-    build_audio_preview_clip(pcm_source, pcm_analysis.media.format_name, pcm_analysis.media.summary, output_dir=Path("G:/AVScope/tmp/audio-preview-validation"), start_seconds=0.01, duration_seconds=0.01),
+    build_audio_preview_clip(wav_source, wav_analysis.media.format_name, wav_analysis.media.summary, output_dir=Path("tmp/audio-preview-validation")),
+    build_audio_preview_clip(pcm_source, pcm_analysis.media.format_name, pcm_analysis.media.summary, output_dir=Path("tmp/audio-preview-validation")),
+    build_audio_preview_clip(pcm_source, pcm_analysis.media.format_name, pcm_analysis.media.summary, output_dir=Path("tmp/audio-preview-validation"), start_seconds=0.01, duration_seconds=0.01),
 ]
 print(outputs)
 for result in outputs:
@@ -259,7 +264,7 @@ $audioClipCheck | & $python -
 Write-Host "Audio preview clip smoke OK"
 
 Write-Host "== Video preview smoke =="
-$previewSmokeDir = "G:\AVScope\tmp\preview-smoke-validation"
+$previewSmokeDir = Join-Path $tmpRoot "preview-smoke-validation"
 New-Item -ItemType Directory -Force -Path $previewSmokeDir | Out-Null
 $previewSource = "$previewSmokeDir\source.mp4"
 & $ffmpeg -hide_banner -v error -y -f lavfi -i "testsrc=size=160x90:rate=1:duration=2" -pix_fmt yuv420p -g 1 $previewSource
@@ -267,10 +272,10 @@ $env:AVSCOPE_FFMPEG = $ffmpeg
 $previewCheck = @'
 from pathlib import Path
 from avscope.ffmpeg_preview import build_video_preview, find_video_frame_time, find_video_keyframe_time
-source = Path("G:/AVScope/tmp/preview-smoke-validation/source.mp4")
+source = Path("tmp/preview-smoke-validation/source.mp4")
 outputs = [
-    build_video_preview(source, output_dir=Path("G:/AVScope/tmp/preview-smoke-validation"), position_seconds=0),
-    build_video_preview(source, output_dir=Path("G:/AVScope/tmp/preview-smoke-validation"), position_seconds=1),
+    build_video_preview(source, output_dir=Path("tmp/preview-smoke-validation"), position_seconds=0),
+    build_video_preview(source, output_dir=Path("tmp/preview-smoke-validation"), position_seconds=1),
 ]
 print(outputs)
 for result in outputs:
@@ -298,12 +303,12 @@ Write-Host "== Raw YUV preview smoke =="
 $yuvCheck = @'
 from pathlib import Path
 from avscope.yuv_preview import build_yuv_preview
-source = Path("G:/AVScope/tmp/yuv-preview-validation/two-frame.yuv")
+source = Path("tmp/yuv-preview-validation/two-frame.yuv")
 source.parent.mkdir(parents=True, exist_ok=True)
 source.write_bytes(bytes([235, 235, 235, 235, 128, 128]) + bytes([16, 16, 16, 16, 128, 128]))
 outputs = [
-    build_yuv_preview(source, 2, 2, "yuv420p", output_dir=Path("G:/AVScope/tmp/yuv-preview-validation"), frame_index=0),
-    build_yuv_preview(source, 2, 2, "yuv420p", output_dir=Path("G:/AVScope/tmp/yuv-preview-validation"), frame_index=1),
+    build_yuv_preview(source, 2, 2, "yuv420p", output_dir=Path("tmp/yuv-preview-validation"), frame_index=0),
+    build_yuv_preview(source, 2, 2, "yuv420p", output_dir=Path("tmp/yuv-preview-validation"), frame_index=1),
 ]
 print(outputs)
 for result in outputs:
@@ -323,7 +328,7 @@ Write-Host "== Frame compare smoke =="
 $frameCompareCheck = @'
 from pathlib import Path
 from avscope.compare import compare_frames
-source = Path("G:/AVScope/samples/sample.aac")
+source = Path("samples/sample.aac")
 result = compare_frames(source, source)
 print(result)
 if result.get("left_frames", 0) <= 0 or result.get("right_frames", 0) <= 0:
@@ -342,7 +347,7 @@ from avscope.app import format_timeline_issue_summary_line, timeline_anomaly_ite
 from avscope.models import FrameInfo, MediaInfo, ParseNode, ParseResult
 from avscope.report import export_csv, export_html, export_json
 from avscope.timeline_viz import build_timeline_summary
-source = Path("G:/AVScope/samples/sample.aac")
+source = Path("samples/sample.aac")
 analysis = Analyzer().analyze(source)
 summary = analysis.media.summary.get("timeline_summary", {})
 print(summary)
@@ -350,7 +355,7 @@ if not summary.get("available"):
     raise SystemExit("Timeline summary was not generated")
 if not summary.get("series") or not summary.get("gop", {}).get("available"):
     raise SystemExit(f"Timeline series/GOP summary missing: {summary}")
-out_dir = Path("G:/AVScope/tmp/timeline-summary-validation")
+out_dir = Path("tmp/timeline-summary-validation")
 out_dir.mkdir(parents=True, exist_ok=True)
 html_path = out_dir / "timeline.html"
 json_path = out_dir / "timeline.json"
@@ -361,7 +366,7 @@ frames = [
     FrameInfo(index=2, offset=1500, size=1200, pts=0.04, dts=0.08, duration=0.04, keyframe=True),
 ]
 synthetic = ParseResult(
-    MediaInfo("G:/AVScope/tmp/timeline-summary-validation/synthetic.aac", 2700, "Synthetic Timeline"),
+    MediaInfo("tmp/timeline-summary-validation/synthetic.aac", 2700, "Synthetic Timeline"),
     ParseNode("synthetic.aac", "Synthetic", 0, 2700),
     frames=frames,
 )
@@ -401,7 +406,7 @@ if "timeline_summary" not in csv_text:
     raise SystemExit("CSV timeline summary missing")
 if "timeline_issue" not in csv_text or "PTS non-monotonic" not in csv_text:
     raise SystemExit("CSV timeline issue rows missing")
-pcap = Analyzer().analyze(Path("G:/AVScope/samples/sample.pcap"))
+pcap = Analyzer().analyze(Path("samples/sample.pcap"))
 rtp = pcap.media.summary.get("timeline_summary", {}).get("rtp_sequence", {})
 if not rtp.get("available") or rtp.get("packets") != 2 or rtp.get("sequence_warnings") != 0:
     raise SystemExit(f"RTP sequence summary missing: {rtp}")
@@ -429,7 +434,7 @@ if (transport.get("session_count"), transport.get("rtcp_linked_sessions")) != (1
     raise SystemExit(f"RTP/RTCP transport session link missing: {transport}")
 if "RTP / RTCP \u4f20\u8f93\u4f1a\u8bdd" not in pcap_html_text or "transport_session" not in pcap_csv_text:
     raise SystemExit("RTP/RTCP transport session report missing")
-anomaly = Analyzer().analyze(Path("G:/AVScope/samples/sample_rtp_anomalies.pcap"))
+anomaly = Analyzer().analyze(Path("samples/sample_rtp_anomalies.pcap"))
 anomaly_transport = anomaly.media.summary.get("transport_sessions", {})
 if (anomaly_transport.get("session_count"), anomaly_transport.get("warning_sessions")) != (2, 1):
     raise SystemExit(f"RTP anomaly session split mismatch: {anomaly_transport}")
@@ -441,7 +446,7 @@ export_html(anomaly, anomaly_html)
 export_csv(anomaly, anomaly_csv)
 if "transport_session" not in anomaly_csv.read_text(encoding="utf-8-sig"):
     raise SystemExit("CSV RTP anomaly session rows missing")
-ts = Analyzer().analyze(Path("G:/AVScope/samples/sample.ts"))
+ts = Analyzer().analyze(Path("samples/sample.ts"))
 pcr = ts.media.summary.get("timeline_summary", {}).get("pcr", {})
 if not pcr.get("available") or pcr.get("points") != 2:
     raise SystemExit(f"PCR summary missing: {pcr}")
@@ -464,7 +469,7 @@ Write-Host "== Plugin template create smoke =="
 $pluginCreateCheck = @'
 from pathlib import Path
 from avscope.plugins import load_plugin_parsers, write_plugin_template
-plugin_dir = Path("G:/AVScope/tmp/plugin-create-validation")
+plugin_dir = Path("tmp/plugin-create-validation")
 plugin_dir.mkdir(parents=True, exist_ok=True)
 for target in plugin_dir.glob("*.json"):
     target.unlink()
@@ -478,7 +483,7 @@ $pluginCreateCheck | & $python -
 Write-Host "Plugin template create smoke OK"
 
 Write-Host "== Media extraction smoke =="
-$extractSmokeDir = "G:\AVScope\tmp\extract-smoke-validation"
+$extractSmokeDir = Join-Path $tmpRoot "extract-smoke-validation"
 New-Item -ItemType Directory -Force -Path $extractSmokeDir | Out-Null
 $extractSource = "$extractSmokeDir\source.mp4"
 & $ffmpeg -hide_banner -v error -y -f lavfi -i "testsrc=size=160x90:rate=1" -f lavfi -i "sine=frequency=1000:duration=1" -shortest -pix_fmt yuv420p $extractSource
@@ -486,11 +491,11 @@ $env:AVSCOPE_FFMPEG = $ffmpeg
 $extractCheck = @'
 from pathlib import Path
 from avscope.extract import extract_media_stream
-source = Path("G:/AVScope/tmp/extract-smoke-validation/source.mp4")
+source = Path("tmp/extract-smoke-validation/source.mp4")
 outputs = [
-    extract_media_stream(source, Path("G:/AVScope/tmp/extract-smoke-validation/audio.aac"), "audio"),
-    extract_media_stream(source, Path("G:/AVScope/tmp/extract-smoke-validation/video.h264"), "video"),
-    extract_media_stream(source, Path("G:/AVScope/tmp/extract-smoke-validation/keyframe.png"), "keyframe"),
+    extract_media_stream(source, Path("tmp/extract-smoke-validation/audio.aac"), "audio"),
+    extract_media_stream(source, Path("tmp/extract-smoke-validation/video.h264"), "video"),
+    extract_media_stream(source, Path("tmp/extract-smoke-validation/keyframe.png"), "keyframe"),
 ]
 print(outputs)
 for item in outputs:
@@ -502,14 +507,9 @@ Remove-Item Env:\AVSCOPE_FFMPEG -ErrorAction SilentlyContinue
 Write-Host "Media extraction smoke OK"
 
 Write-Host "== Hardcoded system path scan =="
-$scanTargets = @("$root\avscope", "$root\plugins", "$root\scripts")
-$scanFiles = Get-ChildItem -Path $scanTargets -Recurse -File |
-    Where-Object {
-        $_.FullName -ne "$root\scripts\validate_release.ps1" -and
-        # build_qt.ps1 only probes C:\Qt as a read-only tool discovery location.
-        $_.FullName -ne "$root\scripts\build_qt.ps1"
-    }
-$matches = Select-String -Path $scanFiles.FullName -Pattern "C:\\" -ErrorAction SilentlyContinue
+$scanTargets = @("$root\avscope", "$root\packaging", "$root\plugins", "$root\scripts")
+$scanFiles = Get-ChildItem -Path $scanTargets -Recurse -File
+$matches = Select-String -Path $scanFiles.FullName -Pattern "[A-Za-z]:\\" -ErrorAction SilentlyContinue
 if ($matches) {
     $matches | ForEach-Object { Write-Host $_.Path ":" $_.LineNumber ":" $_.Line }
     throw "Hardcoded system path scan found forbidden target references"

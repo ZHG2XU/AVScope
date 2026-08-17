@@ -9,7 +9,7 @@
 - Raw YUV 当前支持 `yuv420p`、`nv12`、`nv21`、`yuyv422` 逐帧预览，暂不支持所有像素格式。
 - PCAP/RTP/RTCP 当前支持按端点与 SSRC 聚合会话、sequence 回绕、估算丢包/重复/乱序、marker 和 payload 码率，支持 RTCP Compound、SR/RR、SDES/BYE、Generic NACK、PLI/FIR、TWCC/REMB、H.264/H.265 Single/Aggregation/FU 视频负载，以及 SIP/SDP 动态 PT 与 Clock Rate 关联；暂未扩展到 RTCP XR、RTSP/GB28181 专用信令和 TCP SIP 重组。
 - 插件系统当前提供声明式魔数识别和字段模板示例，暂不执行第三方代码插件。
-- 安装包默认安装到 `C:\Program Files\AVScope`，需要管理员授权，并支持选择桌面和开始菜单快捷方式。
+- 安装包默认安装到 `%ProgramFiles%\AVScope`，需要管理员授权，并支持选择桌面和开始菜单快捷方式。
 - 大文件验证覆盖 128MB+ 随机访问和窗口读取；10GB 级文件仍建议在真实验收环境追加手工压力测试。
 
 ## 后续版本规划
@@ -24,9 +24,9 @@
 
 ## 验收参考
 
-- 一键验证：`PowerShell -ExecutionPolicy Bypass -File G:\AVScope\scripts\validate_release.ps1`
-- 手工清单：`G:\AVScope\docs\ACCEPTANCE.md`
-- 发布验证报告：`G:\AVScope\dist\AVScope-validation-report.md`
+- 一键验证：`PowerShell -ExecutionPolicy Bypass -File .\scripts\validate_release.ps1`
+- 手工清单：`.\docs\ACCEPTANCE.md`
+- 发布验证报告：`.\dist\AVScope-validation-report.md`
 
 ## 本轮更新状态
 

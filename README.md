@@ -25,7 +25,7 @@ AVScope 用于快速查看媒体文件、裸码流和网络抓包的协议结构
 | Windows 绿色版 | 解压即用，不写入安装目录和注册表 | [下载 AVScope-portable-win-x64.zip](https://github.com/ZHG2XU/AVScope/releases/latest/download/AVScope-portable-win-x64.zip) |
 | 源码包 | 开发、审阅或自行构建 | [查看全部发布文件](https://github.com/ZHG2XU/AVScope/releases/latest) |
 
-系统要求：Windows 10/11 64 位。安装版默认安装到 `C:\Program Files\AVScope`，需要管理员授权。当前安装包尚未进行商业代码签名；运行前可使用 Release 附带的 `AVScope-release-manifest.json` 核对 SHA256。
+系统要求：Windows 10/11 64 位。安装版默认安装到 `%ProgramFiles%\AVScope`，需要管理员授权。当前安装包尚未进行商业代码签名；运行前可使用 Release 附带的 `AVScope-release-manifest.json` 核对 SHA256。
 
 ## 快速使用
 
@@ -49,7 +49,7 @@ AVScope 用于快速查看媒体文件、裸码流和网络抓包的协议结构
 
 | 类别 | 格式 |
 | --- | --- |
-| 容器与音频 | MP4/MOV、AVI、FLV、Matroska/WebM、WAV、AAC ADTS |
+| 容器与音频 | MP4/MOV、AVI 1.0、AVI 2.0/OpenDML、FLV、Matroska/WebM、WAV、AAC ADTS |
 | 广播与系统流 | MPEG-PS、MPEG-TS |
 | 视频裸流 | H.264 Annex-B、H.265 Annex-B |
 | 原始媒体 | Raw PCM、Raw YUV（`yuv420p`、`nv12`、`nv21`、`yuyv422`） |
@@ -75,7 +75,7 @@ python -m avscope compare-protocol samples\sample.mp4 samples\sample_changed.mp4
 ## 开发与验证
 
 ```powershell
-Set-Location G:\AVScope
+Set-Location <仓库目录>
 $env:PYTHONPATH = (Get-Location).Path
 
 # Python 测试

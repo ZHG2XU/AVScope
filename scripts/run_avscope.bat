@@ -1,5 +1,6 @@
 @echo off
-set "PYTHONPATH=G:\AVScope"
-set "TEMP=G:\AVScope\tmp"
-set "TMP=G:\AVScope\tmp"
-call G:\AVScope\scripts\run_avscope_qt.bat %*
+for %%I in ("%~dp0..") do set "AVSCOPE_ROOT=%%~fI"
+set "PYTHONPATH=%AVSCOPE_ROOT%"
+set "TEMP=%AVSCOPE_ROOT%\tmp"
+set "TMP=%AVSCOPE_ROOT%\tmp"
+call "%~dp0run_avscope_qt.bat" %*

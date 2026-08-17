@@ -2,7 +2,7 @@
   "generated_at": "2026-08-12T03:19:44",
   "tool_version": "0.1.0",
   "media": {
-    "path": "G:\\AVScope\\samples\\sample.aac",
+    "path": "<repo>\\samples\\sample.aac",
     "size": 144,
     "format_name": "AAC ADTS",
     "summary": {

@@ -1,8 +1,8 @@
 $ErrorActionPreference = "Stop"
-$root = "G:\AVScope"
-$dist = "G:\AVScope\dist"
-$sourceZip = "G:\AVScope\dist\AVScope-portable-source.zip"
-$appZip = "G:\AVScope\dist\AVScope-portable-win-x64.zip"
+$root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$dist = Join-Path $root "dist"
+$sourceZip = Join-Path $dist "AVScope-portable-source.zip"
+$appZip = Join-Path $dist "AVScope-portable-win-x64.zip"
 
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
 if (Test-Path $sourceZip) {
@@ -13,26 +13,26 @@ if (Test-Path $appZip) {
 }
 
 $items = @(
-    "G:\AVScope\avscope",
-    "G:\AVScope\qt",
-    "G:\AVScope\packaging",
-    "G:\AVScope\plugins",
-    "G:\AVScope\samples",
-    "G:\AVScope\scripts",
-    "G:\AVScope\tests",
-    "G:\AVScope\data",
-    "G:\AVScope\docs",
-    "G:\AVScope\INSTALLATIONS.md",
-    "G:\AVScope\README.md",
-    "G:\AVScope\CHANGELOG.md",
-    "G:\AVScope\THIRD_PARTY_NOTICES.md",
-    "G:\AVScope\avscope_engine.py",
-    "G:\AVScope\run_avscope.py"
+    (Join-Path $root "avscope"),
+    (Join-Path $root "qt"),
+    (Join-Path $root "packaging"),
+    (Join-Path $root "plugins"),
+    (Join-Path $root "samples"),
+    (Join-Path $root "scripts"),
+    (Join-Path $root "tests"),
+    (Join-Path $root "data"),
+    (Join-Path $root "docs"),
+    (Join-Path $root "INSTALLATIONS.md"),
+    (Join-Path $root "README.md"),
+    (Join-Path $root "CHANGELOG.md"),
+    (Join-Path $root "THIRD_PARTY_NOTICES.md"),
+    (Join-Path $root "avscope_engine.py"),
+    (Join-Path $root "run_avscope.py")
 )
 
 Compress-Archive -Path $items -DestinationPath $sourceZip -CompressionLevel Optimal
-Compress-Archive -Path "G:\AVScope\dist\AVScopeQt" -DestinationPath $appZip -CompressionLevel Optimal
-PowerShell -ExecutionPolicy Bypass -File "G:\AVScope\scripts\make_sample_reports.ps1"
-PowerShell -ExecutionPolicy Bypass -File "G:\AVScope\scripts\make_release_manifest.ps1"
+Compress-Archive -Path (Join-Path $dist "AVScopeQt") -DestinationPath $appZip -CompressionLevel Optimal
+PowerShell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "make_sample_reports.ps1")
+PowerShell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "make_release_manifest.ps1")
 Write-Host $sourceZip
 Write-Host $appZip

@@ -1,7 +1,8 @@
 $ErrorActionPreference = "Stop"
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$source = "$root\build\qt6\bin\AVScope.exe"
+$build = if ($env:AVSCOPE_QT_BUILD_DIR) { $env:AVSCOPE_QT_BUILD_DIR } else { Join-Path $root "build\qt6" }
+$source = Join-Path $build "bin\AVScope.exe"
 $output = "$root\dist\AVScopeQt"
 $deploy = if ($env:AVSCOPE_WINDEPLOYQT) { $env:AVSCOPE_WINDEPLOYQT } else { "" }
 if (-not $deploy -and $env:AVSCOPE_QT_ROOT) { $deploy = Join-Path $env:AVSCOPE_QT_ROOT "bin\windeployqt.exe" }

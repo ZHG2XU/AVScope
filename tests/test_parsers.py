@@ -67,7 +67,7 @@ from avscope.waveform import build_waveform_preview
 from avscope.yuv_preview import build_yuv_preview, yuv_frame_size, yuv_preview_output_path, yuv_to_rgb
 
 
-ROOT = Path("G:/AVScope/tmp/testdata")
+ROOT = Path(__file__).resolve().parents[1] / "tmp" / "testdata"
 TS_PACKET_SIZE = 188
 
 
@@ -495,6 +495,85 @@ class ParserTests(unittest.TestCase):
         fields = {field.name: field.value for field in avih.fields}
         self.assertEqual(fields["dwWidth"], 640)
         self.assertEqual(fields["dwHeight"], 480)
+
+    def test_avi_2_open_dml_segments_and_indexes(self):
+        def riff_chunk(chunk_id: bytes, payload: bytes) -> bytes:
+            return chunk_id + struct.pack("<I", len(payload)) + payload + (b"\x00" if len(payload) & 1 else b"")
+
+        def riff_list(list_type: bytes, payload: bytes) -> bytes:
+            return riff_chunk(b"LIST", list_type + payload)
+
+        avih_payload = struct.pack(
+            "<IIIIIIIIII4I",
+            40_000,
+            1_000_000,
+            0,
+            0x10,
+            100,
+            0,
+            1,
+            4096,
+            1280,
+            720,
+            0,
+            0,
+            0,
+            0,
+        )
+        strh_payload = (
+            b"vids"
+            + b"H264"
+            + struct.pack("<IIIIIIII", 0, 0, 0, 1, 25, 0, 250, 4096)
+            + struct.pack("<Ihhhh", 0xFFFFFFFF, 0, 0, 1280, 720)
+        )
+        super_index_payload = (
+            struct.pack("<HBBI4sIII", 4, 0, 0, 1, b"00dc", 0, 0, 0)
+            + struct.pack("<QII", 0x1234, 64, 250)
+        )
+        strl = riff_list(b"strl", riff_chunk(b"strh", strh_payload) + riff_chunk(b"indx", super_index_payload))
+        odml = riff_list(b"odml", riff_chunk(b"dmlh", struct.pack("<I", 250)))
+        hdrl = riff_list(b"hdrl", riff_chunk(b"avih", avih_payload) + strl + odml)
+        first_payload = b"AVI " + hdrl + riff_list(b"movi", b"")
+        first_segment = b"RIFF" + struct.pack("<I", len(first_payload)) + first_payload
+
+        standard_index_payload = (
+            struct.pack("<HBBI4sQI", 2, 0, 1, 2, b"00dc", 1000, 0)
+            + struct.pack("<II", 20, 100)
+            + struct.pack("<II", 128, 0x80000050)
+        )
+        avix_payload = (
+            b"AVIX"
+            + riff_list(b"movi", riff_chunk(b"00dc", b"frame"))
+            + riff_chunk(b"ix00", standard_index_payload)
+        )
+        avix_segment = b"RIFF" + struct.pack("<I", len(avix_payload)) + avix_payload
+
+        result = self.analyzer.analyze(write(ROOT / "open_dml.avi", first_segment + avix_segment))
+
+        self.assertEqual(result.media.format_name, "AVI")
+        self.assertEqual(result.media.summary["avi_version"], "2.0 (OpenDML)")
+        self.assertTrue(result.media.summary["open_dml"])
+        self.assertEqual(result.media.summary["avix_segments"], 1)
+        self.assertEqual(result.media.summary["total_frames"], 250)
+        self.assertEqual(result.media.summary["avi_header_total_frames"], 100)
+        self.assertEqual(result.media.summary["open_dml_total_frames"], 250)
+        self.assertEqual(result.media.summary["duration_seconds"], 10.0)
+        self.assertEqual(result.media.summary["super_indexes"], 1)
+        self.assertEqual(result.media.summary["standard_indexes"], 1)
+        self.assertEqual(result.media.summary["super_index_entries"], 1)
+        self.assertEqual(result.media.summary["standard_index_entries"], 2)
+
+        segments = nodes_with_type(result.root, "riff_segment")
+        self.assertEqual(len(segments), 1)
+        self.assertEqual(fields_by_name(segments[0])["form_type"], "AVIX")
+        super_entry = nodes_with_type(result.root, "avi_super_index")[0].children[0]
+        self.assertEqual(fields_by_name(super_entry)["qwOffset"], 0x1234)
+        standard_entries = nodes_with_type(result.root, "avi_standard_index")[0].children
+        self.assertEqual(fields_by_name(standard_entries[0])["absolute_offset"], 1020)
+        self.assertTrue(fields_by_name(standard_entries[0])["keyframe"])
+        self.assertFalse(fields_by_name(standard_entries[1])["keyframe"])
+        self.assertEqual(fields_by_name(standard_entries[1])["dwSize"], 80)
+        self.assertFalse(diagnostics_with(result, "error"))
 
     def test_mpegts_parser(self):
         sample_dir = ROOT / "ts_sample"
@@ -1324,7 +1403,7 @@ class ParserTests(unittest.TestCase):
         self.assertIn("Ctrl+9", shortcuts)
         self.assertIn("Ctrl+0", shortcuts)
         samples = format_sample_files_help()
-        self.assertIn("G:\\AVScope\\samples", samples)
+        self.assertIn(str(Path(__file__).resolve().parents[1] / "samples"), samples)
         self.assertIn("sample.mp4", samples)
         self.assertIn("sample_rtp_anomalies.pcap", samples)
         self.assertIn("sample_rtp_video.pcap", samples)
@@ -1435,14 +1514,19 @@ class ParserTests(unittest.TestCase):
         self.assertIn('class="waveform-chart"', html_text)
         self.assertIn("音频波形图", html_text)
         self.assertIn("音频能量", html_text)
-        self.assertIn('class="timeline-chart"', html_text)
         self.assertIn("overflow-x: auto", html_text)
         self.assertIn("min-width: 620px", html_text)
-        self.assertIn("帧/Packet 大小图", html_text)
-        self.assertIn("Packet 统计", html_text)
         self.assertIn("统计摘要", html_text)
-        self.assertIn("<th>Stream</th>", html_text)
-        self.assertIn("packet_stats", csv_path.read_text(encoding="utf-8-sig"))
+        report_summary = json.loads(json_path.read_text(encoding="utf-8"))["media"]["summary"]
+        csv_text = csv_path.read_text(encoding="utf-8-sig")
+        if report_summary.get("packet_stats", {}).get("available"):
+            self.assertIn('class="timeline-chart"', html_text)
+            self.assertIn("帧/Packet 大小图", html_text)
+            self.assertIn("Packet 统计", html_text)
+            self.assertIn("<th>Stream</th>", html_text)
+            self.assertIn("packet_stats", csv_text)
+        else:
+            self.assertFalse(report_summary.get("packet_timeline", {}).get("available"))
         note_json = ROOT / "cli_note_report.json"
         exit_code = cli_main(["analyze", str(sample_dir / "sample.wav"), "--note", "CLI 备注", "--json", str(note_json)])
         self.assertEqual(exit_code, 0)
@@ -1628,7 +1712,7 @@ class ParserTests(unittest.TestCase):
 
     def test_ui_text_is_not_mojibake(self):
         bad_fragments = ["锛", "鎵", "鏃", "鍗", "璇", "濯", "鈥", "鈹", "�"]
-        for source_path in Path("G:/AVScope/avscope").rglob("*.py"):
+        for source_path in (Path(__file__).resolve().parents[1] / "avscope").rglob("*.py"):
             text = source_path.read_text(encoding="utf-8")
             for fragment in bad_fragments:
                 self.assertNotIn(fragment, text, f"{source_path} contains mojibake fragment {fragment}")

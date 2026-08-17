@@ -20,6 +20,7 @@ from avscope.hexview import format_hex, parse_offset
 from avscope.models import CompareResult, FieldInfo, FrameInfo, ParseNode, ParseResult, Severity
 from avscope.plugins import DEFAULT_PLUGIN_DIR, write_plugin_template
 from avscope.report import export_csv, export_html, export_json, export_project
+from avscope.runtime import app_root
 from avscope.search import SearchPatternError, find_pattern, parse_search_pattern
 from avscope.settings import AppSettings
 from avscope.timeline_viz import timeline_chart_items
@@ -135,11 +136,12 @@ def format_shortcuts_help() -> str:
 
 
 def format_sample_files_help() -> str:
+    root = app_root()
     return "\n".join(
         [
             "示例文件位置",
             "",
-            "G:\\AVScope\\samples",
+            str(root / "samples"),
             "",
             "建议验收顺序：",
             "1. sample.wav：检查 WAV 字段、音频波形和报告导出。",
@@ -155,12 +157,13 @@ def format_sample_files_help() -> str:
               "11. sample_rtp_timing.pcap：检查 RTP RFC 3550 Jitter、到达间隔、时间偏差和突发延迟。",
               "12. sample_rtcp_twcc.pcap：检查 WebRTC TWCC 包状态、接收 Delta、丢包和拥塞反馈。",
             "",
-            "完整验收清单：G:\\AVScope\\docs\\ACCEPTANCE.md",
+            f"完整验收清单：{root / 'docs' / 'ACCEPTANCE.md'}",
         ]
     )
 
 
 def format_empty_state_text() -> str:
+    root = app_root()
     return "\n".join(
         [
             "工作区待命",
@@ -171,7 +174,7 @@ def format_empty_state_text() -> str:
             "MP4/MOV、AVI、FLV、Matroska/WebM、MPEG-PS、MPEG-TS、PCAP/RTP/RTCP、WAV、AAC ADTS、H.264/H.265 Annex-B、PCM、YUV。",
             "",
             "常用验收入口",
-            "打开示例文件: G:\\AVScope\\samples",
+            f"打开示例文件: {root / 'samples'}",
             "导出报告: 文件 / 导出 HTML、JSON、CSV",
             "媒体提取: 分析 / 提取音频、提取视频、提取首个关键帧",
         ]
@@ -182,8 +185,8 @@ def format_plugin_template_summary(parsers: list[object]) -> str:
     lines = [
         "插件模板状态",
         "",
-        "模板目录：G:\\AVScope\\plugins",
-        "交付目录：G:\\AVScope\\dist\\AVScope\\_internal\\plugins",
+        f"用户模板目录：{DEFAULT_PLUGIN_DIR}",
+        f"内置模板目录：{app_root() / 'plugins'}",
         "",
     ]
     if not parsers:
@@ -221,17 +224,19 @@ def format_elapsed_seconds(seconds: float | None) -> str:
     return f"{seconds:.3f} s"
 
 
-ABOUT_TEXT = "\n".join(
-    [
-        "AVScope",
-        "",
-        "面向音视频工程排障的桌面分析工具。",
-        "支持协议树、Hex/字段联动、帧时间线、预览、双文件对比、自动诊断和报告导出。",
-        "",
-        "项目目录：G:\\AVScope",
-        "交付产物：G:\\AVScope\\dist",
-    ]
-)
+def format_about_text() -> str:
+    root = app_root()
+    return "\n".join(
+        [
+            "AVScope",
+            "",
+            "面向音视频工程排障的桌面分析工具。",
+            "支持协议树、Hex/字段联动、帧时间线、预览、双文件对比、自动诊断和报告导出。",
+            "",
+            f"程序目录：{root}",
+            f"交付产物：{root / 'dist'}",
+        ]
+    )
 
 
 class AVScopeApp(tk.Tk):
@@ -601,7 +606,7 @@ class AVScopeApp(tk.Tk):
         self.analyzer = Analyzer()
         self._refresh_recent_menu()
         self.status.set(f"已新建协议模板: {path}")
-        messagebox.showinfo("协议模板已创建", f"已写入：\n{path}\n\n可在 G:\\AVScope\\plugins 中编辑字段定义。")
+        messagebox.showinfo("协议模板已创建", f"已写入：\n{path}\n\n可直接在上述目录中编辑字段定义。")
 
     def show_shortcuts_help(self) -> None:
         messagebox.showinfo("快捷键", format_shortcuts_help())
@@ -610,7 +615,7 @@ class AVScopeApp(tk.Tk):
         messagebox.showinfo("示例文件", format_sample_files_help())
 
     def show_about(self) -> None:
-        messagebox.showinfo("关于 AVScope", ABOUT_TEXT)
+        messagebox.showinfo("关于 AVScope", format_about_text())
 
     def select_workspace_tab(self, widget: tk.Widget, label: str) -> None:
         self.tabs.select(widget)

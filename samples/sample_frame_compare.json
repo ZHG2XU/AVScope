@@ -1,6 +1,6 @@
 {
-  "left_path": "G:\\AVScope\\samples\\sample.aac",
-  "right_path": "G:\\AVScope\\samples\\sample.aac",
+  "left_path": "<repo>\\samples\\sample.aac",
+  "right_path": "<repo>\\samples\\sample.aac",
   "left_format": "AAC ADTS",
   "right_format": "AAC ADTS",
   "left_frames": 12,

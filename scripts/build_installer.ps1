@@ -2,11 +2,8 @@ $ErrorActionPreference = "Stop"
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $script = Join-Path $root "packaging\AVScope.nsi"
-$defaultNsis = "E:\AVScopeTools\nsis_extract\nsis-3.12\makensis.exe"
 $makensis = if ($env:AVSCOPE_MAKENSIS) {
     $env:AVSCOPE_MAKENSIS
-} elseif (Test-Path -LiteralPath $defaultNsis) {
-    $defaultNsis
 } else {
     (Get-Command makensis.exe -ErrorAction SilentlyContinue).Source
 }

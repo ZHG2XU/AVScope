@@ -2,21 +2,21 @@
 
 Date: 2026-08-11
 
-This file records tools installed after the project started. Project source and deliverables remain under `G:\AVScope`; tool dependencies installed for packaging are under `E:\AVScopeTools`.
+This file records tools installed after the project started. Project source and deliverables remain under `.`; tool dependencies installed for packaging are under `%AVSCOPE_TOOLS%`.
 
 ## Installed Tool Root
 
-- `E:\AVScopeTools`
+- `%AVSCOPE_TOOLS%`
 
 ## Installed Python Packages
 
 Installed with:
 
 ```powershell
-E:\DevelopmentEnvironment\python\python.exe -m pip install --target E:\AVScopeTools\python-packages --cache-dir E:\AVScopeTools\pip-cache --disable-pip-version-check pyinstaller
+python -m pip install --target "$env:AVSCOPE_TOOLS\python-packages" --cache-dir "$env:AVSCOPE_TOOLS\pip-cache" --disable-pip-version-check pyinstaller
 ```
 
-Packages installed under `E:\AVScopeTools\python-packages`:
+Packages installed under `%AVSCOPE_TOOLS%\python-packages`:
 
 - `pyinstaller==6.22.0`
 - `pyinstaller-hooks-contrib==2026.6`
@@ -28,32 +28,32 @@ Packages installed under `E:\AVScopeTools\python-packages`:
 
 ## New Tool Directories
 
-- `E:\AVScopeTools\python-packages`
-- `E:\AVScopeTools\pip-cache`
-- `E:\AVScopeTools\tmp`
-- `E:\AVScopeTools\pyinstaller-config`
-- `E:\AVScopeTools\downloads`
-- `E:\AVScopeTools\nsis_extract\nsis-3.12`
+- `%AVSCOPE_TOOLS%\python-packages`
+- `%AVSCOPE_TOOLS%\pip-cache`
+- `%AVSCOPE_TOOLS%\tmp`
+- `%AVSCOPE_TOOLS%\pyinstaller-config`
+- `%AVSCOPE_TOOLS%\downloads`
+- `%AVSCOPE_TOOLS%\nsis_extract\nsis-3.12`
 
 ## Downloaded / Extracted Installer Tool
 
-- `E:\AVScopeTools\downloads\nsis-3.12.real.zip`
-- `E:\AVScopeTools\nsis_extract\nsis-3.12\makensis.exe`
+- `%AVSCOPE_TOOLS%\downloads\nsis-3.12.real.zip`
+- `%AVSCOPE_TOOLS%\nsis_extract\nsis-3.12\makensis.exe`
 - NSIS version: `3.12`
 
 ## Purpose
 
-PyInstaller is used to produce a Windows executable build of AVScope without installing files on `C:\`.
+PyInstaller is used to produce a Windows executable build of AVScope without installing files on `%SYSTEMDRIVE%\`.
 
-NSIS is used from its portable zip distribution to produce `G:\AVScope\dist\AVScope-Setup.exe`.
+NSIS is used from its portable zip distribution to produce `.\dist\AVScope-Setup.exe`.
 
 ## Existing Qt Environment Reused
 
 No new Qt files were installed by this refactor. The following pre-existing E-drive toolchain is used:
 
-- `E:\QT\6.9.0\mingw_64` - Qt 6.9.0 libraries and deployment tools
-- `E:\QT\Tools\mingw1310_64` - MinGW 13.1 C++ compiler
-- `E:\QT\Tools\CMake_64` - CMake
-- `E:\QT\Tools\Ninja` - Ninja build tool
+- `%AVSCOPE_QT_ROOT%` - Qt 6.9.0 libraries and deployment tools
+- `%AVSCOPE_MINGW%` - MinGW 13.1 C++ compiler
+- `%AVSCOPE_CMAKE_HOME%` - CMake
+- `%AVSCOPE_NINJA_HOME%` - Ninja build tool
 
-The Qt source, build cache, runtime output, screenshots, and temporary analysis JSON remain under `G:\AVScope`.
+The Qt source, build cache, runtime output, screenshots, and temporary analysis JSON remain under `.`.
