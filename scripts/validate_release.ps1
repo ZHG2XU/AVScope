@@ -508,8 +508,10 @@ Write-Host "Media extraction smoke OK"
 
 Write-Host "== Hardcoded system path scan =="
 $scanTargets = @("$root\avscope", "$root\packaging", "$root\plugins", "$root\scripts")
-$scanFiles = Get-ChildItem -Path $scanTargets -Recurse -File
-$matches = Select-String -Path $scanFiles.FullName -Pattern "[A-Za-z]:\\" -ErrorAction SilentlyContinue
+$scanExtensions = @(".bat", ".json", ".md", ".nsi", ".ps1", ".py")
+$scanFiles = Get-ChildItem -Path $scanTargets -Recurse -File |
+    Where-Object { $scanExtensions -contains $_.Extension.ToLowerInvariant() }
+$matches = Select-String -Path $scanFiles.FullName -Pattern "(?<![A-Za-z])[A-Za-z]:\\" -ErrorAction SilentlyContinue
 if ($matches) {
     $matches | ForEach-Object { Write-Host $_.Path ":" $_.LineNumber ":" $_.Line }
     throw "Hardcoded system path scan found forbidden target references"

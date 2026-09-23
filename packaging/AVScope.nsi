@@ -19,7 +19,7 @@ CRCCheck on
 !include "x64.nsh"
 
 !define APP_NAME "AVScope"
-!define APP_VERSION "0.2.0"
+!define APP_VERSION "0.2.1"
 !define APP_PUBLISHER "AVScope"
 !define APP_EXE "AVScope.exe"
 !define APP_REG_KEY "Software\AVScope"
